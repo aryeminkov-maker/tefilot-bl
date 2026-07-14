@@ -65,6 +65,30 @@
   .modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
   footer.note{max-width:760px;margin:26px auto 0;padding:0 16px;font-size:12px;color:var(--ink-soft);line-height:1.6}
   @media(max-width:480px){header.top h1{font-size:22px}}
+  @media(max-width:600px){
+    header.top{padding:16px 0 20px}
+    header.top h1{font-size:20px}
+    header.top p{font-size:12px}
+    .idbar{flex-direction:column;align-items:stretch}
+    .idbar span{align-self:flex-start}
+    #nameField{flex-direction:column;align-items:stretch;gap:6px;width:100%}
+    #nameField input{width:100% !important}
+    .idbar .btn,#userInfo{width:100%;justify-content:center}
+    #userInfo{justify-content:space-between}
+    .tabs{gap:6px}
+    .tab-btn{padding:10px 6px;font-size:13px}
+    .sub-toggle{flex-wrap:wrap}
+    .filters{flex-direction:column}
+    .filters select,.filters input{width:100%}
+    .row{flex-wrap:wrap}
+    .row>div:last-child:not(:only-child){width:100%;display:flex;gap:8px;margin-top:8px}
+    .row>div:last-child:not(:only-child) .btn{flex:1}
+    .minyan-line{flex-direction:column;align-items:flex-start;gap:6px}
+    .minyan-line>span:last-child{width:100%;display:flex;justify-content:space-between;align-items:center}
+    .modal{max-width:100%;margin:0 8px}
+    .btn{padding:9px 13px;min-height:38px}
+    .daychip{padding:8px 11px}
+  }
 </style>
 
 <div class="demo-banner">צפייה פתוחה לכולם · התחברות עם Google נדרשת רק לגבאים ולמנהל היישוב (כדי למחוק פריטים)</div>
@@ -77,7 +101,7 @@
         <span>השם שלך (לא חובה, לצורך תיעוד עדכונים):</span>
         <input id="userName" placeholder="לדוגמה: יוסי כהן" style="width:140px">
       </span>
-      <button class="btn primary" id="signInBtn">התחברות עם Google (לגבאים/מנהל יישוב)</button>
+      <button class="btn primary" id="signInBtn">התחברות עם Google</button>
       <span id="userInfo" style="display:none;align-items:center;gap:8px">
         <img id="userPhoto" style="width:26px;height:26px;border-radius:50%">
         <span id="userNameLabel"></span>
@@ -93,6 +117,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="tefilot">תפילות</button>
     <button class="tab-btn" data-tab="shiurim">שיעורי תורה</button>
+    <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none">ניהול משתמשים</button>
   </div>
 
   <div id="tefilot-tab">
@@ -128,6 +153,11 @@
     </div>
     <div id="shiurimList"></div>
   </div>
+
+  <div id="admin-tab" style="display:none">
+    <p class="muted" style="margin-bottom:12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל יישוב ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
+    <div id="usersList"></div>
+  </div>
   </div>
 </div>
 
@@ -141,7 +171,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
 <script>
-let data = { shuls: [], minyanim: [], shiurim: [] };
+let data = { shuls: [], minyanim: [], shiurim: [], users: [] };
 let currentView = 'byshul';
 let currentTab = 'tefilot';
 
@@ -244,6 +274,15 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('signInBtn').style.display = '';
     document.getElementById('userInfo').style.display = 'none';
     document.getElementById('nameField').style.display = 'flex';
+    document.getElementById('adminTabBtn').style.display = 'none';
+    if (unsubUsers){ unsubUsers(); unsubUsers = null; }
+    if (currentTab === 'admin'){
+      currentTab = 'tefilot';
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
+      document.getElementById('tefilot-tab').style.display = '';
+      document.getElementById('shiurim-tab').style.display = 'none';
+      document.getElementById('admin-tab').style.display = 'none';
+    }
     render();
     return;
   }
@@ -264,9 +303,48 @@ auth.onAuthStateChanged(async user=>{
     currentRole = d ? d.role : 'resident';
     const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
     document.getElementById('userRoleBadge').textContent = labels[currentRole] || currentRole;
+    document.getElementById('adminTabBtn').style.display = isManager() ? '' : 'none';
+    if (!isManager() && currentTab === 'admin'){
+      currentTab = 'tefilot';
+      document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
+      document.getElementById('tefilot-tab').style.display = '';
+      document.getElementById('shiurim-tab').style.display = 'none';
+      document.getElementById('admin-tab').style.display = 'none';
+    }
+    attachUsersListenerIfManager();
     render();
   });
 });
+
+let unsubUsers;
+function attachUsersListenerIfManager(){
+  if (unsubUsers){ unsubUsers(); unsubUsers = null; }
+  if (!isManager()){ data.users = []; return; }
+  unsubUsers = db.collection('users').onSnapshot(snap=>{
+    data.users = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if (currentTab === 'admin') renderUsers();
+  }, e=>console.error(e));
+}
+function renderUsers(){
+  const el = document.getElementById('usersList');
+  if (!data.users.length){ el.innerHTML = '<div class="empty">אין עדיין משתמשים רשומים</div>'; return; }
+  const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
+  el.innerHTML = data.users.map(u=>`
+    <div class="card row">
+      <div>
+        <h3>${escapeHtml(u.name || u.email || 'ללא שם')}</h3>
+        <div class="muted">${escapeHtml(u.email||'')}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}</div>
+      </div>
+      <select onchange="changeUserRole('${u.id}', this.value)" ${u.id===(currentUser&&currentUser.uid)?'title="שינוי התפקיד של עצמכם עלול לנעול אתכם מהניהול"':''}>
+        <option value="resident" ${u.role==='resident'?'selected':''}>תושב</option>
+        <option value="gabai" ${u.role==='gabai'?'selected':''}>גבאי</option>
+        <option value="manager" ${u.role==='manager'?'selected':''}>מנהל יישוב</option>
+      </select>
+    </div>`).join('');
+}
+function changeUserRole(targetUid, newRole){
+  db.collection('users').doc(targetUid).update({ role: newRole }).catch(e=>alert('שגיאה בעדכון הרשאה: '+e.message));
+}
 
 function attachListeners(){
   db.collection('shuls').onSnapshot(snap=>{
@@ -297,7 +375,9 @@ function uid(){ return 'id' + Math.random().toString(36).slice(2,10); }
 // ---------- רינדור: תפילות ----------
 const TEFILA_ORDER = ['שחרית','מנחה','ערבית','ותיקין'];
 function render(){
-  if (currentTab === 'tefilot') renderTefilot(); else renderShiurim();
+  if (currentTab === 'tefilot') renderTefilot();
+  else if (currentTab === 'shiurim') renderShiurim();
+  else if (currentTab === 'admin') renderUsers();
 }
 function renderTefilot(){
   document.getElementById('todayLabel').textContent = 'תאריך: ' + new Date().toLocaleDateString('he-IL');
@@ -608,6 +688,7 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     currentTab = btn.dataset.tab;
     document.getElementById('tefilot-tab').style.display = currentTab==='tefilot' ? '' : 'none';
     document.getElementById('shiurim-tab').style.display = currentTab==='shiurim' ? '' : 'none';
+    document.getElementById('admin-tab').style.display = currentTab==='admin' ? '' : 'none';
     render();
   });
 });
