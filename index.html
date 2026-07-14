@@ -1,0 +1,631 @@
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@500;700&family=Rubik:wght@400;500;700&display=swap">
+<style>
+  :root{
+    --bg:#F6F1E6; --surface:#FFFDF8; --surface-2:#FBF6EC;
+    --ink:#22303A; --ink-soft:#5B6B72; --border:#E3DAC3;
+    --accent:#C6873C; --accent-ink:#5C3F16;
+    --dusk:#2F5D62; --dusk-ink:#FFFFFF;
+    --danger:#B5473A; --danger-bg:#FBEAE7;
+    --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'Rubik',sans-serif;direction:rtl;padding:0 0 60px}
+  h1,h2,h3{font-family:'Frank Ruhl Libre',serif;font-weight:700;margin:0}
+  .wrap{max-width:760px;margin:0 auto;padding:0 16px}
+  header.top{background:var(--dusk);color:var(--dusk-ink);padding:22px 0 26px}
+  header.top h1{font-size:26px}
+  header.top p{margin:4px 0 0;color:#D9E6E6;font-size:13px}
+  .demo-banner{background:var(--accent);color:var(--accent-ink);font-size:12.5px;padding:8px 16px;text-align:center}
+  .idbar{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  .idbar input, .idbar select{font-family:'Rubik',sans-serif;font-size:13px;padding:7px 10px;border-radius:8px;border:none}
+  .idbar span{font-size:12px;color:#D9E6E6;align-self:center}
+  .tabs{display:flex;gap:8px;margin:18px 0 14px}
+  .tab-btn{flex:1;padding:11px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--ink-soft);font-family:'Rubik';font-size:15px;font-weight:500;cursor:pointer}
+  .tab-btn.active{background:var(--dusk);color:#fff;border-color:var(--dusk)}
+  .sub-toggle{display:flex;gap:8px;margin-bottom:14px}
+  .sub-toggle button{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;color:var(--ink-soft)}
+  .sub-toggle button.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .card h3{font-size:17px}
+  .muted{color:var(--ink-soft);font-size:13px}
+  .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
+  .btn{padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);font-size:13px;cursor:pointer;font-family:'Rubik'}
+  .btn.primary{background:var(--dusk);color:#fff;border-color:var(--dusk)}
+  .btn.danger{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
+  .btn.ghost{background:transparent;border-color:transparent;color:var(--ink-soft);text-decoration:underline}
+  .minyan-line{display:flex;justify-content:space-between;padding:7px 0;border-top:1px dashed var(--border);font-size:14px}
+  .minyan-line:first-of-type{border-top:none}
+  .time{font-weight:700;font-family:'Frank Ruhl Libre'}
+  .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--border)}
+  .badge.all{background:#E7F0EC;color:#2F5D3A}
+  .badge.men{background:#E6F0F7;color:#1F4A6B}
+  .badge.women{background:#F7E9F0;color:#7A2E52}
+  .badge.youth{background:#FBF0DD;color:#7A5210}
+  .timeline{position:relative;padding-right:20px}
+  .timeline::before{content:'';position:absolute;right:6px;top:6px;bottom:6px;width:2px;background:var(--border)}
+  .tline-item{position:relative;margin-bottom:10px}
+  .tline-item::before{content:'';position:absolute;right:-19px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .filters select,.filters input{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:'Rubik';font-size:13px}
+  .empty{text-align:center;padding:30px 10px;color:var(--ink-soft)}
+  .overlay{position:fixed;inset:0;background:rgba(34,48,58,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
+  .overlay.show{display:flex}
+  .modal{background:var(--surface);border-radius:var(--radius);padding:20px;max-width:440px;width:100%;max-height:85vh;overflow:auto}
+  .modal h3{margin-bottom:14px}
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:4px}
+  .field input,.field select,.field textarea{width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px;background:var(--surface)}
+  .field.optional label::after{content:' (רשות)';color:var(--accent-ink)}
+  .inline2{display:flex;gap:8px}
+  .inline2>*{flex:1}
+  .days{display:flex;gap:5px;flex-wrap:wrap}
+  .daychip{padding:5px 9px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer;background:var(--surface)}
+  .daychip.active{background:var(--dusk);color:#fff;border-color:var(--dusk)}
+  .modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
+  footer.note{max-width:760px;margin:26px auto 0;padding:0 16px;font-size:12px;color:var(--ink-soft);line-height:1.6}
+  @media(max-width:480px){header.top h1{font-size:22px}}
+</style>
+
+<div class="demo-banner">צפייה פתוחה לכולם · התחברות עם Google נדרשת רק לגבאים ולמנהל היישוב (כדי למחוק פריטים)</div>
+<header class="top">
+  <div class="wrap">
+    <h1>לוח תפילות ושיעורים · בית אל</h1>
+    <p>זמנים מחושבים לפי היום, ניתנים לעדכון על ידי כולם</p>
+    <div class="idbar">
+      <span id="nameField" style="display:flex;gap:8px;align-items:center">
+        <span>השם שלך (לא חובה, לצורך תיעוד עדכונים):</span>
+        <input id="userName" placeholder="לדוגמה: יוסי כהן" style="width:140px">
+      </span>
+      <button class="btn primary" id="signInBtn">התחברות עם Google (לגבאים/מנהל יישוב)</button>
+      <span id="userInfo" style="display:none;align-items:center;gap:8px">
+        <img id="userPhoto" style="width:26px;height:26px;border-radius:50%">
+        <span id="userNameLabel"></span>
+        <span class="badge" id="userRoleBadge"></span>
+        <button class="btn ghost" id="signOutBtn" style="color:#fff">התנתקות</button>
+      </span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="appContent">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="tefilot">תפילות</button>
+    <button class="tab-btn" data-tab="shiurim">שיעורי תורה</button>
+  </div>
+
+  <div id="tefilot-tab">
+    <div class="sub-toggle">
+      <button class="active" data-view="byshul">לפי בית כנסת</button>
+      <button data-view="chrono">כרונולוגי · היום</button>
+    </div>
+    <div class="filters">
+      <select id="filterTefila"><option value="">כל התפילות</option></select>
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <span class="muted" id="todayLabel"></span>
+      <button class="btn primary" id="addShulBtn">+ הוסף בית כנסת</button>
+    </div>
+    <div id="tefilotList"></div>
+  </div>
+
+  <div id="shiurim-tab" style="display:none">
+    <div class="filters">
+      <select id="filterTopic"><option value="">כל הנושאים</option></select>
+      <select id="filterAudience">
+        <option value="">כל הקהלים</option>
+        <option value="all">כולם</option>
+        <option value="men">גברים</option>
+        <option value="women">נשים</option>
+        <option value="youth">נוער</option>
+      </select>
+      <input id="filterSearch" placeholder="חיפוש חופשי...">
+    </div>
+    <div class="row" style="margin-bottom:12px">
+      <span></span>
+      <button class="btn primary" id="addShiurBtn">+ הוסף שיעור</button>
+    </div>
+    <div id="shiurimList"></div>
+  </div>
+  </div>
+</div>
+
+<footer class="note">
+  הזמנים לזריחה / שקיעה / צאת הכוכבים מחושבים אוטומטית לפי קואורדינטות בית אל, ומהווים קירוב — לפני קביעת זמן מניין רגיש יש לוודא מול רב היישוב. תמיכה בלוח שנה עברי מלא (חגים, ראש חודש) מתוכננת לשלב הבא.
+</footer>
+
+<div class="overlay" id="overlay"><div class="modal" id="modalBody"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
+<script>
+let data = { shuls: [], minyanim: [], shiurim: [] };
+let currentView = 'byshul';
+let currentTab = 'tefilot';
+
+const LAT = 31.9333, LON = 35.2167; // בית אל, ברירת מחדל
+
+// ---------- זמנים הלכתיים ----------
+function sunTimeUTCHours(date, lat, lon, zenith, rising){
+  const rad = Math.PI/180, deg = 180/Math.PI;
+  const N1 = Math.floor(275*(date.getMonth()+1)/9);
+  const N2 = Math.floor((date.getMonth()+1+9)/12);
+  const N3 = 1 + Math.floor((date.getFullYear() - 4*Math.floor(date.getFullYear()/4) + 2)/3);
+  const N = N1 - (N2*N3) + date.getDate() - 30;
+  const lngHour = lon/15;
+  const t = rising ? N + ((6-lngHour)/24) : N + ((18-lngHour)/24);
+  const M = (0.9856*t) - 3.289;
+  let L = M + (1.916*Math.sin(rad*M)) + (0.020*Math.sin(2*rad*M)) + 282.634;
+  L = ((L%360)+360)%360;
+  let RA = deg*Math.atan(0.91764*Math.tan(rad*L));
+  RA = ((RA%360)+360)%360;
+  const Lq = Math.floor(L/90)*90, RAq = Math.floor(RA/90)*90;
+  RA = (RA + (Lq-RAq))/15;
+  const sinDec = 0.39782*Math.sin(rad*L);
+  const cosDec = Math.cos(Math.asin(sinDec));
+  const cosH = (Math.cos(rad*zenith) - (sinDec*Math.sin(rad*lat))) / (cosDec*Math.cos(rad*lat));
+  if (cosH > 1 || cosH < -1) return null;
+  let H = rising ? 360 - deg*Math.acos(cosH) : deg*Math.acos(cosH);
+  H = H/15;
+  const T = H + RA - (0.06571*t) - 6.622;
+  let UT = ((T - lngHour) % 24 + 24) % 24;
+  return UT;
+}
+function utHoursToDate(baseDate, utHours){
+  if (utHours === null) return null;
+  const h = Math.floor(utHours), m = Math.round((utHours-h)*60);
+  return new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m));
+}
+function getZmanim(date){
+  const sunrise = utHoursToDate(date, sunTimeUTCHours(date, LAT, LON, 90.833, true));
+  const sunset  = utHoursToDate(date, sunTimeUTCHours(date, LAT, LON, 90.833, false));
+  const tzeit   = utHoursToDate(date, sunTimeUTCHours(date, LAT, LON, 98.5, false));
+  return { sunrise, sunset, tzeit };
+}
+function fmtTime(d){
+  if (!d) return '—';
+  return d.toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit', timeZone:'Asia/Jerusalem'});
+}
+// חישוב זמן מניין בפועל (זמן קבוע או יחסי לזמן הלכתי) - ראו fixedTimeAsDate ו-computeMinyanTime למטה
+// עבור זמן קבוע, נבנה תאריך לפי שעון ישראל בפועל
+function fixedTimeAsDate(date, hhmm){
+  const [h,mi] = (hhmm||'00:00').split(':').map(Number);
+  // בונים מחרוזת עם TZ ידני של ישראל דרך Intl כדי לכבד קיץ/חורף
+  const iso = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}T${String(h).padStart(2,'0')}:${String(mi).padStart(2,'0')}:00`;
+  // הופכים לזמן UTC משוער תוך שימוש בהפרש שעות של ישראל מהשעון הנוכחי של הדפדפן ביחס ל-UTC
+  const probe = new Date(iso + 'Z');
+  const asIsrael = new Date(probe.toLocaleString('en-US', {timeZone:'Asia/Jerusalem'}));
+  const asUTC = new Date(probe.toLocaleString('en-US', {timeZone:'UTC'}));
+  const diff = asIsrael - asUTC;
+  return new Date(probe.getTime() - diff);
+}
+function computeMinyanTime(m, date, zmanim){
+  if (m.timeType === 'fixed') return fixedTimeAsDate(date, m.fixedTime);
+  const anchor = zmanim[m.anchor];
+  if (!anchor) return null;
+  const sign = m.offsetSign === 'before' ? -1 : 1;
+  return new Date(anchor.getTime() + sign*(m.offsetMinutes||0)*60000);
+}
+function dayKeyOf(date){
+  return ['sun','mon','tue','wed','thu','fri','sat'][date.getDay()];
+}
+
+// ---------- Firebase ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyA2qVE_N_RJW0iCz276w6fM0tzkYZz-_i0",
+  authDomain: "bet-el-tefilot.firebaseapp.com",
+  projectId: "bet-el-tefilot",
+  storageBucket: "bet-el-tefilot.firebasestorage.app",
+  messagingSenderId: "89211360785",
+  appId: "1:89211360785:web:d4ac6d4bd7e7bb040083b0"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+const googleProvider = new firebase.auth.GoogleAuthProvider();
+
+let currentUser = null;
+let currentRole = 'guest';
+let unsubUserDoc;
+
+function doSignIn(){ auth.signInWithPopup(googleProvider).catch(e=>alert('שגיאת התחברות: '+e.message)); }
+
+// הצפייה פתוחה לכולם - מאזינים לנתונים כבר בטעינת הדף, בלי קשר להתחברות
+attachListeners();
+
+auth.onAuthStateChanged(async user=>{
+  currentUser = user;
+  if (unsubUserDoc){ unsubUserDoc(); unsubUserDoc = null; }
+
+  if (!user){
+    currentRole = 'guest';
+    document.getElementById('signInBtn').style.display = '';
+    document.getElementById('userInfo').style.display = 'none';
+    document.getElementById('nameField').style.display = 'flex';
+    render();
+    return;
+  }
+
+  document.getElementById('signInBtn').style.display = 'none';
+  document.getElementById('userInfo').style.display = 'flex';
+  document.getElementById('nameField').style.display = 'none';
+  document.getElementById('userPhoto').src = user.photoURL || '';
+  document.getElementById('userNameLabel').textContent = user.displayName || user.email;
+
+  const userRef = db.collection('users').doc(user.uid);
+  const snap = await userRef.get();
+  if (!snap.exists){
+    await userRef.set({ role:'resident', name:user.displayName||'', email:user.email||'' });
+  }
+  unsubUserDoc = userRef.onSnapshot(doc=>{
+    const d = doc.data();
+    currentRole = d ? d.role : 'resident';
+    const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
+    document.getElementById('userRoleBadge').textContent = labels[currentRole] || currentRole;
+    render();
+  });
+});
+
+function attachListeners(){
+  db.collection('shuls').onSnapshot(snap=>{
+    data.shuls = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
+  }, e=>console.error(e));
+  db.collection('minyanim').onSnapshot(snap=>{
+    data.minyanim = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
+  }, e=>console.error(e));
+  db.collection('shiurim').onSnapshot(snap=>{
+    data.shiurim = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
+  }, e=>console.error(e));
+}
+
+function stamp(obj){
+  obj.updatedBy = currentUser
+    ? (currentUser.displayName || currentUser.email)
+    : (document.getElementById('userName').value.trim() || 'תושב אנונימי');
+  obj.updatedAt = new Date().toISOString();
+  return obj;
+}
+function isAdminLevel(){ return currentRole === 'gabai' || currentRole === 'manager'; }
+function isManager(){ return currentRole === 'manager'; }
+function uid(){ return 'id' + Math.random().toString(36).slice(2,10); }
+
+// ---------- רינדור: תפילות ----------
+const TEFILA_ORDER = ['שחרית','מנחה','ערבית','ותיקין'];
+function render(){
+  if (currentTab === 'tefilot') renderTefilot(); else renderShiurim();
+}
+function renderTefilot(){
+  document.getElementById('todayLabel').textContent = 'תאריך: ' + new Date().toLocaleDateString('he-IL');
+  const tefilaSel = document.getElementById('filterTefila');
+  const currentTefila = tefilaSel.value;
+  tefilaSel.innerHTML = '<option value="">כל התפילות</option>' + TEFILA_ORDER.map(t=>`<option value="${t}">${t}</option>`).join('');
+  tefilaSel.value = currentTefila;
+  const tefilaF = tefilaSel.value;
+
+  const el = document.getElementById('tefilotList');
+  const today = new Date();
+  const zmanim = getZmanim(today);
+  const dk = dayKeyOf(today);
+
+  if (currentView === 'byshul'){
+    if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. לחצו "הוסף בית כנסת" כדי להתחיל.</div>'; return; }
+    const cards = data.shuls.map(shul=>{
+      let mins = data.minyanim.filter(m=>m.shulId===shul.id);
+      if (tefilaF) mins = mins.filter(m=>m.tefila===tefilaF);
+      mins = mins.sort((a,b)=> TEFILA_ORDER.indexOf(a.tefila) - TEFILA_ORDER.indexOf(b.tefila));
+      if (tefilaF && !mins.length) return ''; // אין תפילה מהסוג המבוקש בבית כנסת זה - לא מציגים כלל
+      const lines = mins.map(m=>{
+        const t = m.days.includes(dk) ? computeMinyanTime(m, today, zmanim) : null;
+        return `<div class="minyan-line">
+          <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}<br><span class="muted" style="font-size:11px">${lastUpdatedLabel(m)}</span></span>
+          <span>
+            <span class="time">${t?fmtTime(t):'לא היום'}</span>
+            <button class="btn ghost" onclick="openMinyanForm('${shul.id}','${m.id}')">עריכה</button>
+            ${isAdminLevel()?`<button class="btn ghost" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')">מחיקה</button>`:''}
+          </span>
+        </div>`;
+      }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים לבית כנסת זה</div>';
+      return `<div class="card">
+        <div class="row">
+          <div>
+            <h3>${escapeHtml(shul.name)}</h3>
+            <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
+          </div>
+          <div>
+            <button class="btn" onclick="openMinyanForm('${shul.id}')">+ הוסף מניין</button>
+            ${isManager()?`<button class="btn danger" onclick="deleteShul('${shul.id}')">מחק בית כנסת</button>`:''}
+          </div>
+        </div>
+        <div style="margin-top:10px">${lines}</div>
+        <div style="margin-top:8px">${lastUpdatedLabel(shul)}</div>
+      </div>`;
+    }).filter(Boolean);
+    el.innerHTML = cards.length ? cards.join('') : '<div class="empty">אין מניינים מהסוג שנבחר</div>';
+  } else {
+    let items = [];
+    data.minyanim.forEach(m=>{
+      if (!m.days.includes(dk)) return;
+      if (tefilaF && m.tefila !== tefilaF) return;
+      const t = computeMinyanTime(m, today, zmanim);
+      if (!t) return;
+      const shul = data.shuls.find(s=>s.id===m.shulId);
+      items.push({t, m, shul});
+    });
+    items.sort((a,b)=>a.t-b.t);
+    if (!items.length){ el.innerHTML = '<div class="empty">אין מניינים רשומים להיום</div>'; return; }
+    el.innerHTML = '<div class="card"><div class="timeline">' + items.map(it=>`
+      <div class="tline-item">
+        <span class="time">${fmtTime(it.t)}</span> —
+        ${it.m.tefila} · ${escapeHtml(it.shul?it.shul.name:'')}
+        ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
+      </div>`).join('') + '</div></div>';
+  }
+}
+
+// ---------- רינדור: שיעורים ----------
+const AUDIENCE_LABEL = {all:'כולם', men:'גברים', women:'נשים', youth:'נוער'};
+function renderShiurim(){
+  const topicSel = document.getElementById('filterTopic');
+  const topics = [...new Set(data.shiurim.map(s=>s.topic).filter(Boolean))];
+  const currentTopic = topicSel.value;
+  topicSel.innerHTML = '<option value="">כל הנושאים</option>' + topics.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  topicSel.value = currentTopic;
+
+  const audF = document.getElementById('filterAudience').value;
+  const searchF = document.getElementById('filterSearch').value.trim().toLowerCase();
+  const topicF = topicSel.value;
+
+  let list = data.shiurim.filter(s=>{
+    if (topicF && s.topic !== topicF) return false;
+    if (audF && (s.audience||'all') !== audF) return false;
+    if (searchF && !(s.title+' '+(s.topic||'')+' '+(s.location||'')).toLowerCase().includes(searchF)) return false;
+    return true;
+  });
+
+  const el = document.getElementById('shiurimList');
+  if (!list.length){ el.innerHTML = '<div class="empty">לא נמצאו שיעורים תואמים</div>'; return; }
+  el.innerHTML = list.map(s=>`
+    <div class="card">
+      <div class="row">
+        <div>
+          <h3>${escapeHtml(s.title)}</h3>
+          <div class="muted">${s.topic?escapeHtml(s.topic)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${escapeHtml(s.location)}</div>
+        </div>
+        <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        ${s.teacherName?`מעביר השיעור: ${escapeHtml(s.teacherName)}<br>`:''}
+        ${s.contactName?`איש קשר: ${escapeHtml(s.contactName)} ${s.contactPhone?'· '+escapeHtml(s.contactPhone):''}<br>`:''}
+        ${s.notes?escapeHtml(s.notes):''}
+      </div>
+      <div style="margin-top:8px" class="row">
+        ${lastUpdatedLabel(s)}
+        <span style="text-align:left">
+        <button class="btn ghost" onclick="openShiurForm('${s.id}')">עריכה</button>
+        ${isAdminLevel()?`<button class="btn ghost" style="color:var(--danger)" onclick="deleteShiur('${s.id}')">מחיקה</button>`:''}
+        </span>
+      </div>
+    </div>`).join('');
+}
+
+function escapeHtml(str){ return (str||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function lastUpdatedLabel(obj){
+  if (!obj || !obj.updatedAt) return '';
+  const d = new Date(obj.updatedAt);
+  const dateStr = d.toLocaleDateString('he-IL');
+  const timeStr = d.toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
+  return `<span class="muted" style="font-size:11.5px">עודכן לאחרונה ע"י ${escapeHtml(obj.updatedBy||'')} · ${dateStr} ${timeStr}</span>`;
+}
+function daysToLabel(days){
+  if (!days || !days.length) return '';
+  if (days.length===7) return 'כל השבוע';
+  const weekdays = ['sun','mon','tue','wed','thu','fri'];
+  if (days.length===6 && weekdays.every(d=>days.includes(d))) return 'ימי חול';
+  return DAY_KEYS.filter(k=>days.includes(k)).map(k=>DAYS_HE_FULL[DAY_KEYS.indexOf(k)]).join(', ');
+}
+const DAYS_HE_FULL = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+
+// ---------- טפסים: בית כנסת ----------
+function openShulForm(){
+  document.getElementById('modalBody').innerHTML = `
+    <h3>הוספת בית כנסת</h3>
+    <div class="field"><label>שם בית הכנסת</label><input id="f_name"></div>
+    <div class="field optional"><label>כתובת</label><input id="f_address"></div>
+    <div class="field optional"><label>נוסח</label><input id="f_nusach" placeholder="אשכנז / ספרד / עדות המזרח"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="saveShul()">שמירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function saveShul(){
+  const name = document.getElementById('f_name').value.trim();
+  if (!name){ alert('יש להזין שם בית כנסת'); return; }
+  const obj = stamp({
+    name,
+    address: document.getElementById('f_address').value.trim(),
+    nusach: document.getElementById('f_nusach').value.trim()
+  });
+  db.collection('shuls').doc(uid()).set(obj).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  closeModal();
+}
+function deleteShul(id){
+  if (!confirm('למחוק את בית הכנסת וכל המניינים שלו?')) return;
+  db.collection('shuls').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
+  data.minyanim.filter(m=>m.shulId===id).forEach(m=>db.collection('minyanim').doc(m.id).delete());
+}
+
+// ---------- טפסים: מניין ----------
+const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
+const DAY_LABELS = ['א','ב','ג','ד','ה','ו','ש'];
+function openMinyanForm(shulId, minyanId){
+  const m = minyanId ? data.minyanim.find(x=>x.id===minyanId) : null;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>${m?'עריכת מניין':'הוספת מניין'}</h3>
+    <div class="field"><label>תפילה</label>
+      <select id="f_tefila">${TEFILA_ORDER.map(t=>`<option ${m&&m.tefila===t?'selected':''}>${t}</option>`).join('')}</select>
+    </div>
+    <div class="field"><label>ימים</label>
+      <div class="days" id="f_days">${DAY_KEYS.map((k,i)=>`<span class="daychip ${m&&m.days.includes(k)?'active':(!m&&i<5?'active':'')}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
+    </div>
+    <div class="field"><label>סוג זמן</label>
+      <select id="f_timeType" onchange="toggleTimeFields()">
+        <option value="fixed" ${m&&m.timeType==='fixed'?'selected':''}>שעה קבועה</option>
+        <option value="relative" ${m&&m.timeType==='relative'?'selected':''}>יחסי לזריחה/שקיעה/צאת הכוכבים</option>
+      </select>
+    </div>
+    <div class="field" id="fixedField"><label>שעה</label><input id="f_fixedTime" type="time" value="${m&&m.fixedTime||'19:00'}"></div>
+    <div id="relativeField" style="display:none">
+      <div class="inline2">
+        <div class="field"><label>ביחס ל</label>
+          <select id="f_anchor">
+            <option value="sunrise" ${m&&m.anchor==='sunrise'?'selected':''}>הנץ החמה</option>
+            <option value="sunset" ${m&&m.anchor==='sunset'?'selected':''}>שקיעה</option>
+            <option value="tzeit" ${m&&m.anchor==='tzeit'?'selected':''}>צאת הכוכבים</option>
+          </select>
+        </div>
+        <div class="field"><label>לפני/אחרי</label>
+          <select id="f_offsetSign">
+            <option value="before" ${m&&m.offsetSign==='before'?'selected':''}>לפני</option>
+            <option value="after" ${m&&m.offsetSign==='after'?'selected':''}>אחרי</option>
+          </select>
+        </div>
+      </div>
+      <div class="field"><label>מספר דקות</label><input id="f_offsetMinutes" type="number" min="0" value="${m&&m.offsetMinutes||20}"></div>
+    </div>
+    <div class="field optional"><label>הערות</label><input id="f_notes" value="${m?escapeHtml(m.notes||''):''}" placeholder="למשל: ותיקין, מניין מהיר"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="saveMinyan('${shulId}','${minyanId||''}')">שמירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+  toggleTimeFields();
+}
+function toggleTimeFields(){
+  const isFixed = document.getElementById('f_timeType').value === 'fixed';
+  document.getElementById('fixedField').style.display = isFixed ? '' : 'none';
+  document.getElementById('relativeField').style.display = isFixed ? 'none' : '';
+}
+function saveMinyan(shulId, minyanId){
+  const days = [...document.querySelectorAll('#f_days .daychip.active')].map(d=>d.dataset.day);
+  if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  const id = minyanId || uid();
+  const obj = stamp({
+    shulId,
+    tefila: document.getElementById('f_tefila').value,
+    days,
+    timeType: document.getElementById('f_timeType').value,
+    fixedTime: document.getElementById('f_fixedTime').value,
+    anchor: document.getElementById('f_anchor').value,
+    offsetSign: document.getElementById('f_offsetSign').value,
+    offsetMinutes: Number(document.getElementById('f_offsetMinutes').value)||0,
+    notes: document.getElementById('f_notes').value.trim()
+  });
+  db.collection('minyanim').doc(id).set(obj).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  closeModal();
+}
+function deleteMinyan(id){
+  if (!confirm('למחוק את המניין?')) return;
+  db.collection('minyanim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
+}
+
+// ---------- טפסים: שיעור ----------
+function openShiurForm(shiurId){
+  const s = shiurId ? data.shiurim.find(x=>x.id===shiurId) : null;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>${s?'עריכת שיעור':'הוספת שיעור'}</h3>
+    <div class="field"><label>כותרת</label><input id="f_title" value="${s?escapeHtml(s.title):''}"></div>
+    <div class="inline2">
+      <div class="field"><label>נושא</label><input id="f_topic" value="${s?escapeHtml(s.topic||''):''}" placeholder="הלכה / גמרא / פרשת שבוע..."></div>
+      <div class="field"><label>קהל יעד</label>
+        <select id="f_audience">
+          <option value="all" ${(!s||s.audience==='all')?'selected':''}>כולם</option>
+          <option value="men" ${s&&s.audience==='men'?'selected':''}>גברים</option>
+          <option value="women" ${s&&s.audience==='women'?'selected':''}>נשים</option>
+          <option value="youth" ${s&&s.audience==='youth'?'selected':''}>נוער</option>
+        </select>
+      </div>
+    </div>
+    <div class="field"><label>ימי השיעור</label>
+      <div class="days" id="f_shiurDays">${DAY_KEYS.map((k,i)=>`<span class="daychip ${s&&s.days&&s.days.includes(k)?'active':''}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
+    </div>
+    <div class="inline2">
+      <div class="field"><label>שעה</label><input id="f_time" type="time" value="${s?s.time:'20:30'}"></div>
+      <div class="field"><label>מיקום</label><input id="f_location" value="${s?escapeHtml(s.location||''):''}"></div>
+    </div>
+    <div class="field optional"><label>שם מעביר השיעור</label><input id="f_teacherName" value="${s?escapeHtml(s.teacherName||''):''}"></div>
+    <div class="inline2">
+      <div class="field optional"><label>איש קשר לפרטים</label><input id="f_contactName" value="${s?escapeHtml(s.contactName||''):''}"></div>
+      <div class="field optional"><label>טלפון איש קשר</label><input id="f_contactPhone" value="${s?escapeHtml(s.contactPhone||''):''}"></div>
+    </div>
+    <div class="field optional"><label>הערות</label><input id="f_shiurNotes" value="${s?escapeHtml(s.notes||''):''}"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="saveShiur('${shiurId||''}')">שמירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function saveShiur(shiurId){
+  const title = document.getElementById('f_title').value.trim();
+  if (!title){ alert('יש להזין כותרת לשיעור'); return; }
+  const location = document.getElementById('f_location').value.trim();
+  if (!location){ alert('יש להזין מיקום לשיעור'); return; }
+  const days = [...document.querySelectorAll('#f_shiurDays .daychip.active')].map(d=>d.dataset.day);
+  if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  const id = shiurId || uid();
+  const obj = stamp({
+    title,
+    topic: document.getElementById('f_topic').value.trim(),
+    audience: document.getElementById('f_audience').value,
+    days,
+    time: document.getElementById('f_time').value,
+    location,
+    teacherName: document.getElementById('f_teacherName').value.trim(),
+    contactName: document.getElementById('f_contactName').value.trim(),
+    contactPhone: document.getElementById('f_contactPhone').value.trim(),
+    notes: document.getElementById('f_shiurNotes').value.trim()
+  });
+  db.collection('shiurim').doc(id).set(obj).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  closeModal();
+}
+function deleteShiur(id){
+  if (!confirm('למחוק את השיעור?')) return;
+  db.collection('shiurim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
+}
+
+function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+
+// ---------- אירועים כלליים ----------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentTab = btn.dataset.tab;
+    document.getElementById('tefilot-tab').style.display = currentTab==='tefilot' ? '' : 'none';
+    document.getElementById('shiurim-tab').style.display = currentTab==='shiurim' ? '' : 'none';
+    render();
+  });
+});
+document.querySelectorAll('.sub-toggle button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    currentView = btn.dataset.view;
+    render();
+  });
+});
+document.getElementById('addShulBtn').addEventListener('click', openShulForm);
+document.getElementById('signInBtn').addEventListener('click', doSignIn);
+document.getElementById('signOutBtn').addEventListener('click', ()=>auth.signOut());
+document.getElementById('filterTefila').addEventListener('change', render);
+document.getElementById('addShiurBtn').addEventListener('click', ()=>openShiurForm());
+document.getElementById('filterTopic').addEventListener('change', render);
+document.getElementById('filterAudience').addEventListener('change', render);
+document.getElementById('filterSearch').addEventListener('input', render);
+document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+</script>
