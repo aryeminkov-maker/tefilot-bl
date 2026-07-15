@@ -30,6 +30,8 @@
   header.top p{margin:4px 0 0;color:var(--ink-soft);font-size:13px}
   .demo-banner{background:var(--accent);color:var(--accent-ink);font-size:12.5px;padding:8px 16px;text-align:center}
   .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;padding:0;cursor:pointer;font-size:17px;line-height:1;flex-shrink:0}
+  .row-icon-btn{background:transparent;border:none;cursor:pointer;font-size:14px;padding:3px 5px;opacity:.7;line-height:1}
+  .row-icon-btn:hover{opacity:1}
   .google-icon-svg{width:20px;height:20px}
   .info-popover{display:none;position:absolute;top:calc(100% + 8px);right:0;width:230px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6;z-index:30}
   .info-popover.show{display:block}
@@ -64,6 +66,10 @@
   .tline-item{position:relative;margin-bottom:10px}
   .tline-item::before{content:'';position:absolute;right:-19px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--accent)}
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .filters-panel{display:none;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px}
+  .filters-panel.show{display:block}
+  .filters-panel .filters{margin-bottom:8px}
+  .filters-panel .filters:last-child{margin-bottom:0}
   .filters select,.filters input{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:'Rubik';font-size:13px}
   .empty{text-align:center;padding:30px 10px;color:var(--ink-soft)}
   .overlay{position:fixed;inset:0;background:rgba(34,48,58,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
@@ -91,6 +97,7 @@
     .idbar{gap:8px}
     .idbar #userNameLabel{display:none}
     .icon-btn{width:38px;height:38px;font-size:22px}
+    .row-icon-btn{font-size:17px;padding:6px 8px}
     .google-icon-svg{width:26px;height:26px}
     .wrap{padding:0 12px}
     .tabs{
@@ -171,40 +178,45 @@
       <button class="active" data-view="byshul">לפי בית כנסת</button>
       <button data-view="chrono">כרונולוגי · היום</button>
     </div>
-    <div class="filters">
-      <select id="filterTefila"><option value="">כל התפילות</option></select>
-      <button class="btn" id="proximityBtn" type="button" onclick="toggleProximity()">📍 מיין לפי קרבה אליי</button>
-    </div>
-    <div class="filters">
-      <select id="filterTimeMode" onchange="onTimeModeChange()">
-        <option value="all">כל השעות</option>
-        <option value="next">המניין הקרוב ביותר</option>
-        <option value="from">משעה מסוימת והלאה</option>
-      </select>
-      <input type="time" id="filterTimeFrom" style="display:none">
-    </div>
-    <div class="row" style="margin-bottom:12px">
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="tefilotFiltersToggle" type="button" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
       <span class="muted" id="todayLabel"></span>
+    </div>
+    <div id="tefilotFiltersPanel" class="filters-panel">
+      <div class="filters">
+        <select id="filterTefila"><option value="">כל התפילות</option></select>
+        <button class="btn" id="proximityBtn" type="button" onclick="toggleProximity()">📍 מיין לפי קרבה אליי</button>
+      </div>
+      <div class="filters">
+        <select id="filterTimeMode" onchange="onTimeModeChange()">
+          <option value="all">כל השעות</option>
+          <option value="next">המניין הקרוב ביותר</option>
+          <option value="from">משעה מסוימת והלאה</option>
+        </select>
+        <input type="time" id="filterTimeFrom" style="display:none">
+      </div>
     </div>
     <div id="tefilotList"></div>
   </div>
 
   <div id="shiurim-tab" style="display:none">
-    <div class="filters">
-      <select id="filterTopic"><option value="">כל הנושאים</option></select>
-      <select id="filterAudience">
-        <option value="">כל הקהלים</option>
-        <option value="all">כולם</option>
-        <option value="men">גברים</option>
-        <option value="women">נשים</option>
-        <option value="youth">נוער</option>
-      </select>
-      <input id="filterSearch" placeholder="חיפוש חופשי...">
-      <button class="btn" id="shiurProximityBtn" type="button" onclick="toggleShiurProximity()">📍 מיין לפי קרבה אליי</button>
-    </div>
-    <div class="row" style="margin-bottom:12px">
-      <span></span>
+    <div class="row" style="margin-bottom:10px">
+      <button class="btn" id="shiurimFiltersToggle" type="button" onclick="toggleFiltersPanel('shiurimFiltersPanel','shiurimFiltersToggle')">🔍 סינון</button>
       <button class="btn primary" id="addShiurBtn">+ הוסף שיעור</button>
+    </div>
+    <div id="shiurimFiltersPanel" class="filters-panel">
+      <div class="filters">
+        <select id="filterTopic"><option value="">כל הנושאים</option></select>
+        <select id="filterAudience">
+          <option value="">כל הקהלים</option>
+          <option value="all">כולם</option>
+          <option value="men">גברים</option>
+          <option value="women">נשים</option>
+          <option value="youth">נוער</option>
+        </select>
+        <input id="filterSearch" placeholder="חיפוש חופשי...">
+        <button class="btn" id="shiurProximityBtn" type="button" onclick="toggleShiurProximity()">📍 מיין לפי קרבה אליי</button>
+      </div>
     </div>
     <div id="shiurimList"></div>
   </div>
@@ -810,6 +822,12 @@ function timeMinutesIsrael(t){
   const [h,m] = s.split(':').map(Number);
   return h*60+m;
 }
+function toggleFiltersPanel(panelId, btnId){
+  const panel = document.getElementById(panelId);
+  const btn = document.getElementById(btnId);
+  const showing = panel.classList.toggle('show');
+  btn.classList.toggle('active', showing);
+}
 function onTimeModeChange(){
   const mode = document.getElementById('filterTimeMode').value;
   document.getElementById('filterTimeFrom').style.display = mode === 'from' ? '' : 'none';
@@ -879,20 +897,26 @@ function renderTefilot(){
           ? `<span class="time">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`
           : `<span class="time" style="color:var(--ink-soft);font-weight:500">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`;
         return `<div class="minyan-line">
-          <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}<br><span class="muted" style="font-size:11px">${lastUpdatedLabel(m)}</span></span>
+          <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}${isAdminLevel()?`<br><span class="muted" style="font-size:11px">${lastUpdatedLabel(m)}</span>`:''}</span>
           <span>
             ${timeHtml}
-            <button class="btn ghost" onclick="openMinyanForm('${shul.id}','${m.id}')">עריכה</button>
-            ${isAdminLevel()?`<button class="btn ghost" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')">מחיקה</button>`:''}
+            <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
+            ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
           </span>
         </div>`;
       }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים לבית כנסת זה</div>';
+      const distanceBadge = (sortByProximity && userLocation)
+        ? `<span class="badge" style="background:var(--surface-2);color:var(--accent-ink);border-color:var(--accent)">📍 ${(shul.lat&&shul.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, shul.lat, shul.lng)) : 'ללא מיקום שמור'}</span>`
+        : '';
       return `<div class="card">
         <div class="row" style="margin-bottom:2px;align-items:center">
           <h3 style="cursor:pointer" onclick="openShulPage('${shul.id}')">${escapeHtml(shul.name)}</h3>
-          <button class="icon-btn" style="font-size:22px;color:var(--dusk)" onclick="openMinyanForm('${shul.id}')" aria-label="הוסף מניין" title="הוסף מניין">﹢</button>
+          <div style="display:flex;align-items:center;gap:8px">
+            ${distanceBadge}
+            <button class="icon-btn" style="font-size:22px;color:var(--dusk)" onclick="openMinyanForm('${shul.id}')" aria-label="הוסף מניין" title="הוסף מניין">﹢</button>
+          </div>
         </div>
-        <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}${sortByProximity && userLocation ? ` · ${(shul.lat&&shul.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, shul.lat, shul.lng)) : 'ללא מיקום שמור'}` : ''}</div>
+        <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
         ${navLinksHtml(shul)}
         <div class="row" style="margin-top:8px">
           <span></span>
@@ -964,15 +988,22 @@ function renderShiurim(){
 
   const el = document.getElementById('shiurimList');
   if (!list.length){ el.innerHTML = '<div class="empty">לא נמצאו שיעורים תואמים</div>'; return; }
-  el.innerHTML = list.map(s=>`
+  el.innerHTML = list.map(s=>{
+    const distanceBadge = (sortByProximityShiur && userLocation)
+      ? `<span class="badge" style="background:var(--surface-2);color:var(--accent-ink);border-color:var(--accent)">📍 ${(s.lat&&s.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, s.lat, s.lng)) : 'ללא מיקום שמור'}</span>`
+      : '';
+    return `
     <div class="card">
       <div class="row">
         <div>
           <h3>${escapeHtml(s.title)}</h3>
-          <div class="muted">${s.topic?escapeHtml(s.topic)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}${sortByProximityShiur && userLocation ? ` · ${(s.lat&&s.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, s.lat, s.lng)) : 'ללא מיקום שמור'}` : ''}</div>
+          <div class="muted">${s.topic?escapeHtml(s.topic)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}</div>
           ${navLinksHtml({lat:s.lat, lng:s.lng, address:s.location})}
         </div>
-        <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+          <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
+          ${distanceBadge}
+        </div>
       </div>
       <div class="muted" style="margin-top:6px">
         ${s.teacherName?`מעביר השיעור: ${escapeHtml(s.teacherName)}<br>`:''}
@@ -980,13 +1011,14 @@ function renderShiurim(){
         ${s.notes?escapeHtml(s.notes):''}
       </div>
       <div style="margin-top:8px" class="row">
-        ${lastUpdatedLabel(s)}
+        ${isAdminLevel()?lastUpdatedLabel(s):'<span></span>'}
         <span style="text-align:left">
-        <button class="btn ghost" onclick="openShiurForm('${s.id}')">עריכה</button>
-        ${isAdminLevel()?`<button class="btn ghost" style="color:var(--danger)" onclick="deleteShiur('${s.id}')">מחיקה</button>`:''}
+        <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">✏️</button>
+        ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
         </span>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function escapeHtml(str){ return (str||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1310,11 +1342,11 @@ function renderShulPage(){
       ? `<span class="time">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`
       : `<span class="time" style="color:var(--ink-soft);font-weight:500">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`;
     return `<div class="minyan-line">
-      <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}</span>
+      <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}${isAdminLevel()?`<br><span class="muted" style="font-size:11px">${lastUpdatedLabel(m)}</span>`:''}</span>
       <span>
         ${timeHtml}
-        <button class="btn ghost" onclick="openMinyanForm('${shul.id}','${m.id}')">עריכה</button>
-        ${isAdminLevel()?`<button class="btn ghost" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')">מחיקה</button>`:''}
+        <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
+        ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
       </span>
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים</div>';
