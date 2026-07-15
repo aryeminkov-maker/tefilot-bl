@@ -56,7 +56,8 @@
   .minyan-line{padding:4px 0;border-top:1px dashed var(--border)}
   .minyan-line:first-of-type{border-top:none}
   .ml-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}
-  .ml-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:1px}
+  .ml-bottom{margin-top:1px;font-size:13px}
+  .ml-bottom .row-icon-btn{margin:0 2px}
   .time{font-weight:700;font-family:'Rubik'}
   .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--border)}
   .badge.all{background:#E7F0EC;color:#2F5D3A}
@@ -187,6 +188,7 @@
     <div id="tefilotFiltersPanel" class="filters-panel">
       <div class="filters">
         <select id="filterTefila"><option value="">כל התפילות</option></select>
+        <select id="filterShul"><option value="">כל בתי הכנסת</option></select>
         <button class="btn" id="proximityBtn" type="button" onclick="toggleProximity()">📍 מיין לפי קרבה אליי</button>
       </div>
       <div class="filters">
@@ -260,6 +262,15 @@
       <div style="display:flex;gap:8px">
         <input id="newTefilaType" placeholder="לדוגמה: מוסף" style="flex:1">
         <button class="btn primary" onclick="addTefilaType()">+ הוספה</button>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin-bottom:8px">נושאי שיעורים</h3>
+      <p class="muted" style="margin-bottom:12px">הלכה, גמרא, דף יומי, תנ"ך, אמונה, פרשת שבוע ושונות קיימים תמיד. כאן אפשר להוסיף נושאים נוספים שיופיעו בטופס הוספת שיעור ובסינון.</p>
+      <div id="topicsList" style="margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px">
+        <input id="newTopic" placeholder="לדוגמה: מוסר" style="flex:1">
+        <button class="btn primary" onclick="addTopic()">+ הוספה</button>
       </div>
     </div>
     <div class="card" style="margin-top:14px">
@@ -492,7 +503,10 @@ function renderShulsAdmin(){
         <h3 style="cursor:pointer" onclick="openShulPage('${s.id}')">${escapeHtml(s.name)}</h3>
         <div class="muted">${escapeHtml(s.address||'')}${s.nusach?' · '+escapeHtml(s.nusach):''}${s.lat?' · 📍 יש מיקום GPS':''}</div>
       </div>
-      <button class="btn" onclick="openShulForm('${s.id}')">עריכה</button>
+      <div>
+        <button class="btn" onclick="openShulForm('${s.id}')">עריכה</button>
+        <button class="btn danger" onclick="deleteShul('${s.id}')">מחיקה</button>
+      </div>
     </div>`).join('');
 }
 function renderTefilaTypesAdmin(){
@@ -517,6 +531,31 @@ function addTefilaType(){
 function removeTefilaType(val){
   if (!confirm(`להסיר את "${val}" מרשימת סוגי התפילה? (מניינים קיימים מהסוג הזה לא יימחקו, אבל לא יהיה אפשר לבחור אותו מחדש)`)) return;
   db.collection('config').doc('tefilaTypes').update({
+    types: firebase.firestore.FieldValue.arrayRemove(val)
+  }).catch(e=>alert('שגיאה בהסרה: '+e.message));
+}
+function renderTopicsAdmin(){
+  const el = document.getElementById('topicsList');
+  if (!el) return;
+  const custom = TOPIC_LIST.filter(t=>!TOPIC_BASE.includes(t));
+  let html = TOPIC_BASE.map(t=>`<span class="badge" style="margin:0 4px 4px 0">${escapeHtml(t)}</span>`).join('');
+  if (custom.length){
+    html += custom.map(t=>`<span class="badge" style="margin:0 4px 4px 0">${escapeHtml(t)} <a href="#" onclick="removeTopic('${escapeHtml(t)}');return false" style="color:var(--danger);text-decoration:none;margin-right:4px">✕</a></span>`).join('');
+  }
+  el.innerHTML = html;
+}
+function addTopic(){
+  const input = document.getElementById('newTopic');
+  const val = input.value.trim();
+  if (!val){ alert('יש להזין שם לנושא'); return; }
+  if (TOPIC_LIST.includes(val)){ alert('נושא כזה כבר קיים'); return; }
+  db.collection('config').doc('topics').set({
+    types: firebase.firestore.FieldValue.arrayUnion(val)
+  }, { merge: true }).then(()=>{ input.value = ''; }).catch(e=>alert('שגיאה בהוספה: '+e.message));
+}
+function removeTopic(val){
+  if (!confirm(`להסיר את "${val}" מרשימת נושאי השיעורים? (שיעורים קיימים עם הנושא הזה לא יימחקו, אבל לא יהיה אפשר לבחור אותו מחדש)`)) return;
+  db.collection('config').doc('topics').update({
     types: firebase.firestore.FieldValue.arrayRemove(val)
   }).catch(e=>alert('שגיאה בהסרה: '+e.message));
 }
@@ -560,7 +599,7 @@ function exportToExcel(){
 
   const shiurimSheet = data.shiurim.map(s=>({
     'כותרת': s.title || '',
-    'נושא': s.topic || '',
+    'נושא': getShiurTopics(s).join(', '),
     'קהל יעד': AUDIENCE_LABEL[s.audience||'all'],
     'ימים': daysToLabel(s.days),
     'שעה': s.time || '',
@@ -749,8 +788,9 @@ async function runImport(wb){
         if (sh){ lat = sh.lat || null; lng = sh.lng || null; }
       }
       const audience = AUDIENCE_LOOKUP[cell(row,'קהל יעד')] || 'all';
+      const topics = cell(row,'נושא').split(',').map(x=>x.trim()).filter(Boolean);
       const obj = stamp({
-        title, topic: cell(row,'נושא'), audience, days, time: cell(row,'שעה'),
+        title, topics, audience, days, time: cell(row,'שעה'),
         location, lat, lng, locationShulId,
         teacherName: cell(row,'מעביר השיעור'), contactName: cell(row,'איש קשר'),
         contactPhone: cell(row,'טלפון איש קשר'), notes: cell(row,'הערות')
@@ -800,6 +840,12 @@ function attachListeners(){
     render();
     if (currentTab === 'admin') renderTefilaTypesAdmin();
   }, e=>console.error(e));
+  db.collection('config').doc('topics').onSnapshot(doc=>{
+    const d = doc.exists ? doc.data() : null;
+    TOPIC_LIST = [...TOPIC_BASE, ...((d && d.types) || [])];
+    render();
+    if (currentTab === 'admin') renderTopicsAdmin();
+  }, e=>console.error(e));
 }
 
 function stamp(obj){
@@ -823,14 +869,23 @@ function isManager(){ return currentRole === 'manager'; }
 function uid(){ return 'id' + Math.random().toString(36).slice(2,10); }
 
 // ---------- רינדור: תפילות ----------
+const EDIT_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const DELETE_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 const TEFILA_BASE = ['שחרית','מנחה','ערבית','ותיקין'];
+const TOPIC_BASE = ['הלכה','גמרא','דף יומי','תנ"ך','אמונה','פרשת שבוע','שונות'];
+let TOPIC_LIST = [...TOPIC_BASE];
+function getShiurTopics(s){
+  if (s.topics && Array.isArray(s.topics)) return s.topics;
+  if (s.topic) return [s.topic];
+  return [];
+}
 const TEFILA_DEFAULT_TIME = {'שחרית':'07:00', 'מנחה':'19:00', 'ערבית':'21:00'};
 let TEFILA_ORDER = [...TEFILA_BASE];
 function render(){
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot') renderTefilot();
   else if (currentTab === 'shiurim') renderShiurim();
-  else if (currentTab === 'admin'){ renderUsers(); renderTefilaTypesAdmin(); renderShulsAdmin(); }
+  else if (currentTab === 'admin'){ renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); renderShulsAdmin(); }
 }
 function timeMinutesIsrael(t){
   const s = t.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'});
@@ -874,6 +929,12 @@ function renderTefilot(){
   tefilaSel.innerHTML = '<option value="">כל התפילות</option>' + TEFILA_ORDER.map(t=>`<option value="${t}">${t}</option>`).join('');
   tefilaSel.value = currentTefila;
   const tefilaF = tefilaSel.value;
+  const shulSel = document.getElementById('filterShul');
+  const currentShulF = shulSel.value;
+  const shulsSortedForFilter = [...data.shuls].sort((a,b)=>a.name.localeCompare(b.name,'he'));
+  shulSel.innerHTML = '<option value="">כל בתי הכנסת</option>' + shulsSortedForFilter.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
+  shulSel.value = currentShulF;
+  const shulF = shulSel.value;
   const timeMode = document.getElementById('filterTimeMode').value;
   const timeFrom = timeMode === 'from' ? document.getElementById('filterTimeFrom').value : '';
   const timeTo = '';
@@ -891,11 +952,7 @@ function renderTefilot(){
 
   if (currentView === 'byshul'){
     if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל היישוב כדי להוסיף.</div>'; return; }
-    let shulsOrdered = [...data.shuls].sort((a,b)=>{
-      const countA = data.minyanim.filter(m=>m.shulId===a.id).length;
-      const countB = data.minyanim.filter(m=>m.shulId===b.id).length;
-      return countB - countA;
-    });
+    let shulsOrdered = [...data.shuls].sort((a,b)=> a.name.localeCompare(b.name, 'he'));
     if (sortByProximity && userLocation){
       shulsOrdered = [...data.shuls].sort((a,b)=>{
         const da = (a.lat&&a.lng) ? haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) : Infinity;
@@ -903,14 +960,20 @@ function renderTefilot(){
         return da - db;
       });
     }
+    if (shulF) shulsOrdered = shulsOrdered.filter(s=>s.id===shulF);
     const cards = shulsOrdered.map(shul=>{
       let mins = data.minyanim.filter(m=>m.shulId===shul.id);
       if (tefilaF) mins = mins.filter(m=>m.tefila===tefilaF);
-      mins = mins.sort((a,b)=> TEFILA_ORDER.indexOf(a.tefila) - TEFILA_ORDER.indexOf(b.tefila));
       let minsWithTime = mins.map(m=>{
         const isToday = m.days.includes(dk);
         const t = computeMinyanTime(m, today, zmanim);
         return { m, t, isToday };
+      });
+      minsWithTime.sort((a,b)=>{
+        if (!a.t && !b.t) return 0;
+        if (!a.t) return 1;
+        if (!b.t) return -1;
+        return a.t - b.t;
       });
       if (timeFrom || timeTo){
         minsWithTime = minsWithTime.filter(x => !x.isToday || timeInRange(x.t, timeFrom, timeTo));
@@ -928,10 +991,10 @@ function renderTefilot(){
             <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
           </div>
           <div class="ml-bottom">
-            <span class="muted">📅 ${daysToLabel(m.days)}${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}</span>
-            <span>
-              <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
-              ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
+            <span class="muted">📅 ${daysToLabel(m.days)}
+              <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
+              ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+              ${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}
             </span>
           </div>
         </div>`;
@@ -949,13 +1012,10 @@ function renderTefilot(){
         </div>
         <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
         ${navLinksHtml(shul)}
-        <div class="row" style="margin-top:8px">
+        ${isAdminLevel()?`<div class="row" style="margin-top:8px">
           <span></span>
-          <div>
-            ${isAdminLevel()?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכה</button>`:''}
-            ${isManager()?`<button class="btn danger" onclick="deleteShul('${shul.id}')">מחק בית כנסת</button>`:''}
-          </div>
-        </div>
+          <button class="btn" onclick="openShulForm('${shul.id}')">עריכה</button>
+        </div>`:''}
         <div style="margin-top:10px">${lines}</div>
       </div>`;
     }).filter(Boolean);
@@ -965,6 +1025,7 @@ function renderTefilot(){
     data.minyanim.forEach(m=>{
       if (!m.days.includes(dk)) return;
       if (tefilaF && m.tefila !== tefilaF) return;
+      if (shulF && m.shulId !== shulF) return;
       const t = computeMinyanTime(m, today, zmanim);
       if (!t) return;
       if ((timeFrom || timeTo) && !timeInRange(t, timeFrom, timeTo)) return;
@@ -976,8 +1037,9 @@ function renderTefilot(){
       const upcoming = items.filter(it=>timeMinutesIsrael(it.t) >= nowMins);
       items = upcoming.length ? [upcoming[0]] : [];
     }
-    if (!items.length){ el.innerHTML = '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
-    el.innerHTML = '<div class="card"><div class="timeline">' + items.map(it=>`
+    const addBtnHtml = `<div class="row" style="margin-bottom:10px"><span></span><button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button></div>`;
+    if (!items.length){ el.innerHTML = addBtnHtml + '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
+    el.innerHTML = addBtnHtml + '<div class="card"><div class="timeline">' + items.map(it=>`
       <div class="tline-item">
         <span class="time">${fmtTime(it.t)}</span> —
         ${it.m.tefila} · <span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
@@ -990,9 +1052,8 @@ function renderTefilot(){
 const AUDIENCE_LABEL = {all:'כולם', men:'גברים', women:'נשים', youth:'נוער'};
 function renderShiurim(){
   const topicSel = document.getElementById('filterTopic');
-  const topics = [...new Set(data.shiurim.map(s=>s.topic).filter(Boolean))];
   const currentTopic = topicSel.value;
-  topicSel.innerHTML = '<option value="">כל הנושאים</option>' + topics.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  topicSel.innerHTML = '<option value="">כל הנושאים</option>' + TOPIC_LIST.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
   topicSel.value = currentTopic;
 
   const audF = document.getElementById('filterAudience').value;
@@ -1000,9 +1061,10 @@ function renderShiurim(){
   const topicF = topicSel.value;
 
   let list = data.shiurim.filter(s=>{
-    if (topicF && s.topic !== topicF) return false;
+    const sTopics = getShiurTopics(s);
+    if (topicF && !sTopics.includes(topicF)) return false;
     if (audF && (s.audience||'all') !== audF) return false;
-    if (searchF && !(s.title+' '+(s.topic||'')+' '+(s.location||'')).toLowerCase().includes(searchF)) return false;
+    if (searchF && !(s.title+' '+sTopics.join(' ')+' '+(s.location||'')).toLowerCase().includes(searchF)) return false;
     return true;
   });
 
@@ -1028,7 +1090,7 @@ function renderShiurim(){
       <div class="row">
         <div>
           <h3>${escapeHtml(s.title)}</h3>
-          <div class="muted">${s.topic?escapeHtml(s.topic)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}</div>
+          <div class="muted">${getShiurTopics(s).length?escapeHtml(getShiurTopics(s).join(', '))+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}</div>
           ${navLinksHtml({lat:s.lat, lng:s.lng, address:s.location})}
         </div>
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
@@ -1041,11 +1103,11 @@ function renderShiurim(){
         ${s.contactName?`איש קשר: ${escapeHtml(s.contactName)} ${s.contactPhone?'· '+escapeHtml(s.contactPhone):''}<br>`:''}
         ${s.notes?escapeHtml(s.notes):''}
       </div>
-      <div style="margin-top:8px" class="row">
-        ${isAdminLevel()?lastUpdatedLabel(s):'<span></span>'}
-        <span style="text-align:left">
-        <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">✏️</button>
-        ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
+      <div style="margin-top:8px">
+        <span class="muted" style="font-size:13px">
+          ${isAdminLevel()&&s.updatedAt?`${lastUpdatedLabel(s)} · `:''}
+          <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
+          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
         </span>
       </div>
     </div>`;
@@ -1057,8 +1119,7 @@ function lastUpdatedLabel(obj){
   if (!obj || !obj.updatedAt) return '';
   const d = new Date(obj.updatedAt);
   const dateStr = d.toLocaleDateString('he-IL');
-  const timeStr = d.toLocaleTimeString('he-IL', {hour:'2-digit', minute:'2-digit'});
-  return `<span class="muted" style="font-size:11.5px">עודכן לאחרונה ע"י ${escapeHtml(obj.updatedBy||'')} · ${dateStr} ${timeStr}</span>`;
+  return `עודכן ע"י ${escapeHtml(obj.updatedBy||'')} · ${dateStr}`;
 }
 function daysToLabel(days){
   if (!days || !days.length) return '';
@@ -1365,10 +1426,17 @@ function renderShulPage(){
   const today = new Date();
   const zmanim = getZmanim(today);
   const dk = dayKeyOf(today);
-  const mins = data.minyanim.filter(m=>m.shulId===shul.id).sort((a,b)=>TEFILA_ORDER.indexOf(a.tefila)-TEFILA_ORDER.indexOf(b.tefila));
-  const minyanLines = mins.map(m=>{
+  const mins = data.minyanim.filter(m=>m.shulId===shul.id).map(m=>{
     const isToday = m.days.includes(dk);
     const t = computeMinyanTime(m, today, zmanim);
+    return { m, t, isToday };
+  }).sort((a,b)=>{
+    if (!a.t && !b.t) return 0;
+    if (!a.t) return 1;
+    if (!b.t) return -1;
+    return a.t - b.t;
+  });
+  const minyanLines = mins.map(({m,t,isToday})=>{
     const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
     return `<div class="minyan-line">
       <div class="ml-top">
@@ -1376,10 +1444,10 @@ function renderShulPage(){
         <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
       </div>
       <div class="ml-bottom">
-        <span class="muted">📅 ${daysToLabel(m.days)}${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}</span>
-        <span>
-          <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
-          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
+        <span class="muted">📅 ${daysToLabel(m.days)}
+          <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
+          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+          ${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}
         </span>
       </div>
     </div>`;
@@ -1513,9 +1581,16 @@ const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const DAY_LABELS = ['א','ב','ג','ד','ה','ו','ש'];
 function openMinyanForm(shulId, minyanId){
   const m = minyanId ? data.minyanim.find(x=>x.id===minyanId) : null;
+  const needsShulSelect = !shulId;
   document.getElementById('modalBody').innerHTML = `
     <h3>${m?'עריכת מניין':'הוספת מניין'}</h3>
     ${nameFieldHtml()}
+    ${needsShulSelect ? `<div class="field"><label>בית כנסת</label>
+      <select id="f_shulId">
+        <option value="">בחרו בית כנסת...</option>
+        ${data.shuls.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
+      </select>
+    </div>` : ''}
     <div class="field"><label>תפילה</label>
       <select id="f_tefila" onchange="onTefilaChange(${m?'true':'false'})">${TEFILA_ORDER.map(t=>`<option ${m&&m.tefila===t?'selected':''}>${t}</option>`).join('')}</select>
     </div>
@@ -1550,7 +1625,7 @@ function openMinyanForm(shulId, minyanId){
     <div class="field optional"><label>הערות</label><input id="f_notes" value="${m?escapeHtml(m.notes||''):''}" placeholder="למשל: ותיקין, מניין מהיר"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
-      <button class="btn primary" onclick="saveMinyan('${shulId}','${minyanId||''}')">שמירה</button>
+      <button class="btn primary" onclick="saveMinyan('${shulId||''}','${minyanId||''}')">שמירה</button>
     </div>`;
   document.getElementById('overlay').classList.add('show');
   toggleTimeFields();
@@ -1567,6 +1642,11 @@ function onTefilaChange(isEdit){
   if (def) document.getElementById('f_fixedTime').value = def;
 }
 function saveMinyan(shulId, minyanId){
+  if (!shulId){
+    const sel = document.getElementById('f_shulId');
+    shulId = sel ? sel.value : '';
+  }
+  if (!shulId){ alert('יש לבחור בית כנסת'); return; }
   const days = [...document.querySelectorAll('#f_days .daychip.active')].map(d=>d.dataset.day);
   if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
   const id = minyanId || uid();
@@ -1596,16 +1676,16 @@ function openShiurForm(shiurId){
     <h3>${s?'עריכת שיעור':'הוספת שיעור'}</h3>
     ${nameFieldHtml()}
     <div class="field"><label>כותרת</label><input id="f_title" value="${s?escapeHtml(s.title):''}"></div>
-    <div class="inline2">
-      <div class="field"><label>נושא</label><input id="f_topic" value="${s?escapeHtml(s.topic||''):''}" placeholder="הלכה / גמרא / פרשת שבוע..."></div>
-      <div class="field"><label>קהל יעד</label>
-        <select id="f_audience">
-          <option value="all" ${(!s||s.audience==='all')?'selected':''}>כולם</option>
-          <option value="men" ${s&&s.audience==='men'?'selected':''}>גברים</option>
-          <option value="women" ${s&&s.audience==='women'?'selected':''}>נשים</option>
-          <option value="youth" ${s&&s.audience==='youth'?'selected':''}>נוער</option>
-        </select>
-      </div>
+    <div class="field"><label>נושאים (ניתן לבחור יותר מאחד)</label>
+      <div class="days" id="f_topics">${TOPIC_LIST.map(t=>`<span class="daychip ${s&&getShiurTopics(s).includes(t)?'active':''}" data-topic="${escapeHtml(t)}" onclick="this.classList.toggle('active')">${escapeHtml(t)}</span>`).join('')}</div>
+    </div>
+    <div class="field"><label>קהל יעד</label>
+      <select id="f_audience">
+        <option value="all" ${(!s||s.audience==='all')?'selected':''}>כולם</option>
+        <option value="men" ${s&&s.audience==='men'?'selected':''}>גברים</option>
+        <option value="women" ${s&&s.audience==='women'?'selected':''}>נשים</option>
+        <option value="youth" ${s&&s.audience==='youth'?'selected':''}>נוער</option>
+      </select>
     </div>
     <div class="field"><label>ימי השיעור</label>
       <div class="days" id="f_shiurDays">${DAY_KEYS.map((k,i)=>`<span class="daychip ${s&&s.days&&s.days.includes(k)?'active':''}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
@@ -1670,10 +1750,11 @@ function saveShiur(shiurId){
   }
   const days = [...document.querySelectorAll('#f_shiurDays .daychip.active')].map(d=>d.dataset.day);
   if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  const topics = [...document.querySelectorAll('#f_topics .daychip.active')].map(d=>d.dataset.topic);
   const id = shiurId || uid();
   const obj = stamp({
     title,
-    topic: document.getElementById('f_topic').value.trim(),
+    topics,
     audience: document.getElementById('f_audience').value,
     days,
     time: document.getElementById('f_time').value,
@@ -1773,6 +1854,7 @@ document.getElementById('importFileInput').addEventListener('change', function()
 document.getElementById('signInBtn').addEventListener('click', doSignIn);
 document.getElementById('signOutBtn').addEventListener('click', ()=>auth.signOut());
 document.getElementById('filterTefila').addEventListener('change', render);
+document.getElementById('filterShul').addEventListener('change', render);
 document.getElementById('filterTimeMode').addEventListener('change', render);
 document.getElementById('filterTimeFrom').addEventListener('change', render);
 document.getElementById('addShiurBtn').addEventListener('click', ()=>openShiurForm());
