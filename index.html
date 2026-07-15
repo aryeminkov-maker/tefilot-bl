@@ -144,6 +144,7 @@
     <div class="header-top-row">
       <div>
         <h1>לוח תפילות ושיעורים · בית אל</h1>
+        <p id="headerDayLabel" style="margin:4px 0 0;font-size:13px;color:var(--ink-soft)"></p>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button type="button" class="icon-btn" id="signInBtn" aria-label="התחברות עם Google">
@@ -182,13 +183,16 @@
   <div id="shul-page" style="display:none"></div>
 
   <div id="tefilot-tab">
-    <div class="sub-toggle">
-      <button class="active" data-view="chrono">לפי שעות</button>
-      <button data-view="byshul">לפי בית כנסת</button>
+    <div class="row" style="margin:10px 0">
+      <div class="sub-toggle" style="margin:0">
+        <button class="active" data-view="chrono">לפי שעות</button>
+        <button data-view="byshul">לפי בית כנסת</button>
+      </div>
+      <button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button>
     </div>
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="tefilotFiltersToggle" type="button" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
-      <button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button>
+      <span></span>
     </div>
     <div id="tefilotFiltersPanel" class="filters-panel">
       <div class="filters">
@@ -222,12 +226,10 @@
   </div>
 
   <div id="shiurim-tab" style="display:none">
-    <div class="row" style="margin-bottom:10px">
-      <button class="btn" id="shiurimFiltersToggle" type="button" onclick="toggleFiltersPanel('shiurimFiltersPanel','shiurimFiltersToggle')">🔍 סינון</button>
-      <div style="display:flex;gap:8px">
-        <button class="icon-btn" onclick="shareShiurimFilter()" aria-label="שיתוף" title="שיתוף התצוגה המסוננת">🔗</button>
-        <button class="btn primary" id="addShiurBtn">+ הוסף שיעור</button>
-      </div>
+    <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
+      <button class="btn" id="shiurimFiltersToggle" type="button" style="flex-shrink:0;white-space:nowrap" onclick="toggleFiltersPanel('shiurimFiltersPanel','shiurimFiltersToggle')">🔍 סינון</button>
+      <button class="icon-btn" style="flex-shrink:0" onclick="shareShiurimFilter()" aria-label="שיתוף" title="שיתוף התצוגה המסוננת">🔗</button>
+      <button class="btn primary" id="addShiurBtn" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">+ הוסף שיעור</button>
     </div>
     <div id="shiurimFiltersPanel" class="filters-panel">
       <div class="filters">
@@ -979,11 +981,7 @@ function renderTefilot(){
   if (selectedDayKey){
     dayLabelEl.textContent = 'מוצגים מניינים ליום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(selectedDayKey)] + ' (זמנים משוערים)';
   } else {
-    const now = new Date();
-    const dayName = now.toLocaleDateString('he-IL', {weekday:'long'});
-    let heDate = '';
-    try{ heDate = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', {day:'numeric', month:'long', year:'numeric'}).format(now); }catch(e){}
-    dayLabelEl.textContent = `זמני תפילות נכון ליום ${dayName}${heDate?', '+heDate:''} (${now.toLocaleDateString('he-IL')})`;
+    dayLabelEl.textContent = '';
   }
   const tefilaSel = document.getElementById('filterTefila');
   const currentTefila = tefilaSel.value;
@@ -1915,7 +1913,7 @@ function openAboutModal(){
   document.getElementById('modalBody').innerHTML = `
     <h3>אודות</h3>
     <p style="line-height:1.7;margin-bottom:14px">הכלי פותח על ידי המחלקה לשירותי דת, מועצה מקומית בית אל.</p>
-    <p style="line-height:1.7;margin-bottom:14px">זמני התפילות, השיעורים וכדו' מתעדכנים על ידי התושבים. נתקלתם במידע לא מדויק? עדכנו אותו!</p>
+    <p style="line-height:1.7;margin-bottom:14px">זמני התפילות, השיעורים וכדו' מתעדכנים על ידי התושבים. נתקלתם במידע לא מדויק - היכנסו לפרטי המניין או השיעור ועדכנו את הפרטים!</p>
     <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - יש לפנות למחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a></p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
@@ -1990,6 +1988,11 @@ document.getElementById('filterTopic').addEventListener('change', render);
 document.getElementById('filterAudience').addEventListener('change', render);
 document.getElementById('filterSearch').addEventListener('input', render);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+
+(function initHeaderDayLabel(){
+  const el = document.getElementById('headerDayLabel');
+  if (el) el.textContent = 'זמני תפילות ליום ' + new Date().toLocaleDateString('he-IL', {weekday:'long'});
+})();
 
 (function applySharedShiurimFilterFromUrl(){
   try{
