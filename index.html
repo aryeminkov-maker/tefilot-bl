@@ -174,13 +174,12 @@
       <button class="btn" id="proximityBtn" type="button" onclick="toggleProximity()">📍 מיין לפי קרבה אליי</button>
     </div>
     <div class="filters">
-      <span class="muted" style="align-self:center">טווח שעות:</span>
-      <input type="time" id="filterTimeFrom">
-      <span class="muted" style="align-self:center">עד</span>
-      <input type="time" id="filterTimeTo">
-      <label class="muted" style="display:flex;align-items:center;gap:5px;cursor:pointer">
-        <input type="checkbox" id="filterNextOnly"> המניין הקרוב ביותר בלבד
-      </label>
+      <select id="filterTimeMode" onchange="onTimeModeChange()">
+        <option value="all">כל השעות</option>
+        <option value="next">המניין הקרוב ביותר</option>
+        <option value="from">משעה מסוימת והלאה</option>
+      </select>
+      <input type="time" id="filterTimeFrom" style="display:none">
     </div>
     <div class="row" style="margin-bottom:12px">
       <span class="muted" id="todayLabel"></span>
@@ -809,6 +808,10 @@ function timeMinutesIsrael(t){
   const [h,m] = s.split(':').map(Number);
   return h*60+m;
 }
+function onTimeModeChange(){
+  const mode = document.getElementById('filterTimeMode').value;
+  document.getElementById('filterTimeFrom').style.display = mode === 'from' ? '' : 'none';
+}
 function timeInRange(t, fromStr, toStr){
   if (!t) return false;
   const mins = timeMinutesIsrael(t);
@@ -823,9 +826,10 @@ function renderTefilot(){
   tefilaSel.innerHTML = '<option value="">כל התפילות</option>' + TEFILA_ORDER.map(t=>`<option value="${t}">${t}</option>`).join('');
   tefilaSel.value = currentTefila;
   const tefilaF = tefilaSel.value;
-  const timeFrom = document.getElementById('filterTimeFrom').value;
-  const timeTo = document.getElementById('filterTimeTo').value;
-  const nextOnly = document.getElementById('filterNextOnly').checked;
+  const timeMode = document.getElementById('filterTimeMode').value;
+  const timeFrom = timeMode === 'from' ? document.getElementById('filterTimeFrom').value : '';
+  const timeTo = '';
+  const nextOnly = timeMode === 'next';
 
   const proxBtn = document.getElementById('proximityBtn');
   proxBtn.classList.toggle('active', sortByProximity);
@@ -855,19 +859,23 @@ function renderTefilot(){
       let mins = data.minyanim.filter(m=>m.shulId===shul.id);
       if (tefilaF) mins = mins.filter(m=>m.tefila===tefilaF);
       mins = mins.sort((a,b)=> TEFILA_ORDER.indexOf(a.tefila) - TEFILA_ORDER.indexOf(b.tefila));
-      let minsWithTime = mins.map(m=>({ m, t: m.days.includes(dk) ? computeMinyanTime(m, today, zmanim) : null }));
+      let minsWithTime = mins.map(m=>{
+        const isToday = m.days.includes(dk);
+        const t = computeMinyanTime(m, today, zmanim);
+        return { m, t, isToday };
+      });
       if (timeFrom || timeTo){
-        minsWithTime = minsWithTime.filter(x => !x.t || timeInRange(x.t, timeFrom, timeTo));
+        minsWithTime = minsWithTime.filter(x => !x.isToday || timeInRange(x.t, timeFrom, timeTo));
       }
       if (nextOnly){
-        const upcoming = minsWithTime.filter(x=>x.t && timeMinutesIsrael(x.t) >= nowMins).sort((a,b)=>a.t-b.t);
+        const upcoming = minsWithTime.filter(x=>x.isToday && x.t && timeMinutesIsrael(x.t) >= nowMins).sort((a,b)=>a.t-b.t);
         minsWithTime = upcoming.length ? [upcoming[0]] : [];
       }
       if ((tefilaF || nextOnly) && !minsWithTime.length) return ''; // אין תוצאות תואמות לבית כנסת זה
-      const lines = minsWithTime.map(({m,t})=>{
-        const timeHtml = t
+      const lines = minsWithTime.map(({m,t,isToday})=>{
+        const timeHtml = isToday
           ? `<span class="time">${fmtTime(t)}</span>`
-          : `<span class="time" style="color:var(--ink-soft);font-weight:500;font-size:13px">📅 ${daysToLabel(m.days)}</span>`;
+          : `<span class="time" style="color:var(--ink-soft);font-weight:500">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`;
         return `<div class="minyan-line">
           <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}<br><span class="muted" style="font-size:11px">${lastUpdatedLabel(m)}</span></span>
           <span>
@@ -1121,14 +1129,73 @@ function openShulForm(shulId){
         <option value="משולב" ${s&&s.nusach==='משולב'?'selected':''}>משולב</option>
       </select>
     </div>
-    <div class="field optional"><label>קישור לתמונה (URL)</label><input id="f_photo" value="${s?escapeHtml(s.photo||''):''}" placeholder="https://..."></div>
+    <div class="field optional">
+      <label>תמונה</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <label class="btn" style="cursor:pointer;margin:0">
+          📷 העלאת תמונה מהמכשיר
+          <input type="file" id="f_photoFile" accept="image/*" style="display:none" onchange="handlePhotoUpload(this)">
+        </label>
+        <span class="muted" id="photoUploadStatus"></span>
+      </div>
+      <div id="photoPreview">${s&&s.photo?`<img src="${escapeHtml(s.photo)}" style="max-width:120px;max-height:120px;border-radius:8px;display:block;margin-bottom:6px">`:''}</div>
+      ${s&&s.photo?`<button type="button" class="btn ghost" style="color:var(--danger);margin-bottom:8px" onclick="removePhotoField()">✕ הסרת תמונה</button>`:''}
+      <input id="f_photo" value="${s?escapeHtml(s.photo||''):''}" placeholder="או הדביקו כתובת URL לתמונה קיימת ברשת" style="font-size:11px">
+    </div>
     <div class="field optional"><label>תיאור / מידע נוסף</label><textarea id="f_description" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${s?escapeHtml(s.description||''):''}</textarea></div>
     <div class="field optional"><label>קישור לתרומה</label><input id="f_donationLink" value="${s?escapeHtml(s.donationLink||''):''}" placeholder="https://..."></div>
+    <div class="field optional"><label>שם/שמות הרב</label><input id="f_rabbiNames" value="${s&&s.rabbiNames?escapeHtml(s.rabbiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
+    <div class="field optional"><label>שמות הגבאים</label><input id="f_gabaiNames" value="${s&&s.gabaiNames?escapeHtml(s.gabaiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveShul('${shulId||''}')">שמירה</button>
     </div>`;
   document.getElementById('overlay').classList.add('show');
+}
+function handlePhotoUpload(input){
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')){ alert('יש לבחור קובץ תמונה'); input.value=''; return; }
+  const statusEl = document.getElementById('photoUploadStatus');
+  statusEl.textContent = 'מעבד תמונה...';
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const maxDim = 1000;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim){
+        if (w >= h){ h = Math.round(h*maxDim/w); w = maxDim; }
+        else { w = Math.round(w*maxDim/h); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      let quality = 0.82;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (dataUrl.length > 260000 && quality > 0.3){
+        quality -= 0.12;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      if (dataUrl.length > 320000){
+        statusEl.textContent = 'התמונה עדיין גדולה מדי גם אחרי דחיסה, נסו תמונה אחרת';
+        input.value = '';
+        return;
+      }
+      document.getElementById('f_photo').value = dataUrl;
+      document.getElementById('photoPreview').innerHTML = `<img src="${dataUrl}" style="max-width:120px;max-height:120px;border-radius:8px;display:block;margin-bottom:6px">`;
+      statusEl.textContent = '✓ מוכן לשמירה (כ-' + Math.round(dataUrl.length*0.75/1024) + ' KB)';
+      input.value = '';
+    };
+    img.onerror = ()=>{ statusEl.textContent = 'שגיאה בטעינת התמונה, נסו קובץ אחר'; };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function removePhotoField(){
+  document.getElementById('f_photo').value = '';
+  document.getElementById('photoPreview').innerHTML = '';
+  document.getElementById('photoUploadStatus').textContent = '';
 }
 function captureGpsInto(latId, lngId, statusId){
   if (!navigator.geolocation){ alert('הדפדפן הזה לא תומך באיתור מיקום'); return; }
@@ -1149,6 +1216,7 @@ function saveShul(shulId){
   if (!name){ alert('יש להזין שם בית כנסת'); return; }
   const lat = document.getElementById('f_lat').value;
   const lng = document.getElementById('f_lng').value;
+  const parseNames = s => s.split(',').map(x=>x.trim()).filter(Boolean);
   const obj = stamp({
     name,
     address: document.getElementById('f_address').value.trim(),
@@ -1157,7 +1225,9 @@ function saveShul(shulId){
     lng: lng ? Number(lng) : null,
     photo: document.getElementById('f_photo').value.trim(),
     description: document.getElementById('f_description').value.trim(),
-    donationLink: document.getElementById('f_donationLink').value.trim()
+    donationLink: document.getElementById('f_donationLink').value.trim(),
+    rabbiNames: parseNames(document.getElementById('f_rabbiNames').value),
+    gabaiNames: parseNames(document.getElementById('f_gabaiNames').value)
   });
   const id = shulId || uid();
   db.collection('shuls').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
@@ -1232,8 +1302,11 @@ function renderShulPage(){
   const dk = dayKeyOf(today);
   const mins = data.minyanim.filter(m=>m.shulId===shul.id).sort((a,b)=>TEFILA_ORDER.indexOf(a.tefila)-TEFILA_ORDER.indexOf(b.tefila));
   const minyanLines = mins.map(m=>{
-    const t = m.days.includes(dk) ? computeMinyanTime(m, today, zmanim) : null;
-    const timeHtml = t ? `<span class="time">${fmtTime(t)}</span>` : `<span class="time" style="color:var(--ink-soft);font-weight:500;font-size:13px">📅 ${daysToLabel(m.days)}</span>`;
+    const isToday = m.days.includes(dk);
+    const t = computeMinyanTime(m, today, zmanim);
+    const timeHtml = isToday
+      ? `<span class="time">${fmtTime(t)}</span>`
+      : `<span class="time" style="color:var(--ink-soft);font-weight:500">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`;
     return `<div class="minyan-line">
       <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}</span>
       <span>
@@ -1285,18 +1358,20 @@ function renderShulPage(){
 
   el.innerHTML = `
     <button class="btn ghost" onclick="closeShulPage()">→ חזרה</button>
-    ${shul.photo?`<img src="${escapeHtml(shul.photo)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin:12px 0" onerror="this.style.display='none'">`:''}
-    <div class="row" style="align-items:center">
-      <h2 style="margin:0">${escapeHtml(shul.name)}</h2>
-      <div style="display:flex;gap:8px">
+    <div style="text-align:center;margin-top:8px">
+      ${shul.photo?`<img src="${escapeHtml(shul.photo)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
+      <h2 style="margin:0;font-size:30px">${escapeHtml(shul.name)}</h2>
+      <div class="muted" style="margin-top:6px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
+      ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">רב בית הכנסת: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
+      ${shul.gabaiNames && shul.gabaiNames.length ? `<div class="muted" style="margin-top:2px">גבאים: ${shul.gabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
+      <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="icon-btn" onclick="shareShulLink('${shul.id}')" aria-label="שיתוף" title="שיתוף">🔗</button>
         ${editable?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>`:''}
       </div>
+      <div style="display:flex;justify-content:center;margin-top:4px">${navLinksHtml(shul)}</div>
+      ${shul.description?`<p style="margin-top:12px;line-height:1.7">${escapeHtml(shul.description)}</p>`:''}
+      ${shul.donationLink?`<a href="${escapeHtml(shul.donationLink)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-top:10px">💙 תרומה לבית הכנסת</a>`:''}
     </div>
-    <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
-    ${navLinksHtml(shul)}
-    ${shul.description?`<p style="margin-top:12px;line-height:1.7">${escapeHtml(shul.description)}</p>`:''}
-    ${shul.donationLink?`<a href="${escapeHtml(shul.donationLink)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-top:10px">💙 תרומה לבית הכנסת</a>`:''}
 
     <div class="card" style="margin-top:18px">
       <div class="row" style="margin-bottom:8px">
@@ -1625,9 +1700,8 @@ document.getElementById('importFileInput').addEventListener('change', function()
 document.getElementById('signInBtn').addEventListener('click', doSignIn);
 document.getElementById('signOutBtn').addEventListener('click', ()=>auth.signOut());
 document.getElementById('filterTefila').addEventListener('change', render);
+document.getElementById('filterTimeMode').addEventListener('change', render);
 document.getElementById('filterTimeFrom').addEventListener('change', render);
-document.getElementById('filterTimeTo').addEventListener('change', render);
-document.getElementById('filterNextOnly').addEventListener('change', render);
 document.getElementById('addShiurBtn').addEventListener('click', ()=>openShiurForm());
 document.getElementById('filterTopic').addEventListener('change', render);
 document.getElementById('filterAudience').addEventListener('change', render);
