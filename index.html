@@ -182,8 +182,8 @@
 
   <div id="tefilot-tab">
     <div class="sub-toggle">
-      <button data-view="byshul">לפי בית כנסת</button>
       <button class="active" data-view="chrono">כרונולוגי · היום</button>
+      <button data-view="byshul">לפי בית כנסת</button>
     </div>
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="tefilotFiltersToggle" type="button" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
@@ -1877,6 +1877,10 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     currentTab = btn.dataset.tab;
+    if (currentTab === 'tefilot'){
+      currentView = 'chrono';
+      document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
+    }
     document.getElementById('tefilot-tab').style.display = currentTab==='tefilot' ? '' : 'none';
     document.getElementById('shiurim-tab').style.display = currentTab==='shiurim' ? '' : 'none';
     document.getElementById('admin-tab').style.display = currentTab==='admin' ? '' : 'none';
