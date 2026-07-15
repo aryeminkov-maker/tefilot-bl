@@ -210,7 +210,7 @@
       <div class="filters">
         <select id="filterTimeMode" onchange="onTimeModeChange()">
           <option value="all">כל השעות</option>
-          <option value="next">המניין הקרוב ביותר</option>
+          <option value="next">מהמניין הקרוב ביותר והלאה</option>
           <option value="from">משעה מסוימת והלאה</option>
         </select>
         <input type="time" id="filterTimeFrom" style="display:none">
@@ -992,8 +992,7 @@ function renderTefilot(){
         minsWithTime = minsWithTime.filter(x => !x.isToday || timeInRange(x.t, timeFrom, timeTo));
       }
       if (nextOnly){
-        const upcoming = minsWithTime.filter(x=>x.isToday && x.t && timeMinutesIsrael(x.t) >= nowMins).sort((a,b)=>a.t-b.t);
-        minsWithTime = upcoming.length ? [upcoming[0]] : [];
+        minsWithTime = minsWithTime.filter(x=>x.isToday && x.t && timeMinutesIsrael(x.t) >= nowMins).sort((a,b)=>a.t-b.t);
       }
       if ((tefilaF || nextOnly) && !minsWithTime.length) return ''; // אין תוצאות תואמות לבית כנסת זה
       const lines = minsWithTime.map(({m,t,isToday})=>{
@@ -1004,8 +1003,8 @@ function renderTefilot(){
             <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
           </div>
           <div class="ml-bottom">
-            <span class="muted">📅
-              ${isAdminLevel()&&m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
+            <span class="muted">
+              ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
               <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
               ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
               ${daysToLabel(m.days)}
@@ -1048,8 +1047,7 @@ function renderTefilot(){
     });
     items.sort((a,b)=>a.t-b.t);
     if (nextOnly){
-      const upcoming = items.filter(it=>timeMinutesIsrael(it.t) >= nowMins);
-      items = upcoming.length ? [upcoming[0]] : [];
+      items = items.filter(it=>timeMinutesIsrael(it.t) >= nowMins);
     }
     const addBtnHtml = `<div class="row" style="margin-bottom:10px"><span></span><button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button></div>`;
     if (!items.length){ el.innerHTML = addBtnHtml + '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
@@ -1484,8 +1482,8 @@ function renderShulPage(){
         <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
       </div>
       <div class="ml-bottom">
-        <span class="muted">📅
-          ${isAdminLevel()&&m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
+        <span class="muted">
+          ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
           <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
           ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
           ${daysToLabel(m.days)}
