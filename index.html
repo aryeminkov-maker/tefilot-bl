@@ -43,6 +43,7 @@
   .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
   .btn{padding:7px 13px;border-radius:8px;border:1px solid var(--border);background:var(--surface-2);color:var(--ink);font-size:13px;cursor:pointer;font-family:'Rubik'}
   .btn.primary{background:var(--dusk);color:#fff;border-color:var(--dusk)}
+  .btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
   .btn.danger{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
   .btn.ghost{background:transparent;border-color:transparent;color:var(--ink-soft);text-decoration:underline}
   .minyan-line{display:flex;justify-content:space-between;padding:7px 0;border-top:1px dashed var(--border);font-size:14px}
@@ -146,7 +147,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="tefilot">תפילות</button>
     <button class="tab-btn" data-tab="shiurim">שיעורי תורה</button>
-    <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none">ניהול משתמשים</button>
+    <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none">ניהול</button>
   </div>
 
   <div id="tefilot-tab">
@@ -156,6 +157,7 @@
     </div>
     <div class="filters">
       <select id="filterTefila"><option value="">כל התפילות</option></select>
+      <button class="btn" id="proximityBtn" type="button" onclick="toggleProximity()">📍 מיין לפי קרבה אליי</button>
     </div>
     <div class="row" style="margin-bottom:12px">
       <span class="muted" id="todayLabel"></span>
@@ -175,6 +177,7 @@
         <option value="youth">נוער</option>
       </select>
       <input id="filterSearch" placeholder="חיפוש חופשי...">
+      <button class="btn" id="shiurProximityBtn" type="button" onclick="toggleShiurProximity()">📍 מיין לפי קרבה אליי</button>
     </div>
     <div class="row" style="margin-bottom:12px">
       <span></span>
@@ -184,7 +187,12 @@
   </div>
 
   <div id="admin-tab" style="display:none">
-    <p class="muted" style="margin-bottom:12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל יישוב ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
+    <div class="card">
+      <h3 style="margin-bottom:8px">ייצוא נתונים לאקסל</h3>
+      <p class="muted" style="margin-bottom:12px">מוריד קובץ Excel עם שלושה גליונות — בתי כנסת, מניינים ושיעורים — כולל כל השדות שתושבים מילאו, ומי ומתי עדכן לאחרונה כל פריט.</p>
+      <button class="btn primary" id="exportExcelBtn">⬇ ייצוא לאקסל</button>
+    </div>
+    <p class="muted" style="margin:20px 0 12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל יישוב ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
     <div id="usersList"></div>
   </div>
   </div>
@@ -199,11 +207,15 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 let data = { shuls: [], minyanim: [], shiurim: [], users: [] };
 let currentView = 'byshul';
 let currentTab = 'tefilot';
 let lastName = '';
+let userLocation = null;
+let sortByProximity = false;
+let sortByProximityShiur = false;
 
 const LAT = 31.9333, LON = 35.2167; // בית אל, ברירת מחדל
 
@@ -388,6 +400,67 @@ function changeUserName(targetUid){
   db.collection('users').doc(targetUid).update({ name: val }).catch(e=>alert('שגיאה בעדכון שם: '+e.message));
 }
 
+// ---------- ייצוא לאקסל ----------
+const ANCHOR_LABEL = {sunrise:'הנץ החמה', sunset:'שקיעה', tzeit:'צאת הכוכבים'};
+const OFFSET_SIGN_LABEL = {before:'לפני', after:'אחרי'};
+function fmtDateHe(iso){
+  if (!iso) return '';
+  try{
+    return new Date(iso).toLocaleString('he-IL', {dateStyle:'short', timeStyle:'short'});
+  }catch(e){ return iso; }
+}
+function minyanTimeDescription(m){
+  if (m.timeType === 'fixed') return m.fixedTime || '';
+  return `${m.offsetMinutes||0} דקות ${OFFSET_SIGN_LABEL[m.offsetSign]||''} ${ANCHOR_LABEL[m.anchor]||''}`;
+}
+function exportToExcel(){
+  if (typeof XLSX === 'undefined'){ alert('ספריית האקסל עדיין נטענת, נסו שוב בעוד רגע'); return; }
+
+  const shulsSheet = data.shuls.map(s=>({
+    'שם בית הכנסת': s.name || '',
+    'כתובת': s.address || '',
+    'נוסח': s.nusach || '',
+    'עודכן ע"י': s.updatedBy || '',
+    'עודכן בתאריך': fmtDateHe(s.updatedAt)
+  }));
+
+  const minyanimSheet = data.minyanim.map(m=>{
+    const shul = data.shuls.find(s=>s.id===m.shulId);
+    return {
+      'בית כנסת': shul ? shul.name : '',
+      'תפילה': m.tefila || '',
+      'ימים': daysToLabel(m.days),
+      'זמן': minyanTimeDescription(m),
+      'הערות': m.notes || '',
+      'עודכן ע"י': m.updatedBy || '',
+      'עודכן בתאריך': fmtDateHe(m.updatedAt)
+    };
+  });
+
+  const shiurimSheet = data.shiurim.map(s=>({
+    'כותרת': s.title || '',
+    'נושא': s.topic || '',
+    'קהל יעד': AUDIENCE_LABEL[s.audience||'all'],
+    'ימים': daysToLabel(s.days),
+    'שעה': s.time || '',
+    'מיקום': s.location || '',
+    'מעביר השיעור': s.teacherName || '',
+    'איש קשר': s.contactName || '',
+    'טלפון איש קשר': s.contactPhone || '',
+    'הערות': s.notes || '',
+    'עודכן ע"י': s.updatedBy || '',
+    'עודכן בתאריך': fmtDateHe(s.updatedAt)
+  }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shulsSheet), 'בתי כנסת');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(minyanimSheet), 'מניינים');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(shiurimSheet), 'שיעורים');
+
+  const dateStr = new Date().toLocaleDateString('he-IL').replace(/\//g,'-');
+  XLSX.writeFile(wb, `נתוני-לוח-תפילות-בית-אל-${dateStr}.xlsx`);
+}
+
 function attachListeners(){
   db.collection('shuls').onSnapshot(snap=>{
     data.shuls = snap.docs.map(d=>({id:d.id, ...d.data()}));
@@ -438,6 +511,10 @@ function renderTefilot(){
   tefilaSel.value = currentTefila;
   const tefilaF = tefilaSel.value;
 
+  const proxBtn = document.getElementById('proximityBtn');
+  proxBtn.classList.toggle('active', sortByProximity);
+  proxBtn.textContent = sortByProximity ? '✓ ממוין לפי קרבה' : '📍 מיין לפי קרבה אליי';
+
   const el = document.getElementById('tefilotList');
   const today = new Date();
   const zmanim = getZmanim(today);
@@ -445,7 +522,15 @@ function renderTefilot(){
 
   if (currentView === 'byshul'){
     if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. לחצו "הוסף בית כנסת" כדי להתחיל.</div>'; return; }
-    const cards = data.shuls.map(shul=>{
+    let shulsOrdered = data.shuls;
+    if (sortByProximity && userLocation){
+      shulsOrdered = [...data.shuls].sort((a,b)=>{
+        const da = (a.lat&&a.lng) ? haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) : Infinity;
+        const db = (b.lat&&b.lng) ? haversineKm(userLocation.lat, userLocation.lng, b.lat, b.lng) : Infinity;
+        return da - db;
+      });
+    }
+    const cards = shulsOrdered.map(shul=>{
       let mins = data.minyanim.filter(m=>m.shulId===shul.id);
       if (tefilaF) mins = mins.filter(m=>m.tefila===tefilaF);
       mins = mins.sort((a,b)=> TEFILA_ORDER.indexOf(a.tefila) - TEFILA_ORDER.indexOf(b.tefila));
@@ -465,7 +550,8 @@ function renderTefilot(){
         <div class="row">
           <div>
             <h3>${escapeHtml(shul.name)}</h3>
-            <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
+            <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}${sortByProximity && userLocation ? ` · ${(shul.lat&&shul.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, shul.lat, shul.lng)) : 'ללא מיקום שמור'}` : ''}</div>
+            ${navLinksHtml(shul)}
           </div>
           <div>
             <button class="btn" onclick="openMinyanForm('${shul.id}')">+ הוסף מניין</button>
@@ -518,6 +604,17 @@ function renderShiurim(){
     return true;
   });
 
+  const proxBtn = document.getElementById('shiurProximityBtn');
+  proxBtn.classList.toggle('active', sortByProximityShiur);
+  proxBtn.textContent = sortByProximityShiur ? '✓ ממוין לפי קרבה' : '📍 מיין לפי קרבה אליי';
+  if (sortByProximityShiur && userLocation){
+    list = [...list].sort((a,b)=>{
+      const da = (a.lat&&a.lng) ? haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) : Infinity;
+      const db = (b.lat&&b.lng) ? haversineKm(userLocation.lat, userLocation.lng, b.lat, b.lng) : Infinity;
+      return da - db;
+    });
+  }
+
   const el = document.getElementById('shiurimList');
   if (!list.length){ el.innerHTML = '<div class="empty">לא נמצאו שיעורים תואמים</div>'; return; }
   el.innerHTML = list.map(s=>`
@@ -525,7 +622,8 @@ function renderShiurim(){
       <div class="row">
         <div>
           <h3>${escapeHtml(s.title)}</h3>
-          <div class="muted">${s.topic?escapeHtml(s.topic)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${escapeHtml(s.location)}</div>
+          <div class="muted">${s.topic?escapeHtml(s.topic)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${escapeHtml(s.location)}${sortByProximityShiur && userLocation ? ` · ${(s.lat&&s.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, s.lat, s.lng)) : 'ללא מיקום שמור'}` : ''}</div>
+          ${navLinksHtml({lat:s.lat, lng:s.lng, address:s.location})}
         </div>
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
@@ -561,6 +659,81 @@ function daysToLabel(days){
 }
 const DAYS_HE_FULL = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 
+function haversineKm(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLng = (lng2-lng1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+function fmtDistance(km){
+  if (km < 1) return Math.round(km*1000) + ' מ\'';
+  return km.toFixed(1) + ' ק"מ';
+}
+function toggleProximity(){
+  if (sortByProximity){
+    sortByProximity = false;
+    render();
+    return;
+  }
+  const btn = document.getElementById('proximityBtn');
+  if (!navigator.geolocation){ alert('הדפדפן הזה לא תומך באיתור מיקום'); return; }
+  btn.textContent = 'מאתר מיקום...';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      sortByProximity = true;
+      render();
+    },
+    err=>{
+      alert('לא הצלחנו לאתר את המיקום שלכם: ' + err.message);
+      btn.textContent = '📍 מיין לפי קרבה אליי';
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function toggleShiurProximity(){
+  if (sortByProximityShiur){
+    sortByProximityShiur = false;
+    render();
+    return;
+  }
+  const btn = document.getElementById('shiurProximityBtn');
+  if (!navigator.geolocation){ alert('הדפדפן הזה לא תומך באיתור מיקום'); return; }
+  btn.textContent = 'מאתר מיקום...';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      sortByProximityShiur = true;
+      render();
+    },
+    err=>{
+      alert('לא הצלחנו לאתר את המיקום שלכם: ' + err.message);
+      btn.textContent = '📍 מיין לפי קרבה אליי';
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function navLinksHtml(shul){
+  let waze, gmaps;
+  if (shul.lat && shul.lng){
+    waze = `https://waze.com/ul?ll=${shul.lat}%2C${shul.lng}&navigate=yes`;
+    gmaps = `https://www.google.com/maps/dir/?api=1&destination=${shul.lat}%2C${shul.lng}`;
+  } else if (shul.address){
+    const q = encodeURIComponent(shul.address + ' בית אל');
+    waze = `https://waze.com/ul?q=${q}&navigate=yes`;
+    gmaps = `https://www.google.com/maps/search/?api=1&query=${q}`;
+  } else {
+    return '';
+  }
+  return `<div style="margin-top:6px;display:flex;gap:8px">
+    <a href="${waze}" target="_blank" rel="noopener" class="badge" style="text-decoration:none">🧭 וייז</a>
+    <a href="${gmaps}" target="_blank" rel="noopener" class="badge" style="text-decoration:none">🧭 Google Maps</a>
+  </div>`;
+}
+
 // ---------- טפסים: בית כנסת ----------
 function openShulForm(){
   document.getElementById('modalBody').innerHTML = `
@@ -568,22 +741,58 @@ function openShulForm(){
     ${nameFieldHtml()}
     <div class="field"><label>שם בית הכנסת</label><input id="f_name"></div>
     <div class="field optional"><label>כתובת</label><input id="f_address"></div>
-    <div class="field optional"><label>נוסח</label><input id="f_nusach" placeholder="אשכנז / ספרד / עדות המזרח"></div>
+    <div class="field optional">
+      <label>מיקום מדויק (GPS)</label>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button type="button" class="btn" id="gpsBtn" onclick="captureGpsInto('f_lat','f_lng','gpsStatus')">📍 קבע לפי המיקום שלי עכשיו</button>
+        <span class="muted" id="gpsStatus"></span>
+      </div>
+      <input type="hidden" id="f_lat">
+      <input type="hidden" id="f_lng">
+      <p class="muted" style="margin-top:6px">לתוצאה הכי מדויקת, לחצו כשאתם עומדים פיזית בכניסה לבית הכנסת. זה מה שמאפשר ניווט מדויק (וייז / Google Maps) בהמשך — לא חובה, אפשר להסתפק בכתובת בלבד.</p>
+    </div>
+    <div class="field optional"><label>נוסח</label>
+      <select id="f_nusach">
+        <option value="">לא צוין</option>
+        <option value="אשכנזי">אשכנזי</option>
+        <option value="ספרדי">ספרדי</option>
+        <option value="תימני">תימני</option>
+        <option value="משולב">משולב</option>
+      </select>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveShul()">שמירה</button>
     </div>`;
   document.getElementById('overlay').classList.add('show');
 }
+function captureGpsInto(latId, lngId, statusId){
+  if (!navigator.geolocation){ alert('הדפדפן הזה לא תומך באיתור מיקום'); return; }
+  const statusEl = document.getElementById(statusId);
+  statusEl.textContent = 'מאתר מיקום...';
+  navigator.geolocation.getCurrentPosition(
+    pos=>{
+      document.getElementById(latId).value = pos.coords.latitude;
+      document.getElementById(lngId).value = pos.coords.longitude;
+      statusEl.textContent = '✓ מיקום נקבע בהצלחה';
+    },
+    err=>{ statusEl.textContent = 'לא הצלחנו לאתר מיקום (' + err.message + ')'; },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
 function saveShul(){
   const name = document.getElementById('f_name').value.trim();
   if (!name){ alert('יש להזין שם בית כנסת'); return; }
+  const lat = document.getElementById('f_lat').value;
+  const lng = document.getElementById('f_lng').value;
   const obj = stamp({
     name,
     address: document.getElementById('f_address').value.trim(),
-    nusach: document.getElementById('f_nusach').value.trim()
+    nusach: document.getElementById('f_nusach').value.trim(),
+    lat: lat ? Number(lat) : null,
+    lng: lng ? Number(lng) : null
   });
-  db.collection('shuls').doc(uid()).set(obj).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  db.collection('shuls').doc(uid()).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   closeModal();
 }
 function deleteShul(id){
@@ -659,7 +868,7 @@ function saveMinyan(shulId, minyanId){
     offsetMinutes: Number(document.getElementById('f_offsetMinutes').value)||0,
     notes: document.getElementById('f_notes').value.trim()
   });
-  db.collection('minyanim').doc(id).set(obj).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  db.collection('minyanim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   closeModal();
 }
 function deleteMinyan(id){
@@ -690,7 +899,22 @@ function openShiurForm(shiurId){
     </div>
     <div class="inline2">
       <div class="field"><label>שעה</label><input id="f_time" type="time" value="${s?s.time:'20:30'}"></div>
-      <div class="field"><label>מיקום</label><input id="f_location" value="${s?escapeHtml(s.location||''):''}"></div>
+      <div class="field"><label>מיקום השיעור</label>
+        <select id="f_locationSelect" onchange="onShiurLocationChange()">
+          <option value="">— בחרו —</option>
+          <option value="custom" ${s&&!s.locationShulId?'selected':''}>מיקום אחר (הזנה ידנית)</option>
+          ${data.shuls.map(sh=>`<option value="${sh.id}" ${s&&s.locationShulId===sh.id?'selected':''}>${escapeHtml(sh.name)}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div id="customLocationFields" style="display:none">
+      <div class="field"><label>תיאור המיקום</label><input id="f_location" value="${s&&!s.locationShulId?escapeHtml(s.location||''):''}" placeholder="לדוגמה: בית משפחת כהן, רחוב האלון 5"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
+        <button type="button" class="btn" onclick="captureGpsInto('f_lat','f_lng','shiurGpsStatus')">📍 קבע לפי המיקום שלי עכשיו</button>
+        <span class="muted" id="shiurGpsStatus"></span>
+      </div>
+      <input type="hidden" id="f_lat" value="${s&&!s.locationShulId&&s.lat?s.lat:''}">
+      <input type="hidden" id="f_lng" value="${s&&!s.locationShulId&&s.lng?s.lng:''}">
     </div>
     <div class="field optional"><label>שם מעביר השיעור</label><input id="f_teacherName" value="${s?escapeHtml(s.teacherName||''):''}"></div>
     <div class="inline2">
@@ -703,12 +927,34 @@ function openShiurForm(shiurId){
       <button class="btn primary" onclick="saveShiur('${shiurId||''}')">שמירה</button>
     </div>`;
   document.getElementById('overlay').classList.add('show');
+  onShiurLocationChange();
+}
+function onShiurLocationChange(){
+  const val = document.getElementById('f_locationSelect').value;
+  document.getElementById('customLocationFields').style.display = (val === 'custom') ? '' : 'none';
 }
 function saveShiur(shiurId){
   const title = document.getElementById('f_title').value.trim();
   if (!title){ alert('יש להזין כותרת לשיעור'); return; }
-  const location = document.getElementById('f_location').value.trim();
-  if (!location){ alert('יש להזין מיקום לשיעור'); return; }
+  const locationChoice = document.getElementById('f_locationSelect').value;
+  if (!locationChoice){ alert('יש לבחור מיקום לשיעור'); return; }
+  let location, lat, lng, locationShulId;
+  if (locationChoice === 'custom'){
+    location = document.getElementById('f_location').value.trim();
+    if (!location){ alert('יש להזין תיאור מיקום'); return; }
+    const latVal = document.getElementById('f_lat').value;
+    const lngVal = document.getElementById('f_lng').value;
+    lat = latVal ? Number(latVal) : null;
+    lng = lngVal ? Number(lngVal) : null;
+    locationShulId = null;
+  } else {
+    const shul = data.shuls.find(sh=>sh.id===locationChoice);
+    if (!shul){ alert('בית הכנסת שנבחר לא נמצא, נסו שוב'); return; }
+    location = shul.name;
+    lat = shul.lat || null;
+    lng = shul.lng || null;
+    locationShulId = shul.id;
+  }
   const days = [...document.querySelectorAll('#f_shiurDays .daychip.active')].map(d=>d.dataset.day);
   if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
   const id = shiurId || uid();
@@ -719,12 +965,15 @@ function saveShiur(shiurId){
     days,
     time: document.getElementById('f_time').value,
     location,
+    lat,
+    lng,
+    locationShulId,
     teacherName: document.getElementById('f_teacherName').value.trim(),
     contactName: document.getElementById('f_contactName').value.trim(),
     contactPhone: document.getElementById('f_contactPhone').value.trim(),
     notes: document.getElementById('f_shiurNotes').value.trim()
   });
-  db.collection('shiurim').doc(id).set(obj).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  db.collection('shiurim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   closeModal();
 }
 function deleteShiur(id){
@@ -755,6 +1004,7 @@ document.querySelectorAll('.sub-toggle button').forEach(btn=>{
   });
 });
 document.getElementById('addShulBtn').addEventListener('click', openShulForm);
+document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
 document.getElementById('signInBtn').addEventListener('click', doSignIn);
 document.getElementById('signOutBtn').addEventListener('click', ()=>auth.signOut());
 document.getElementById('filterTefila').addEventListener('change', render);
