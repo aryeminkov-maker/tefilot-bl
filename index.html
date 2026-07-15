@@ -53,8 +53,10 @@
   .btn.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
   .btn.danger{background:var(--danger-bg);color:var(--danger);border-color:var(--danger)}
   .btn.ghost{background:transparent;border-color:transparent;color:var(--ink-soft);text-decoration:underline}
-  .minyan-line{display:flex;justify-content:space-between;padding:7px 0;border-top:1px dashed var(--border);font-size:14px}
+  .minyan-line{padding:4px 0;border-top:1px dashed var(--border)}
   .minyan-line:first-of-type{border-top:none}
+  .ml-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}
+  .ml-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:1px}
   .time{font-weight:700;font-family:'Rubik'}
   .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--border)}
   .badge.all{background:#E7F0EC;color:#2F5D3A}
@@ -116,8 +118,8 @@
     .row{flex-wrap:wrap}
     .row>div:last-child:not(:only-child){width:100%;display:flex;gap:8px;margin-top:10px}
     .row>div:last-child:not(:only-child) .btn{flex:1;text-align:center}
-    .minyan-line{flex-direction:column;align-items:flex-start;gap:8px;padding:10px 0}
-    .minyan-line>span:last-child{width:100%;display:flex;justify-content:space-between;align-items:center}
+    .minyan-line{padding:3px 0}
+    .ml-bottom{font-size:12.5px}
     .time{font-size:16px}
     .btn{padding:10px 14px;font-size:14px;min-height:42px}
     .daychip{padding:9px 12px;font-size:13px}
@@ -175,8 +177,8 @@
 
   <div id="tefilot-tab">
     <div class="sub-toggle">
-      <button class="active" data-view="byshul">לפי בית כנסת</button>
-      <button data-view="chrono">כרונולוגי · היום</button>
+      <button data-view="byshul">לפי בית כנסת</button>
+      <button class="active" data-view="chrono">כרונולוגי · היום</button>
     </div>
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="tefilotFiltersToggle" type="button" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
@@ -186,6 +188,18 @@
       <div class="filters">
         <select id="filterTefila"><option value="">כל התפילות</option></select>
         <button class="btn" id="proximityBtn" type="button" onclick="toggleProximity()">📍 מיין לפי קרבה אליי</button>
+      </div>
+      <div class="filters">
+        <select id="filterDay" onchange="onDayFilterChange()">
+          <option value="">היום</option>
+          <option value="sun">ראשון</option>
+          <option value="mon">שני</option>
+          <option value="tue">שלישי</option>
+          <option value="wed">רביעי</option>
+          <option value="thu">חמישי</option>
+          <option value="fri">שישי</option>
+          <option value="sat">שבת</option>
+        </select>
       </div>
       <div class="filters">
         <select id="filterTimeMode" onchange="onTimeModeChange()">
@@ -274,7 +288,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 let data = { shuls: [], minyanim: [], shiurim: [], users: [] };
-let currentView = 'byshul';
+let currentView = 'chrono';
+let selectedDayKey = '';
 let currentTab = 'tefilot';
 let lastName = '';
 let userLocation = null;
@@ -828,6 +843,14 @@ function toggleFiltersPanel(panelId, btnId){
   const showing = panel.classList.toggle('show');
   btn.classList.toggle('active', showing);
 }
+function onDayFilterChange(){
+  selectedDayKey = document.getElementById('filterDay').value;
+  if (selectedDayKey){
+    currentView = 'chrono';
+    document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
+  }
+  render();
+}
 function onTimeModeChange(){
   const mode = document.getElementById('filterTimeMode').value;
   document.getElementById('filterTimeFrom').style.display = mode === 'from' ? '' : 'none';
@@ -840,7 +863,12 @@ function timeInRange(t, fromStr, toStr){
   return true;
 }
 function renderTefilot(){
-  document.getElementById('todayLabel').textContent = 'תאריך: ' + new Date().toLocaleDateString('he-IL');
+  const dayLabelEl = document.getElementById('todayLabel');
+  if (selectedDayKey){
+    dayLabelEl.textContent = 'מוצגים מניינים ליום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(selectedDayKey)] + ' (זמנים משוערים)';
+  } else {
+    dayLabelEl.textContent = 'תאריך: ' + new Date().toLocaleDateString('he-IL');
+  }
   const tefilaSel = document.getElementById('filterTefila');
   const currentTefila = tefilaSel.value;
   tefilaSel.innerHTML = '<option value="">כל התפילות</option>' + TEFILA_ORDER.map(t=>`<option value="${t}">${t}</option>`).join('');
@@ -858,7 +886,7 @@ function renderTefilot(){
   const el = document.getElementById('tefilotList');
   const today = new Date();
   const zmanim = getZmanim(today);
-  const dk = dayKeyOf(today);
+  const dk = selectedDayKey || dayKeyOf(today);
   const nowMins = timeMinutesIsrael(new Date());
 
   if (currentView === 'byshul'){
@@ -893,16 +921,19 @@ function renderTefilot(){
       }
       if ((tefilaF || nextOnly) && !minsWithTime.length) return ''; // אין תוצאות תואמות לבית כנסת זה
       const lines = minsWithTime.map(({m,t,isToday})=>{
-        const timeHtml = isToday
-          ? `<span class="time">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`
-          : `<span class="time" style="color:var(--ink-soft);font-weight:500">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`;
+        const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
         return `<div class="minyan-line">
-          <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}${isAdminLevel()?`<br><span class="muted" style="font-size:11px">${lastUpdatedLabel(m)}</span>`:''}</span>
-          <span>
-            ${timeHtml}
-            <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
-            ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
-          </span>
+          <div class="ml-top">
+            <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}</span>
+            <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
+          </div>
+          <div class="ml-bottom">
+            <span class="muted">📅 ${daysToLabel(m.days)}${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}</span>
+            <span>
+              <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
+              ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
+            </span>
+          </div>
         </div>`;
       }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים לבית כנסת זה</div>';
       const distanceBadge = (sortByProximity && userLocation)
@@ -1338,24 +1369,32 @@ function renderShulPage(){
   const minyanLines = mins.map(m=>{
     const isToday = m.days.includes(dk);
     const t = computeMinyanTime(m, today, zmanim);
-    const timeHtml = isToday
-      ? `<span class="time">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`
-      : `<span class="time" style="color:var(--ink-soft);font-weight:500">${fmtTime(t)}</span> <span class="muted" style="font-size:11px">📅 ${daysToLabel(m.days)}</span>`;
+    const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
     return `<div class="minyan-line">
-      <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}${isAdminLevel()?`<br><span class="muted" style="font-size:11px">${lastUpdatedLabel(m)}</span>`:''}</span>
-      <span>
-        ${timeHtml}
-        <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
-        ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
-      </span>
+      <div class="ml-top">
+        <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}</span>
+        <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
+      </div>
+      <div class="ml-bottom">
+        <span class="muted">📅 ${daysToLabel(m.days)}${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}</span>
+        <span>
+          <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">✏️</button>
+          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">🗑️</button>`:''}
+        </span>
+      </div>
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים</div>';
 
   const shiurimHere = data.shiurim.filter(s=>s.locationShulId===shul.id);
   const shiurLines = shiurimHere.map(s=>`
     <div class="minyan-line">
-      <span>${escapeHtml(s.title)}<br><span class="muted" style="font-size:11px">${daysToLabel(s.days)} · ${escapeHtml(s.time||'')}</span></span>
-      <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
+      <div class="ml-top">
+        <span>${escapeHtml(s.title)}</span>
+        <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
+      </div>
+      <div class="ml-bottom">
+        <span class="muted">${daysToLabel(s.days)} · ${escapeHtml(s.time||'')}</span>
+      </div>
     </div>`).join('') || '<div class="muted" style="padding:6px 0">אין שיעורים רשומים במיקום זה</div>';
 
   const announcements = (shul.announcements||[]).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
