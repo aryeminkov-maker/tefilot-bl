@@ -144,7 +144,6 @@
     <div class="header-top-row">
       <div>
         <h1>לוח תפילות ושיעורים · בית אל</h1>
-        <p id="headerDayLabel" style="margin:4px 0 0;font-size:13px;color:var(--ink-soft)"></p>
       </div>
       <div style="display:flex;align-items:center;gap:10px">
         <button type="button" class="icon-btn" id="signInBtn" aria-label="התחברות עם Google">
@@ -1096,6 +1095,8 @@ function renderTefilot(){
       items = items.filter(it=>timeMinutesIsrael(it.t) >= nowMins);
     }
     if (!items.length){ el.innerHTML = '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
+    const headingDayName = today.toLocaleDateString('he-IL', {weekday:'long'});
+    const dayHeadingHtml = selectedDayKey ? '' : `<h3 style="margin-bottom:12px">זמני תפילות ליום ${escapeHtml(headingDayName)}</h3>`;
     const usedTefilot = [...new Set(items.map(it=>it.m.tefila))];
     const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">${usedTefilot.map(t=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)"><span style="width:9px;height:9px;border-radius:50%;background:${tefilaColor(t)};display:inline-block"></span>${escapeHtml(t)}</span>`).join('')}</div>`;
     let lastTefila = null;
@@ -1111,7 +1112,7 @@ function renderTefilot(){
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
       </div>`;
     }).join('');
-    el.innerHTML = '<div class="card">' + legendHtml + '<div class="timeline">' + itemsHtml + '</div></div>';
+    el.innerHTML = '<div class="card">' + dayHeadingHtml + legendHtml + '<div class="timeline">' + itemsHtml + '</div></div>';
   }
 }
 
@@ -1988,11 +1989,6 @@ document.getElementById('filterTopic').addEventListener('change', render);
 document.getElementById('filterAudience').addEventListener('change', render);
 document.getElementById('filterSearch').addEventListener('input', render);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
-
-(function initHeaderDayLabel(){
-  const el = document.getElementById('headerDayLabel');
-  if (el) el.textContent = 'זמני תפילות ליום ' + new Date().toLocaleDateString('he-IL', {weekday:'long'});
-})();
 
 (function applySharedShiurimFilterFromUrl(){
   try{
