@@ -114,7 +114,8 @@
       box-shadow:0 -2px 10px rgba(34,48,58,.12);
     }
     .tab-btn{padding:11px 6px;font-size:14px;border-radius:12px}
-    .sub-toggle button{padding:9px 14px;font-size:14px}
+    .sub-toggle{margin:10px 0 10px}
+    .sub-toggle button{padding:7px 12px;font-size:13px}
     .filters{flex-direction:column}
     .filters select,.filters input{width:100%;padding:10px;font-size:15px}
     .card{padding:14px}
@@ -182,12 +183,12 @@
 
   <div id="tefilot-tab">
     <div class="sub-toggle">
-      <button class="active" data-view="chrono">כרונולוגי · היום</button>
+      <button class="active" data-view="chrono">לפי שעות</button>
       <button data-view="byshul">לפי בית כנסת</button>
     </div>
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="tefilotFiltersToggle" type="button" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
-      <span class="muted" id="todayLabel"></span>
+      <button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button>
     </div>
     <div id="tefilotFiltersPanel" class="filters-panel">
       <div class="filters">
@@ -216,13 +217,17 @@
         <input type="time" id="filterTimeFrom" style="display:none">
       </div>
     </div>
+    <div class="muted" id="todayLabel" style="margin-bottom:10px"></div>
     <div id="tefilotList"></div>
   </div>
 
   <div id="shiurim-tab" style="display:none">
     <div class="row" style="margin-bottom:10px">
       <button class="btn" id="shiurimFiltersToggle" type="button" onclick="toggleFiltersPanel('shiurimFiltersPanel','shiurimFiltersToggle')">🔍 סינון</button>
-      <button class="btn primary" id="addShiurBtn">+ הוסף שיעור</button>
+      <div style="display:flex;gap:8px">
+        <button class="icon-btn" onclick="shareShiurimFilter()" aria-label="שיתוף" title="שיתוף התצוגה המסוננת">🔗</button>
+        <button class="btn primary" id="addShiurBtn">+ הוסף שיעור</button>
+      </div>
     </div>
     <div id="shiurimFiltersPanel" class="filters-panel">
       <div class="filters">
@@ -238,6 +243,7 @@
         <button class="btn" id="shiurProximityBtn" type="button" onclick="toggleShiurProximity()">📍 מיין לפי קרבה אליי</button>
       </div>
     </div>
+    <div id="topicDescriptionBox"></div>
     <div id="shiurimList"></div>
   </div>
 
@@ -276,6 +282,13 @@
         <input id="newTopic" placeholder="לדוגמה: מוסר" style="flex:1">
         <button class="btn primary" onclick="addTopic()">+ הוספה</button>
       </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <h3 style="margin-bottom:8px">תיאור טקסטואלי לנושא</h3>
+      <p class="muted" style="margin-bottom:12px">אפשר להוסיף הסבר קצר שיוצג לתושבים כשהם מסננים שיעורים לפי נושא מסוים (למשל "תפארת זקנים" - להסביר במה עוסקת הסדרה).</p>
+      <select id="topicDescSelect" onchange="loadTopicDescription()" style="width:100%;margin-bottom:8px"></select>
+      <textarea id="topicDescText" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px;margin-bottom:8px"></textarea>
+      <button class="btn primary" onclick="saveTopicDescription()">שמירה</button>
     </div>
     <div class="card" style="margin-top:14px">
       <div class="row" style="margin-bottom:8px">
@@ -563,6 +576,30 @@ function removeTopic(val){
     types: firebase.firestore.FieldValue.arrayRemove(val)
   }).catch(e=>alert('שגיאה בהסרה: '+e.message));
 }
+function populateTopicDescSelect(){
+  const sel = document.getElementById('topicDescSelect');
+  if (!sel) return;
+  const current = sel.value;
+  sel.innerHTML = TOPIC_LIST.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  sel.value = TOPIC_LIST.includes(current) ? current : (TOPIC_LIST[0]||'');
+  loadTopicDescription();
+}
+function loadTopicDescription(){
+  const sel = document.getElementById('topicDescSelect');
+  const ta = document.getElementById('topicDescText');
+  if (!sel || !ta) return;
+  ta.value = TOPIC_DESCRIPTIONS[sel.value] || '';
+}
+function saveTopicDescription(){
+  const topic = document.getElementById('topicDescSelect').value;
+  const text = document.getElementById('topicDescText').value.trim();
+  if (!topic) return;
+  const updated = { ...TOPIC_DESCRIPTIONS };
+  if (text) updated[topic] = text; else delete updated[topic];
+  db.collection('config').doc('topicDescriptions').set({ descriptions: updated }, { merge: false })
+    .then(()=>alert('נשמר'))
+    .catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
 
 // ---------- ייצוא לאקסל ----------
 const ANCHOR_LABEL = {sunrise:'הנץ החמה', sunset:'שקיעה', tzeit:'צאת הכוכבים'};
@@ -848,7 +885,12 @@ function attachListeners(){
     const d = doc.exists ? doc.data() : null;
     TOPIC_LIST = [...TOPIC_BASE, ...((d && d.types) || [])];
     render();
-    if (currentTab === 'admin') renderTopicsAdmin();
+    if (currentTab === 'admin'){ renderTopicsAdmin(); populateTopicDescSelect(); }
+  }, e=>console.error(e));
+  db.collection('config').doc('topicDescriptions').onSnapshot(doc=>{
+    const d = doc.exists ? doc.data() : null;
+    TOPIC_DESCRIPTIONS = (d && d.descriptions) || {};
+    render();
   }, e=>console.error(e));
 }
 
@@ -875,6 +917,7 @@ function uid(){ return 'id' + Math.random().toString(36).slice(2,10); }
 // ---------- רינדור: תפילות ----------
 const EDIT_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
 const INFO_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+const NAV_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
 const DELETE_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 const TEFILA_BASE = ['שחרית','מנחה','ערבית','ותיקין'];
 const TOPIC_BASE = ['הלכה','גמרא','דף יומי','תנ"ך','אמונה','פרשת שבוע','שונות'];
@@ -887,6 +930,7 @@ function tefilaColor(t){
   return TEFILA_COLOR_PALETTE[Math.abs(hash) % TEFILA_COLOR_PALETTE.length];
 }
 let TOPIC_LIST = [...TOPIC_BASE];
+let TOPIC_DESCRIPTIONS = {};
 function getShiurTopics(s){
   if (s.topics && Array.isArray(s.topics)) return s.topics;
   if (s.topic) return [s.topic];
@@ -898,7 +942,7 @@ function render(){
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot') renderTefilot();
   else if (currentTab === 'shiurim') renderShiurim();
-  else if (currentTab === 'admin'){ renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); renderShulsAdmin(); }
+  else if (currentTab === 'admin'){ renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); renderShulsAdmin(); }
 }
 function timeMinutesIsrael(t){
   const s = t.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'});
@@ -935,7 +979,11 @@ function renderTefilot(){
   if (selectedDayKey){
     dayLabelEl.textContent = 'מוצגים מניינים ליום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(selectedDayKey)] + ' (זמנים משוערים)';
   } else {
-    dayLabelEl.textContent = 'תאריך: ' + new Date().toLocaleDateString('he-IL');
+    const now = new Date();
+    const dayName = now.toLocaleDateString('he-IL', {weekday:'long'});
+    let heDate = '';
+    try{ heDate = new Intl.DateTimeFormat('he-IL-u-ca-hebrew', {day:'numeric', month:'long', year:'numeric'}).format(now); }catch(e){}
+    dayLabelEl.textContent = `זמני תפילות נכון ליום ${dayName}${heDate?', '+heDate:''} (${now.toLocaleDateString('he-IL')})`;
   }
   const tefilaSel = document.getElementById('filterTefila');
   const currentTefila = tefilaSel.value;
@@ -1049,8 +1097,7 @@ function renderTefilot(){
     if (nextOnly){
       items = items.filter(it=>timeMinutesIsrael(it.t) >= nowMins);
     }
-    const addBtnHtml = `<div class="row" style="margin-bottom:10px"><span></span><button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button></div>`;
-    if (!items.length){ el.innerHTML = addBtnHtml + '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
+    if (!items.length){ el.innerHTML = '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
     const usedTefilot = [...new Set(items.map(it=>it.m.tefila))];
     const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">${usedTefilot.map(t=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)"><span style="width:9px;height:9px;border-radius:50%;background:${tefilaColor(t)};display:inline-block"></span>${escapeHtml(t)}</span>`).join('')}</div>`;
     let lastTefila = null;
@@ -1066,7 +1113,7 @@ function renderTefilot(){
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
       </div>`;
     }).join('');
-    el.innerHTML = addBtnHtml + '<div class="card">' + legendHtml + '<div class="timeline">' + itemsHtml + '</div></div>';
+    el.innerHTML = '<div class="card">' + legendHtml + '<div class="timeline">' + itemsHtml + '</div></div>';
   }
 }
 
@@ -1081,6 +1128,13 @@ function renderShiurim(){
   const audF = document.getElementById('filterAudience').value;
   const searchF = document.getElementById('filterSearch').value.trim().toLowerCase();
   const topicF = topicSel.value;
+
+  const descBox = document.getElementById('topicDescriptionBox');
+  if (topicF && TOPIC_DESCRIPTIONS[topicF]){
+    descBox.innerHTML = `<div class="card" style="margin-bottom:14px"><h3 style="margin-bottom:6px">${escapeHtml(topicF)}</h3><p style="line-height:1.7;margin:0">${escapeHtml(TOPIC_DESCRIPTIONS[topicF])}</p></div>`;
+  } else {
+    descBox.innerHTML = '';
+  }
 
   let list = data.shiurim.filter(s=>{
     const sTopics = getShiurTopics(s);
@@ -1107,31 +1161,22 @@ function renderShiurim(){
     const distanceBadge = (sortByProximityShiur && userLocation)
       ? `<span class="badge" style="background:var(--surface-2);color:var(--accent-ink);border-color:var(--accent)">📍 ${(s.lat&&s.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, s.lat, s.lng)) : 'ללא מיקום שמור'}</span>`
       : '';
+    const topics = getShiurTopics(s);
     return `
     <div class="card">
-      <div class="row">
-        <div>
-          <h3>${escapeHtml(s.title)}</h3>
-          <div class="muted">${getShiurTopics(s).length?escapeHtml(getShiurTopics(s).join(', '))+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}</div>
-          ${navLinksHtml({lat:s.lat, lng:s.lng, address:s.location})}
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
-          <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
-          ${distanceBadge}
-        </div>
+      <div class="ml-top">
+        <span>${escapeHtml(s.title)}${s.teacherName?` <span class="muted">· ${escapeHtml(s.teacherName)}</span>`:''}</span>
+        <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
-      <div class="muted" style="margin-top:6px">
-        ${s.teacherName?`מעביר השיעור: ${escapeHtml(s.teacherName)}<br>`:''}
-        ${s.contactName?`איש קשר: ${escapeHtml(s.contactName)} ${s.contactPhone?'· '+escapeHtml(s.contactPhone):''}<br>`:''}
-        ${s.notes?escapeHtml(s.notes):''}
+      <div class="ml-bottom">
+        ${s.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(s))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
+        ${navButtonHtml({lat:s.lat, lng:s.lng, address:s.location})}
+        <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
+        ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+        ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
+        ${distanceBadge}
       </div>
-      <div style="margin-top:8px">
-        <span class="muted" style="font-size:13px">
-          ${isAdminLevel()&&s.updatedAt?`${lastUpdatedLabel(s)} · `:''}
-          <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
-          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
-        </span>
-      </div>
+      ${(s.contactName || s.notes) ? `<div class="muted" style="margin-top:3px;font-size:12px">${s.contactName?`איש קשר: ${escapeHtml(s.contactName)}${s.contactPhone?' · '+escapeHtml(s.contactPhone):''}`:''}${s.notes?(s.contactName?' · ':'')+escapeHtml(s.notes):''}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -1209,20 +1254,31 @@ function toggleShiurProximity(){
   );
 }
 
-function navLinksHtml(shul){
-  let waze, gmaps;
+function getNavLinks(shul){
   if (shul.lat && shul.lng){
-    waze = `https://waze.com/ul?ll=${shul.lat}%2C${shul.lng}&navigate=yes`;
-    gmaps = `https://www.google.com/maps/dir/?api=1&destination=${shul.lat}%2C${shul.lng}`;
+    return {
+      waze: `https://waze.com/ul?ll=${shul.lat}%2C${shul.lng}&navigate=yes`,
+      gmaps: `https://www.google.com/maps/dir/?api=1&destination=${shul.lat}%2C${shul.lng}`
+    };
   } else if (shul.address){
     const q = encodeURIComponent(shul.address + ' בית אל');
-    waze = `https://waze.com/ul?q=${q}&navigate=yes`;
-    gmaps = `https://www.google.com/maps/search/?api=1&query=${q}`;
-  } else {
-    return '';
+    return {
+      waze: `https://waze.com/ul?q=${q}&navigate=yes`,
+      gmaps: `https://www.google.com/maps/search/?api=1&query=${q}`
+    };
   }
+  return null;
+}
+function navButtonHtml(shul){
+  const links = getNavLinks(shul);
+  if (!links) return '';
+  return `<button type="button" class="row-icon-btn" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)" title="ניווט" aria-label="ניווט">${NAV_ICON_SVG}</button>`;
+}
+function navLinksHtml(shul){
+  const links = getNavLinks(shul);
+  if (!links) return '';
   return `<div style="margin-top:6px">
-    <button type="button" class="badge" style="cursor:pointer;border:1px solid var(--border);font-family:'Rubik'" data-waze="${waze}" data-gmaps="${gmaps}" onclick="openNavPopover(event)">📍 ניווט</button>
+    <button type="button" class="badge" style="cursor:pointer;border:1px solid var(--border);font-family:'Rubik'" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)">📍 ניווט</button>
   </div>`;
 }
 function openNavPopover(e){
@@ -1449,6 +1505,28 @@ function shareShulLink(shulId){
     navigator.share({ title: document.title, url: link }).catch(()=>{});
   } else if (navigator.clipboard){
     navigator.clipboard.writeText(link).then(()=>alert('הקישור לבית הכנסת הועתק ללוח')).catch(()=>alert(link));
+  } else {
+    alert(link);
+  }
+}
+function shareShiurimFilter(){
+  let link;
+  try{
+    const url = new URL(window.location.href);
+    url.searchParams.delete('shul');
+    const topicF = document.getElementById('filterTopic').value;
+    const audF = document.getElementById('filterAudience').value;
+    const searchF = document.getElementById('filterSearch').value.trim();
+    if (topicF) url.searchParams.set('shiurTopic', topicF); else url.searchParams.delete('shiurTopic');
+    if (audF) url.searchParams.set('shiurAudience', audF); else url.searchParams.delete('shiurAudience');
+    if (searchF) url.searchParams.set('shiurSearch', searchF); else url.searchParams.delete('shiurSearch');
+    url.searchParams.set('tab', 'shiurim');
+    link = url.toString();
+  }catch(e){ link = window.location.href; }
+  if (navigator.share){
+    navigator.share({ title: document.title, url: link }).catch(()=>{});
+  } else if (navigator.clipboard){
+    navigator.clipboard.writeText(link).then(()=>alert('הקישור הועתק ללוח')).catch(()=>alert(link));
   } else {
     alert(link);
   }
@@ -1832,10 +1910,13 @@ window.addEventListener('beforeinstallprompt', e=>{
 function isMobileDevice(){
   return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
+const MAIL_ICON_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>';
 function openAboutModal(){
   document.getElementById('modalBody').innerHTML = `
     <h3>אודות</h3>
-    <p style="line-height:1.7;margin-bottom:18px">הכלי פותח על ידי המחלקה לשירותי דת, מועצה מקומית בית אל.</p>
+    <p style="line-height:1.7;margin-bottom:14px">הכלי פותח על ידי המחלקה לשירותי דת, מועצה מקומית בית אל.</p>
+    <p style="line-height:1.7;margin-bottom:14px">זמני התפילות, השיעורים וכדו' מתעדכנים על ידי התושבים. נתקלתם במידע לא מדויק? עדכנו אותו!</p>
+    <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - יש לפנות למחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a></p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
       ${isMobileDevice()?`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`:''}
@@ -1909,6 +1990,24 @@ document.getElementById('filterTopic').addEventListener('change', render);
 document.getElementById('filterAudience').addEventListener('change', render);
 document.getElementById('filterSearch').addEventListener('input', render);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+
+(function applySharedShiurimFilterFromUrl(){
+  try{
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    const topicParam = params.get('shiurTopic');
+    const audParam = params.get('shiurAudience');
+    const searchParam = params.get('shiurSearch');
+    if (tabParam === 'shiurim' || topicParam || audParam || searchParam){
+      if (topicParam) document.getElementById('filterTopic').value = topicParam;
+      if (audParam) document.getElementById('filterAudience').value = audParam;
+      if (searchParam) document.getElementById('filterSearch').value = searchParam;
+      document.getElementById('shiurimFiltersPanel').classList.add('show');
+      document.getElementById('shiurimFiltersToggle').classList.add('active');
+      document.querySelector('.tab-btn[data-tab="shiurim"]').click();
+    }
+  }catch(e){}
+})();
 </script>
 </body>
 </html>
