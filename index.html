@@ -167,7 +167,6 @@
     </div>
     <div class="row" style="margin-bottom:12px">
       <span class="muted" id="todayLabel"></span>
-      <button class="btn primary" id="addShulBtn">+ הוסף בית כנסת</button>
     </div>
     <div id="tefilotList"></div>
   </div>
@@ -220,8 +219,11 @@
       </div>
     </div>
     <div class="card" style="margin-top:14px">
-      <h3 style="margin-bottom:8px">עריכת בתי כנסת</h3>
-      <p class="muted" style="margin-bottom:12px">עריכת הפרטים של כל בית כנסת קיים - שם, כתובת, מיקום GPS ונוסח.</p>
+      <div class="row" style="margin-bottom:8px">
+        <h3>בתי כנסת</h3>
+        <button class="btn primary" onclick="openShulForm()">+ הוסף בית כנסת</button>
+      </div>
+      <p class="muted" style="margin-bottom:12px">הוספה חדשה, ועריכת הפרטים של כל בית כנסת קיים - שם, כתובת, מיקום GPS ונוסח.</p>
       <div id="shulsAdminList"></div>
     </div>
     <p class="muted" style="margin:20px 0 12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל יישוב ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
@@ -761,8 +763,12 @@ function renderTefilot(){
   const dk = dayKeyOf(today);
 
   if (currentView === 'byshul'){
-    if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. לחצו "הוסף בית כנסת" כדי להתחיל.</div>'; return; }
-    let shulsOrdered = data.shuls;
+    if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל היישוב כדי להוסיף.</div>'; return; }
+    let shulsOrdered = [...data.shuls].sort((a,b)=>{
+      const countA = data.minyanim.filter(m=>m.shulId===a.id).length;
+      const countB = data.minyanim.filter(m=>m.shulId===b.id).length;
+      return countB - countA;
+    });
     if (sortByProximity && userLocation){
       shulsOrdered = [...data.shuls].sort((a,b)=>{
         const da = (a.lat&&a.lng) ? haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) : Infinity;
@@ -1322,7 +1328,6 @@ document.querySelectorAll('.sub-toggle button').forEach(btn=>{
     render();
   });
 });
-document.getElementById('addShulBtn').addEventListener('click', openShulForm);
 document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
 document.getElementById('downloadTemplateBtn').addEventListener('click', downloadImportTemplate);
 document.getElementById('importFileInput').addEventListener('change', function(){ handleImportFile(this); });
