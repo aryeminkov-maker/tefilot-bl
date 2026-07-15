@@ -66,8 +66,12 @@
   .badge.youth{background:#FBF0DD;color:#7A5210}
   .timeline{position:relative;padding-right:20px}
   .timeline::before{content:'';position:absolute;right:6px;top:6px;bottom:6px;width:2px;background:var(--border)}
-  .tline-item{position:relative;margin-bottom:10px}
-  .tline-item::before{content:'';position:absolute;right:-19px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--accent)}
+  .tline-item{position:relative;margin-bottom:10px;border-right:3px solid var(--dot-color, transparent);padding-right:10px}
+  .tline-item::before{content:'';position:absolute;right:-19px;top:6px;width:9px;height:9px;border-radius:50%;background:var(--dot-color, var(--accent))}
+  .tline-divider{position:relative;font-size:12.5px;font-weight:700;color:var(--dot-color, var(--ink-soft));margin:16px 0 8px;padding-top:10px;padding-right:10px;border-top:1px dashed var(--border)}
+  .tline-divider:first-child{border-top:none;margin-top:0;padding-top:0}
+  .tline-divider::before{content:'';position:absolute;right:-19px;top:14px;width:9px;height:9px;border-radius:50%;background:var(--dot-color, var(--accent))}
+  .tline-divider:first-child::before{top:4px}
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .filters-panel{display:none;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px}
   .filters-panel.show{display:block}
@@ -870,9 +874,18 @@ function uid(){ return 'id' + Math.random().toString(36).slice(2,10); }
 
 // ---------- רינדור: תפילות ----------
 const EDIT_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+const INFO_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
 const DELETE_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 const TEFILA_BASE = ['שחרית','מנחה','ערבית','ותיקין'];
 const TOPIC_BASE = ['הלכה','גמרא','דף יומי','תנ"ך','אמונה','פרשת שבוע','שונות'];
+const TEFILA_COLORS = {'שחרית':'#C6873C', 'מנחה':'#2F5D62', 'ערבית':'#5B4B8A', 'ותיקין':'#B5473A'};
+const TEFILA_COLOR_PALETTE = ['#3E7C6B','#8A5A44','#6B7FB5','#A0684A','#4E8A82'];
+function tefilaColor(t){
+  if (TEFILA_COLORS[t]) return TEFILA_COLORS[t];
+  let hash = 0;
+  for (let i=0;i<t.length;i++) hash = (hash*31 + t.charCodeAt(i)) % TEFILA_COLOR_PALETTE.length;
+  return TEFILA_COLOR_PALETTE[Math.abs(hash) % TEFILA_COLOR_PALETTE.length];
+}
 let TOPIC_LIST = [...TOPIC_BASE];
 function getShiurTopics(s){
   if (s.topics && Array.isArray(s.topics)) return s.topics;
@@ -991,10 +1004,11 @@ function renderTefilot(){
             <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
           </div>
           <div class="ml-bottom">
-            <span class="muted">📅 ${daysToLabel(m.days)}
+            <span class="muted">📅
+              ${isAdminLevel()&&m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
               <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
               ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
-              ${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}
+              ${daysToLabel(m.days)}
             </span>
           </div>
         </div>`;
@@ -1039,12 +1053,22 @@ function renderTefilot(){
     }
     const addBtnHtml = `<div class="row" style="margin-bottom:10px"><span></span><button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button></div>`;
     if (!items.length){ el.innerHTML = addBtnHtml + '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
-    el.innerHTML = addBtnHtml + '<div class="card"><div class="timeline">' + items.map(it=>`
-      <div class="tline-item">
+    const usedTefilot = [...new Set(items.map(it=>it.m.tefila))];
+    const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">${usedTefilot.map(t=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)"><span style="width:9px;height:9px;border-radius:50%;background:${tefilaColor(t)};display:inline-block"></span>${escapeHtml(t)}</span>`).join('')}</div>`;
+    let lastTefila = null;
+    const itemsHtml = items.map(it=>{
+      let divider = '';
+      if (it.m.tefila !== lastTefila){
+        lastTefila = it.m.tefila;
+        divider = `<div class="tline-divider" style="--dot-color:${tefilaColor(it.m.tefila)}">${escapeHtml(it.m.tefila)}</div>`;
+      }
+      return divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
         ${it.m.tefila} · <span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
-      </div>`).join('') + '</div></div>';
+      </div>`;
+    }).join('');
+    el.innerHTML = addBtnHtml + '<div class="card">' + legendHtml + '<div class="timeline">' + itemsHtml + '</div></div>';
   }
 }
 
@@ -1226,6 +1250,22 @@ function closeNavPopover(){
   const el = document.getElementById('navPopoverDynamic');
   if (el) el.remove();
   document.removeEventListener('click', closeNavPopover);
+}
+function openInfoPopover(e){
+  e.stopPropagation();
+  closeNavPopover();
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const pop = document.createElement('div');
+  pop.id = 'navPopoverDynamic';
+  pop.className = 'info-popover show';
+  pop.style.position = 'fixed';
+  pop.style.top = (rect.bottom + 6) + 'px';
+  pop.style.right = (window.innerWidth - rect.right) + 'px';
+  pop.style.width = '220px';
+  pop.innerHTML = `<div style="padding:8px 6px;font-size:13px">${btn.dataset.info}</div>`;
+  document.body.appendChild(pop);
+  setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
 }
 
 // ---------- טפסים: בית כנסת ----------
@@ -1444,26 +1484,31 @@ function renderShulPage(){
         <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
       </div>
       <div class="ml-bottom">
-        <span class="muted">📅 ${daysToLabel(m.days)}
+        <span class="muted">📅
+          ${isAdminLevel()&&m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
           <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
           ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
-          ${isAdminLevel()?` · ${lastUpdatedLabel(m)}`:''}
+          ${daysToLabel(m.days)}
         </span>
       </div>
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים</div>';
 
   const shiurimHere = data.shiurim.filter(s=>s.locationShulId===shul.id);
-  const shiurLines = shiurimHere.map(s=>`
+  const shiurLines = shiurimHere.map(s=>{
+    const topics = getShiurTopics(s);
+    const topicOrTitle = topics.length ? topics.join(', ') : s.title;
+    return `
     <div class="minyan-line">
       <div class="ml-top">
-        <span>${escapeHtml(s.title)}</span>
+        <span>${escapeHtml(topicOrTitle)}</span>
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
       <div class="ml-bottom">
-        <span class="muted">${daysToLabel(s.days)} · ${escapeHtml(s.time||'')}</span>
+        <span class="muted">${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')}</span>
       </div>
-    </div>`).join('') || '<div class="muted" style="padding:6px 0">אין שיעורים רשומים במיקום זה</div>';
+    </div>`;
+  }).join('') || '<div class="muted" style="padding:6px 0">אין שיעורים רשומים במיקום זה</div>';
 
   const announcements = (shul.announcements||[]).slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
   const announcementsHtml = announcements.length ? announcements.map((a,i)=>`
