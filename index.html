@@ -94,6 +94,8 @@
   .inline2{display:flex;gap:8px}
   .inline2>*{flex:1}
   .days{display:flex;gap:5px;flex-wrap:wrap}
+  .topic-chips-row{display:flex;flex-wrap:wrap;gap:6px;overflow:hidden;max-height:68px}
+  .topic-chips-row.expanded{max-height:none}
   .daychip{padding:5px 9px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer;background:var(--surface)}
   .daychip.active{background:var(--dusk);color:#fff;border-color:var(--dusk)}
   .modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
@@ -133,6 +135,7 @@
     .time{font-size:16px}
     .btn{padding:10px 14px;font-size:14px;min-height:42px}
     .daychip{padding:9px 12px;font-size:13px}
+    .topic-chips-row{max-height:92px}
     .modal{max-width:100%;margin:0 8px;padding:18px}
     .field label{font-size:13px}
     /* font-size 16px על שדות קלט מונע זום אוטומטי בספארי ב-iOS */
@@ -234,7 +237,8 @@
       <button class="icon-btn" style="flex-shrink:0" onclick="shareShiurimFilter()" aria-label="שיתוף" title="שיתוף התצוגה המסוננת">🔗</button>
       <button class="btn primary" id="addShiurBtn" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">+ הוסף שיעור</button>
     </div>
-    <div id="topicChipsRow" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
+    <div id="topicChipsRow" class="topic-chips-row"></div>
+    <div id="topicChipsToggleWrap" style="text-align:center;margin-bottom:12px"></div>
     <div id="shiurimFiltersPanel" class="filters-panel">
       <div class="filters">
         <select id="filterTopic"><option value="">כל הנושאים</option></select>
@@ -1140,18 +1144,26 @@ function isShiurExpired(s){
 }
 function renderTopicChips(currentFilter){
   const container = document.getElementById('topicChipsRow');
-  if (!container) return;
-  const usedTopics = [...new Set(data.shiurim.filter(s=>!isShiurExpired(s)).flatMap(s=>getShiurTopics(s)))];
-  const usedInOrder = TOPIC_LIST.filter(t=>usedTopics.includes(t));
-  const unusedInOrder = TOPIC_LIST.filter(t=>!usedTopics.includes(t));
+  const toggleWrap = document.getElementById('topicChipsToggleWrap');
+  if (!container || !toggleWrap) return;
+  const activeShiurim = data.shiurim.filter(s=>!isShiurExpired(s));
+  const countByTopic = {};
+  activeShiurim.forEach(s=>{ getShiurTopics(s).forEach(t=>{ countByTopic[t] = (countByTopic[t]||0) + 1; }); });
+  const usedTopics = Object.keys(countByTopic);
+  const usedSortedByCount = usedTopics.sort((a,b)=> countByTopic[b] - countByTopic[a]);
+  const unusedTopics = TOPIC_LIST.filter(t=>!usedTopics.includes(t));
+  const orderedTopics = [...usedSortedByCount, ...unusedTopics];
   const chip = t => `<span class="daychip ${currentFilter===t?'active':''}" onclick="selectTopicChip('${escapeHtml(t)}')">${escapeHtml(t)}</span>`;
-  let html = `<span class="daychip ${!currentFilter?'active':''}" onclick="selectTopicChip('')">הכל</span>` + usedInOrder.map(chip).join('');
-  if (unusedInOrder.length){
-    html += topicChipsExpanded
-      ? unusedInOrder.map(chip).join('') + `<span class="daychip" onclick="toggleTopicChipsExpand()">‹ פחות</span>`
-      : `<span class="daychip" onclick="toggleTopicChipsExpand()">עוד ›</span>`;
+  container.className = 'topic-chips-row' + (topicChipsExpanded ? ' expanded' : '');
+  container.innerHTML = `<span class="daychip ${!currentFilter?'active':''}" onclick="selectTopicChip('')">הכל</span>` + orderedTopics.map(chip).join('');
+  // בודקים בפועל אם התוכן חורג משתי השורות, ומציגים את כפתור עוד/פחות רק אם צריך
+  const collapsedMaxHeight = window.innerWidth <= 600 ? 92 : 68;
+  const isOverflowing = container.scrollHeight > collapsedMaxHeight + 4;
+  if (isOverflowing || topicChipsExpanded){
+    toggleWrap.innerHTML = `<button class="btn ghost" onclick="toggleTopicChipsExpand()">${topicChipsExpanded ? '‹ פחות' : 'עוד נושאים ›'}</button>`;
+  } else {
+    toggleWrap.innerHTML = '';
   }
-  container.innerHTML = html;
 }
 function selectTopicChip(t){
   document.getElementById('filterTopic').value = t;
@@ -1274,8 +1286,7 @@ function renderTefilot(){
           <div class="ml-bottom">
             <span class="muted">
               <span style="display:inline-flex;align-items:center;gap:1px">
-                <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
-                ${canDeleteInShul(shul.id)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+                <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
               </span>
               ${daysToLabel(m.days)}
             </span>
@@ -1398,21 +1409,19 @@ function renderShiurim(){
       ? `<span class="badge" style="background:var(--surface-2);color:var(--accent-ink);border-color:var(--accent)">📍 ${(s.lat&&s.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, s.lat, s.lng)) : 'ללא מיקום שמור'}</span>`
       : '';
     const topics = getShiurTopics(s);
-    const primaryLabel = topics.length ? topics.join(', ') : s.title;
     const secondaryBits = [];
-    if (topics.length) secondaryBits.push(escapeHtml(s.title));
+    if (topics.length) secondaryBits.push(escapeHtml(topics.join(', ')));
     if (s.teacherName) secondaryBits.push(escapeHtml(s.teacherName));
     return `
     <div class="card">
       <div class="ml-top">
-        <span style="font-weight:700">${escapeHtml(primaryLabel)}</span>
+        <span style="font-weight:700">${escapeHtml(s.title)}</span>
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
       ${secondaryBits.length?`<div class="muted" style="font-size:12.5px;margin-top:1px">${secondaryBits.join(' · ')}</div>`:''}
       <div class="ml-bottom">
         <span style="display:inline-flex;align-items:center;gap:1px">
-          <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
-          ${canDeleteShiur(s)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+          <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
         </span>
         ${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
         ${distanceBadge}
@@ -1570,7 +1579,10 @@ function openMinyanMenuPopover(e, shulId, minyanId){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
   }
-  html += `<a href="#" onclick="closeNavPopover();openMinyanForm('${shulId}','${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none">✏️ עריכה</a>`;
+  html += `<a href="#" onclick="closeNavPopover();openMinyanForm('${shulId}','${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none${canDeleteInShul(shulId)?';border-bottom:1px solid var(--border)':''}">✏️ עריכה</a>`;
+  if (canDeleteInShul(shulId)){
+    html += `<a href="#" onclick="closeNavPopover();deleteMinyan('${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--danger);text-decoration:none">🗑️ מחיקה</a>`;
+  }
   pop.innerHTML = html;
   document.body.appendChild(pop);
   setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
@@ -1598,7 +1610,10 @@ function openShiurMenuPopover(e, shiurId){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
   }
-  html += `<a href="#" onclick="closeNavPopover();openShiurForm('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none">✏️ עריכה</a>`;
+  html += `<a href="#" onclick="closeNavPopover();openShiurForm('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none${canDeleteShiur(s)?';border-bottom:1px solid var(--border)':''}">✏️ עריכה</a>`;
+  if (canDeleteShiur(s)){
+    html += `<a href="#" onclick="closeNavPopover();deleteShiur('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--danger);text-decoration:none">🗑️ מחיקה</a>`;
+  }
   pop.innerHTML = html;
   document.body.appendChild(pop);
   setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
@@ -1859,8 +1874,7 @@ function renderShulPage(){
       <div class="ml-bottom">
         <span class="muted">
           <span style="display:inline-flex;align-items:center;gap:1px">
-            <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
-            ${canDeleteInShul(shul.id)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+            <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
           </span>
           ${daysToLabel(m.days)}
         </span>
@@ -1871,20 +1885,18 @@ function renderShulPage(){
   const shiurimHere = data.shiurim.filter(s=>s.locationShulId===shul.id && !isShiurExpired(s));
   const shiurLines = shiurimHere.map(s=>{
     const topics = getShiurTopics(s);
-    const topicOrTitle = topics.length ? topics.join(', ') : s.title;
     return `
     <div class="minyan-line">
       <div class="ml-top">
-        <span style="font-weight:700">${escapeHtml(topicOrTitle)}</span>
+        <span style="font-weight:700">${escapeHtml(s.title)}</span>
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
       <div class="ml-bottom">
         <span class="muted">
           <span style="display:inline-flex;align-items:center;gap:1px">
-            <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
-            ${canDeleteShiur(s)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+            <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
           </span>
-          ${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}
+          ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}
         </span>
       </div>
     </div>`;
