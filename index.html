@@ -301,6 +301,40 @@
       <button class="btn primary" onclick="saveTopicDescription()">שמירה</button>
     </div>
     <div class="card" style="margin-top:14px">
+      <h3 style="margin-bottom:8px">חלונית קופצת בכניסה לאפליקציה</h3>
+      <p class="muted" style="margin-bottom:12px">הודעה שתוצג לכל מי שנכנס לאפליקציה - טקסט, תמונה ו/או קישור. אפשר לבחור אם היא תוצג פעם אחת בלבד לכל משתמש, או בכל כניסה.</p>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:12px">
+        <input type="checkbox" id="annEnabled">
+        החלונית פעילה
+      </label>
+      <div class="field"><label>טקסט</label>
+        <textarea id="annText" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+      </div>
+      <div class="field optional">
+        <label>תמונה</label>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+          <label class="btn" style="cursor:pointer;margin:0">
+            📷 העלאת תמונה
+            <input type="file" id="annImageFile" accept="image/*" style="display:none" onchange="handleAnnouncementImageUpload(this)">
+          </label>
+          <span class="muted" id="annImageStatus"></span>
+        </div>
+        <div id="annImagePreview" style="margin-bottom:6px"></div>
+        <button type="button" class="btn ghost" id="annRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeAnnouncementImage()">✕ הסרת תמונה</button>
+      </div>
+      <div class="inline2">
+        <div class="field optional"><label>טקסט הקישור</label><input id="annLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
+        <div class="field optional"><label>כתובת הקישור (URL)</label><input id="annLink" placeholder="https://..."></div>
+      </div>
+      <div class="field"><label>תדירות הצגה</label>
+        <select id="annFrequency">
+          <option value="once">פעם אחת בלבד לכל משתמש</option>
+          <option value="always">בכל כניסה לאפליקציה</option>
+        </select>
+      </div>
+      <button class="btn primary" onclick="saveAnnouncementConfig()">שמירה</button>
+    </div>
+    <div class="card" style="margin-top:14px">
       <div class="row" style="margin-bottom:8px">
         <h3>בתי כנסת</h3>
         <button class="btn primary" onclick="openShulForm()">+ הוסף בית כנסת</button>
@@ -791,6 +825,116 @@ function saveTopicDescription(){
     .catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
 
+// ---------- הודעה קופצת בכניסה לאפליקציה ----------
+function populateAnnouncementAdmin(){
+  const enabledEl = document.getElementById('annEnabled');
+  if (!enabledEl) return; // הטופס לא בתצוגה כרגע (לא בטאב ניהול)
+  const c = ANNOUNCEMENT_CONFIG || {};
+  enabledEl.checked = !!c.enabled;
+  document.getElementById('annText').value = c.text || '';
+  document.getElementById('annLinkLabel').value = c.linkLabel || '';
+  document.getElementById('annLink').value = c.link || '';
+  document.getElementById('annFrequency').value = c.frequency || 'once';
+  ANNOUNCEMENT_IMAGE_DATA = c.image || '';
+  const preview = document.getElementById('annImagePreview');
+  const removeBtn = document.getElementById('annRemoveImageBtn');
+  if (ANNOUNCEMENT_IMAGE_DATA){
+    preview.innerHTML = `<img src="${ANNOUNCEMENT_IMAGE_DATA}" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
+    removeBtn.style.display = '';
+  } else {
+    preview.innerHTML = '';
+    removeBtn.style.display = 'none';
+  }
+}
+function handleAnnouncementImageUpload(input){
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')){ alert('יש לבחור קובץ תמונה'); input.value=''; return; }
+  const statusEl = document.getElementById('annImageStatus');
+  statusEl.textContent = 'מעבד תמונה...';
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const maxDim = 1000;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim){
+        if (w >= h){ h = Math.round(h*maxDim/w); w = maxDim; }
+        else { w = Math.round(w*maxDim/h); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      let quality = 0.82;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (dataUrl.length > 260000 && quality > 0.3){
+        quality -= 0.12;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      if (dataUrl.length > 320000){
+        statusEl.textContent = 'התמונה עדיין גדולה מדי גם אחרי דחיסה, נסו תמונה אחרת';
+        input.value = '';
+        return;
+      }
+      ANNOUNCEMENT_IMAGE_DATA = dataUrl;
+      document.getElementById('annImagePreview').innerHTML = `<img src="${dataUrl}" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
+      document.getElementById('annRemoveImageBtn').style.display = '';
+      statusEl.textContent = '✓ מוכן לשמירה (כ-' + Math.round(dataUrl.length*0.75/1024) + ' KB)';
+      input.value = '';
+    };
+    img.onerror = ()=>{ statusEl.textContent = 'שגיאה בטעינת התמונה, נסו קובץ אחר'; };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function removeAnnouncementImage(){
+  ANNOUNCEMENT_IMAGE_DATA = '';
+  document.getElementById('annImagePreview').innerHTML = '';
+  document.getElementById('annRemoveImageBtn').style.display = 'none';
+  document.getElementById('annImageStatus').textContent = '';
+}
+function saveAnnouncementConfig(){
+  const enabled = document.getElementById('annEnabled').checked;
+  const text = document.getElementById('annText').value.trim();
+  const linkLabel = document.getElementById('annLinkLabel').value.trim();
+  const link = document.getElementById('annLink').value.trim();
+  const frequency = document.getElementById('annFrequency').value;
+  if (enabled && !text && !ANNOUNCEMENT_IMAGE_DATA){
+    alert('יש להזין לפחות טקסט או תמונה כדי להפעיל את החלונית');
+    return;
+  }
+  db.collection('config').doc('announcement').set({
+    enabled, text, linkLabel, link, frequency,
+    image: ANNOUNCEMENT_IMAGE_DATA,
+    id: uid(), // מזהה גרסה חדש - מאפס את "פעם אחת" למי שכבר ראה גרסה קודמת
+    updatedAt: new Date().toISOString()
+  }).then(()=>alert('נשמר')).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
+function maybeShowAnnouncement(){
+  if (!ANNOUNCEMENT_CONFIG || !ANNOUNCEMENT_CONFIG.enabled) return;
+  if (announcementShownThisSession) return;
+  if (document.getElementById('overlay').classList.contains('show')) return; // לא לקטוע חלונית אחרת שכבר פתוחה
+  const id = ANNOUNCEMENT_CONFIG.id || ANNOUNCEMENT_CONFIG.updatedAt || '';
+  if (ANNOUNCEMENT_CONFIG.frequency === 'once'){
+    try{ if (localStorage.getItem('seenAnnouncementId') === id) return; }catch(e){}
+  }
+  announcementShownThisSession = true;
+  document.getElementById('modalBody').innerHTML = `
+    ${ANNOUNCEMENT_CONFIG.image?`<img src="${ANNOUNCEMENT_CONFIG.image}" style="width:100%;border-radius:10px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
+    ${ANNOUNCEMENT_CONFIG.text?`<p style="line-height:1.7;margin-bottom:16px;white-space:pre-wrap">${escapeHtml(ANNOUNCEMENT_CONFIG.text)}</p>`:''}
+    ${ANNOUNCEMENT_CONFIG.link?`<a href="${escapeHtml(ANNOUNCEMENT_CONFIG.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-bottom:10px">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'לפרטים נוספים')}</a>`:''}
+    <div class="modal-actions">
+      <button class="btn primary" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}')">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function closeAnnouncementPopup(id, frequency){
+  closeModal();
+  if (frequency === 'once'){
+    try{ localStorage.setItem('seenAnnouncementId', id); }catch(e){}
+  }
+}
+
 // ---------- ייצוא לאקסל ----------
 const ANCHOR_LABEL = {sunrise:'הנץ החמה', sunset:'שקיעה', tzeit:'צאת הכוכבים'};
 const OFFSET_SIGN_LABEL = {before:'לפני', after:'אחרי'};
@@ -1082,6 +1226,11 @@ function attachListeners(){
     TOPIC_DESCRIPTIONS = (d && d.descriptions) || {};
     render();
   }, e=>console.error(e));
+  db.collection('config').doc('announcement').onSnapshot(doc=>{
+    ANNOUNCEMENT_CONFIG = doc.exists ? doc.data() : null;
+    if (currentTab === 'admin') populateAnnouncementAdmin();
+    maybeShowAnnouncement();
+  }, e=>console.error(e));
 }
 
 function stamp(obj){
@@ -1189,6 +1338,9 @@ function tefilaColor(t){
 }
 let TOPIC_LIST = [...TOPIC_BASE];
 let TOPIC_DESCRIPTIONS = {};
+let ANNOUNCEMENT_CONFIG = null;
+let ANNOUNCEMENT_IMAGE_DATA = '';
+let announcementShownThisSession = false;
 let topicChipsExpanded = false;
 function getShiurTopics(s){
   if (s.topics && Array.isArray(s.topics)) return s.topics;
@@ -1246,7 +1398,7 @@ function render(){
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot') renderTefilot();
   else if (currentTab === 'shiurim') renderShiurim();
-  else if (currentTab === 'admin'){ renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); renderShulsAdmin(); }
+  else if (currentTab === 'admin'){ renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); }
 }
 function timeMinutesIsrael(t){
   const s = t.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'});
@@ -1726,10 +1878,14 @@ function openShulForm(shulId){
         <option value="" ${!s||!s.nusach?'selected':''}>לא צוין</option>
         <option value="אשכנזי" ${s&&s.nusach==='אשכנזי'?'selected':''}>אשכנזי</option>
         <option value="ספרדי" ${s&&s.nusach==='ספרדי'?'selected':''}>ספרדי</option>
+        <option value="עדות המזרח - ירושלמי" ${s&&s.nusach==='עדות המזרח - ירושלמי'?'selected':''}>עדות המזרח - ירושלמי</option>
+        <option value="עדות המזרח - מרוקאי" ${s&&s.nusach==='עדות המזרח - מרוקאי'?'selected':''}>עדות המזרח - מרוקאי</option>
+        <option value="עדות המזרח - טוניסאי" ${s&&s.nusach==='עדות המזרח - טוניסאי'?'selected':''}>עדות המזרח - טוניסאי</option>
         <option value="תימני" ${s&&s.nusach==='תימני'?'selected':''}>תימני</option>
         <option value="משולב" ${s&&s.nusach==='משולב'?'selected':''}>משולב</option>
       </select>
     </div>
+    <p class="muted" style="margin-top:-8px;margin-bottom:12px">חסר נוסח? כתבו לי ואוסיף.</p>
     <div class="field optional">
       <label>תמונה</label>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
