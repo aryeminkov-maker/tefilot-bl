@@ -434,14 +434,11 @@ let lastShownMessageKey = null;
 let currentUserName = '';
 let unsubUserDoc;
 
-function doSignIn(){ auth.signInWithRedirect(googleProvider).catch(e=>alert('שגיאת התחברות: '+e.message)); }
+function doSignIn(){ auth.signInWithPopup(googleProvider).catch(e=>alert('שגיאת התחברות: '+e.message)); }
 
 // הצפייה פתוחה לכולם - מאזינים לנתונים כבר בטעינת הדף, בלי קשר להתחברות
 attachListeners();
 
-auth.getRedirectResult().catch(e=>{
-  if (e && e.code && e.code !== 'auth/no-current-user') alert('שגיאת התחברות: ' + e.message);
-});
 auth.onAuthStateChanged(async user=>{
   currentUser = user;
   if (unsubUserDoc){ unsubUserDoc(); unsubUserDoc = null; }
