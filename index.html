@@ -1326,7 +1326,7 @@ function renderTefilot(){
       let mins = data.minyanim.filter(m=>m.shulId===shul.id);
       if (tefilaF) mins = mins.filter(m=>m.tefila===tefilaF);
       let minsWithTime = mins.map(m=>{
-        const isToday = m.days.includes(dk);
+        const isToday = (m.days||[]).includes(dk);
         const t = computeMinyanTime(m, today, zmanim);
         return { m, t, isToday };
       });
@@ -1384,7 +1384,7 @@ function renderTefilot(){
   } else {
     let items = [];
     data.minyanim.forEach(m=>{
-      if (!m.days.includes(dk)) return;
+      if (!(m.days||[]).includes(dk)) return;
       if (tefilaF && m.tefila !== tefilaF) return;
       if (shulF && m.shulId !== shulF) return;
       const t = computeMinyanTime(m, today, zmanim);
@@ -1922,7 +1922,7 @@ function renderShulPage(){
   const zmanim = getZmanim(today);
   const dk = dayKeyOf(today);
   const mins = data.minyanim.filter(m=>m.shulId===shul.id).map(m=>{
-    const isToday = m.days.includes(dk);
+    const isToday = (m.days||[]).includes(dk);
     const t = computeMinyanTime(m, today, zmanim);
     return { m, t, isToday };
   }).sort((a,b)=>{
@@ -2101,7 +2101,7 @@ function openMinyanForm(shulId, minyanId){
       <select id="f_tefila" onchange="onTefilaChange(${m?'true':'false'})">${TEFILA_ORDER.map(t=>`<option ${m&&m.tefila===t?'selected':''}>${t}</option>`).join('')}</select>
     </div>
     <div class="field"><label>ימים</label>
-      <div class="days" id="f_days">${DAY_KEYS.map((k,i)=>`<span class="daychip ${m&&m.days.includes(k)?'active':(!m&&i<5?'active':'')}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
+      <div class="days" id="f_days">${DAY_KEYS.map((k,i)=>`<span class="daychip ${m&&(m.days||[]).includes(k)?'active':(!m&&i<5?'active':'')}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
     </div>
     <div class="field"><label>סוג זמן</label>
       <select id="f_timeType" onchange="toggleTimeFields()">
