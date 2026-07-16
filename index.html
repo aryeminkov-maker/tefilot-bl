@@ -495,8 +495,12 @@ auth.onAuthStateChanged(async user=>{
 
 let unsubUsers;
 function attachUsersListenerIfManager(){
-  if (unsubUsers){ unsubUsers(); unsubUsers = null; }
-  if (!isManager()){ data.users = []; return; }
+  if (!isManager()){
+    if (unsubUsers){ unsubUsers(); unsubUsers = null; }
+    data.users = [];
+    return;
+  }
+  if (unsubUsers) return; // כבר יש מאזין פעיל - אין צורך לבנות מחדש בכל עדכון קטן
   unsubUsers = db.collection('users').onSnapshot(snap=>{
     data.users = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if (currentTab === 'admin') renderUsers();
@@ -534,7 +538,7 @@ function renderUsers(){
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         ${u.role==='gabai'?`<button class="btn" onclick="openGabaiShulAssignModal('${u.id}')">🏠 עדכון שיוך בתי כנסת</button>`:''}
         <button class="btn" onclick="openSendMessageForm('${u.id}')">✉️ שליחת הודעה</button>
-        <button class="btn ${u.blocked?'':'danger'}" onclick="toggleUserBlocked('${u.id}', ${!u.blocked})">${u.blocked?'ביטול חסימה':'חסימה מעריכה'}</button>
+        <button class="btn ${u.blocked?'':'danger'}" onclick="toggleUserBlocked('${u.id}')">${u.blocked?'ביטול חסימה':'חסימה מעריכה'}</button>
       </div>
     </div>`).join('');
 }
@@ -557,7 +561,9 @@ function sendUserMessage(targetUid){
     messages: firebase.firestore.FieldValue.arrayUnion(message)
   }).then(()=>{ alert('ההודעה נשלחה'); closeModal(); }).catch(e=>alert('שגיאה בשליחה: '+e.message));
 }
-function toggleUserBlocked(targetUid, newBlocked){
+function toggleUserBlocked(targetUid){
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const newBlocked = !(u && u.blocked);
   if (newBlocked && !confirm('לחסום את המשתמש מעריכה? הוא עדיין יוכל לצפות, אבל לא להוסיף או לערוך.')) return;
   db.collection('users').doc(targetUid).update({ blocked: newBlocked }).catch(e=>alert('שגיאה: '+e.message));
 }
