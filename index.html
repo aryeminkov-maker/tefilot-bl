@@ -536,6 +536,7 @@ function renderUsers(){
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" onclick="showUserEdits('${u.id}')">📋 הצגת עריכות</button>
         ${u.role==='gabai'?`<button class="btn" onclick="openGabaiShulAssignModal('${u.id}')">🏠 עדכון שיוך בתי כנסת</button>`:''}
         <button class="btn" onclick="openSendMessageForm('${u.id}')">✉️ שליחת הודעה</button>
         <button class="btn ${u.blocked?'':'danger'}" onclick="toggleUserBlocked('${u.id}')">${u.blocked?'ביטול חסימה':'חסימה מעריכה'}</button>
@@ -566,6 +567,33 @@ function toggleUserBlocked(targetUid){
   const newBlocked = !(u && u.blocked);
   if (newBlocked && !confirm('לחסום את המשתמש מעריכה? הוא עדיין יוכל לצפות, אבל לא להוסיף או לערוך.')) return;
   db.collection('users').doc(targetUid).update({ blocked: newBlocked }).catch(e=>alert('שגיאה: '+e.message));
+}
+function showUserEdits(targetUid){
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const myMinyanim = data.minyanim.filter(m=>m.updatedByUid===targetUid);
+  const myShiurim = data.shiurim.filter(s=>s.updatedByUid===targetUid);
+  let html = `<h3>עריכות של ${escapeHtml(u?(u.name||u.email||''):'')}</h3>
+    <p class="muted" style="margin-bottom:12px">מוצגים פריטים שהגרסה הנוכחית שלהם עודכנה לאחרונה על ידי המשתמש הזה (לא היסטוריה מלאה של כל עריכה שאי-פעם בוצעה).</p>`;
+  if (!myMinyanim.length && !myShiurim.length){
+    html += `<div class="empty">לא נמצאו פריטים שהמשתמש הזה הוא העורך האחרון שלהם</div>`;
+  } else {
+    if (myMinyanim.length){
+      html += `<h3 style="margin:14px 0 8px;font-size:15px">מניינים (${myMinyanim.length})</h3>`;
+      html += myMinyanim.map(m=>{
+        const shul = data.shuls.find(s=>s.id===m.shulId);
+        return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openMinyanForm('${m.shulId}','${m.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(m.tefila)} · ${escapeHtml(shul?shul.name:'')}</a></span></div>`;
+      }).join('');
+    }
+    if (myShiurim.length){
+      html += `<h3 style="margin:14px 0 8px;font-size:15px">שיעורים (${myShiurim.length})</h3>`;
+      html += myShiurim.map(s=>{
+        return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openShiurForm('${s.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(s.title)}</a></span></div>`;
+      }).join('');
+    }
+  }
+  html += `<div class="modal-actions"><button class="btn" onclick="closeModal()">סגירה</button></div>`;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('overlay').classList.add('show');
 }
 function jumpToUserInAdmin(targetUid){
   if (!isManager() || !targetUid) return;
@@ -1286,7 +1314,7 @@ function renderTefilot(){
         const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
         return `<div class="minyan-line">
           <div class="ml-top">
-            <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}</span>
+            <span style="font-weight:700">${m.tefila}${m.notes?` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>`:''}</span>
             <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
           </div>
           <div class="ml-bottom">
@@ -1338,7 +1366,7 @@ function renderTefilot(){
     }
     if (!items.length){ el.innerHTML = '<div class="empty">אין מניינים התואמים לסינון</div>'; return; }
     const headingDayName = today.toLocaleDateString('he-IL', {weekday:'long'});
-    const dayHeadingHtml = selectedDayKey ? '' : `<h3 style="margin-bottom:12px">זמני תפילות ליום ${escapeHtml(headingDayName)}</h3>`;
+    const dayHeadingHtml = selectedDayKey ? '' : `<h3 style="margin-bottom:12px">זמני תפילות ל${escapeHtml(headingDayName)}</h3>`;
     const usedTefilot = [...new Set(items.map(it=>it.m.tefila))];
     const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">${usedTefilot.map(t=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)"><span style="width:9px;height:9px;border-radius:50%;background:${tefilaColor(t)};display:inline-block"></span>${escapeHtml(t)}</span>`).join('')}</div>`;
     let lastTefila = null;
@@ -1874,7 +1902,7 @@ function renderShulPage(){
     const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
     return `<div class="minyan-line">
       <div class="ml-top">
-        <span>${m.tefila}${m.notes?` <span class="muted">· ${escapeHtml(m.notes)}</span>`:''}</span>
+        <span style="font-weight:700">${m.tefila}${m.notes?` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>`:''}</span>
         <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
       </div>
       <div class="ml-bottom">
