@@ -425,6 +425,7 @@ const googleProvider = new firebase.auth.GoogleAuthProvider();
 let currentUser = null;
 let currentRole = 'guest';
 let currentUserBlocked = false;
+let currentUserAssignedShulIds = [];
 let lastShownMessageKey = null;
 let currentUserName = '';
 let unsubUserDoc;
@@ -469,6 +470,7 @@ auth.onAuthStateChanged(async user=>{
     const d = doc.data();
     currentRole = d ? d.role : 'resident';
     currentUserBlocked = !!(d && d.blocked);
+    currentUserAssignedShulIds = (d && Array.isArray(d.assignedShulIds)) ? d.assignedShulIds : [];
     currentUserName = (d && d.name) ? d.name : (user.displayName || user.email);
     document.getElementById('userNameLabel').textContent = currentUserName;
     const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
@@ -511,7 +513,7 @@ function renderUsers(){
   el.innerHTML = filtered.map(u=>`
     <div class="card">
       <div class="row">
-        <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}</div>
+        <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.role==='gabai'?(u.assignedShulIds&&u.assignedShulIds.length?` · גבאי ${u.assignedShulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}`:' · גבאי ללא שיוך'):''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}</div>
         <select onchange="changeUserRole('${u.id}', this.value)">
           <option value="resident" ${u.role==='resident'?'selected':''}>תושב</option>
           <option value="gabai" ${u.role==='gabai'?'selected':''}>גבאי</option>
@@ -526,6 +528,7 @@ function renderUsers(){
         </div>
       </div>
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        ${u.role==='gabai'?`<button class="btn" onclick="openGabaiShulAssignModal('${u.id}')">🏠 עדכון שיוך בתי כנסת</button>`:''}
         <button class="btn" onclick="openSendMessageForm('${u.id}')">✉️ שליחת הודעה</button>
         <button class="btn ${u.blocked?'':'danger'}" onclick="toggleUserBlocked('${u.id}', ${!u.blocked})">${u.blocked?'ביטול חסימה':'חסימה מעריכה'}</button>
       </div>
@@ -554,8 +557,70 @@ function toggleUserBlocked(targetUid, newBlocked){
   if (newBlocked && !confirm('לחסום את המשתמש מעריכה? הוא עדיין יוכל לצפות, אבל לא להוסיף או לערוך.')) return;
   db.collection('users').doc(targetUid).update({ blocked: newBlocked }).catch(e=>alert('שגיאה: '+e.message));
 }
+function jumpToUserInAdmin(targetUid){
+  if (!isManager() || !targetUid) return;
+  closeModal();
+  const adminBtn = document.querySelector('.tab-btn[data-tab="admin"]');
+  if (adminBtn) adminBtn.click();
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const searchEl = document.getElementById('userSearchFilter');
+  const roleEl = document.getElementById('userRoleFilter');
+  if (searchEl && roleEl){
+    searchEl.value = u ? (u.email || u.name || '') : '';
+    roleEl.value = '';
+    renderUsers();
+    searchEl.scrollIntoView({behavior:'smooth', block:'center'});
+  }
+}
+function updatedByLineHtml(obj){
+  if (!obj || !obj.updatedAt) return '';
+  const dateStr = new Date(obj.updatedAt).toLocaleDateString('he-IL');
+  const name = escapeHtml(obj.updatedBy||'');
+  const nameHtml = (isManager() && obj.updatedByUid)
+    ? `<a href="#" onclick="jumpToUserInAdmin('${obj.updatedByUid}');return false" style="color:var(--dusk);font-weight:500">${name}</a>`
+    : name;
+  return `<p class="muted" style="margin-bottom:12px">עודכן ע"י ${nameHtml} · ${dateStr}</p>`;
+}
 function changeUserRole(targetUid, newRole){
-  db.collection('users').doc(targetUid).update({ role: newRole }).catch(e=>alert('שגיאה בעדכון הרשאה: '+e.message));
+  if (newRole === 'gabai'){
+    openGabaiShulAssignModal(targetUid);
+    return;
+  }
+  db.collection('users').doc(targetUid).update({ role: newRole, assignedShulIds: [] }).catch(e=>alert('שגיאה בעדכון הרשאה: '+e.message));
+}
+function openGabaiShulAssignModal(targetUid){
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const currentIds = (u && Array.isArray(u.assignedShulIds)) ? u.assignedShulIds : [];
+  const shulsSorted = [...data.shuls].sort((a,b)=>a.name.localeCompare(b.name,'he'));
+  document.getElementById('modalBody').innerHTML = `
+    <h3>שיוך גבאי לבתי כנסת</h3>
+    <p class="muted" style="margin-bottom:12px">לאיזה בית/בתי כנסת לשייך את ${escapeHtml(u?(u.name||u.email||''):'')}? אפשר לבחור יותר מאחד. גבאי יוכל לערוך ולמחוק רק בבתי הכנסת שנבחרו כאן.</p>
+    <div class="days" id="gabaiShulChips" style="margin-bottom:14px">
+      <span class="daychip ${!currentIds.length?'active':''}" data-shul="" onclick="onGabaiNoneChipClick(this)">ללא שיוך לבית כנסת</span>
+      ${shulsSorted.map(s=>`<span class="daychip ${currentIds.includes(s.id)?'active':''}" data-shul="${s.id}" onclick="onGabaiShulChipClick(this)">${escapeHtml(s.name)}</span>`).join('')}
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal();renderUsers()">ביטול</button>
+      <button class="btn primary" onclick="confirmGabaiAssign('${targetUid}')">אישור</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function onGabaiNoneChipClick(el){
+  document.querySelectorAll('#gabaiShulChips .daychip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+}
+function onGabaiShulChipClick(el){
+  el.classList.toggle('active');
+  document.querySelector('#gabaiShulChips .daychip[data-shul=""]').classList.remove('active');
+  const anyActive = [...document.querySelectorAll('#gabaiShulChips .daychip[data-shul]:not([data-shul=""])')].some(c=>c.classList.contains('active'));
+  if (!anyActive) document.querySelector('#gabaiShulChips .daychip[data-shul=""]').classList.add('active');
+}
+function confirmGabaiAssign(targetUid){
+  const shulIds = [...document.querySelectorAll('#gabaiShulChips .daychip.active')].map(c=>c.dataset.shul).filter(Boolean);
+  db.collection('users').doc(targetUid).update({
+    role: 'gabai',
+    assignedShulIds: shulIds
+  }).then(()=>closeModal()).catch(e=>alert('שגיאה: '+e.message));
 }
 function changeUserName(targetUid){
   const val = document.getElementById('name_'+targetUid).value.trim();
@@ -951,11 +1016,13 @@ function attachListeners(){
 function stamp(obj){
   if (currentUser){
     obj.updatedBy = currentUserName || currentUser.displayName || currentUser.email;
+    obj.updatedByUid = currentUser.uid;
   } else {
     const el = document.getElementById('userName');
     const val = el ? el.value.trim() : '';
     if (val) lastName = val;
     obj.updatedBy = lastName || 'תושב אנונימי';
+    obj.updatedByUid = null;
   }
   obj.updatedAt = new Date().toISOString();
   return obj;
@@ -965,6 +1032,21 @@ function nameFieldHtml(){
   return `<div class="field"><label>השם שלך</label><input id="userName" placeholder="לדוגמה: יוסי כהן" value="${escapeHtml(lastName)}"></div>`;
 }
 function isAdminLevel(){ return currentRole === 'gabai' || currentRole === 'manager'; }
+function canManageShul(shulId){
+  if (isManager()) return true;
+  if (currentRole === 'gabai' && currentUserAssignedShulIds.includes(shulId)) return true;
+  const shul = data.shuls.find(s=>s.id===shulId);
+  if (shul && currentUser && shul.editorUids && shul.editorUids.includes(currentUser.uid)) return true;
+  return false;
+}
+function canDeleteInShul(shulId){
+  return isManager() || (currentRole === 'gabai' && currentUserAssignedShulIds.includes(shulId));
+}
+function canDeleteShiur(s){
+  if (isManager()) return true;
+  if (currentRole === 'gabai' && s.locationShulId && currentUserAssignedShulIds.includes(s.locationShulId)) return true;
+  return false;
+}
 function isManager(){ return currentRole === 'manager'; }
 function showEditAuthGate(){
   document.getElementById('modalBody').innerHTML = `
@@ -1192,9 +1274,8 @@ function renderTefilot(){
           <div class="ml-bottom">
             <span class="muted">
               <span style="display:inline-flex;align-items:center;gap:1px">
-                ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
-                <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
-                ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+                <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
+                ${canDeleteInShul(shul.id)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
               </span>
               ${daysToLabel(m.days)}
             </span>
@@ -1214,7 +1295,7 @@ function renderTefilot(){
         </div>
         <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
         ${navLinksHtml(shul)}
-        ${isAdminLevel()?`<div class="row" style="margin-top:8px">
+        ${canManageShul(shul.id)?`<div class="row" style="margin-top:8px">
           <span></span>
           <button class="btn" onclick="openShulForm('${shul.id}')">עריכה</button>
         </div>`:''}
@@ -1317,20 +1398,23 @@ function renderShiurim(){
       ? `<span class="badge" style="background:var(--surface-2);color:var(--accent-ink);border-color:var(--accent)">📍 ${(s.lat&&s.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, s.lat, s.lng)) : 'ללא מיקום שמור'}</span>`
       : '';
     const topics = getShiurTopics(s);
+    const primaryLabel = topics.length ? topics.join(', ') : s.title;
+    const secondaryBits = [];
+    if (topics.length) secondaryBits.push(escapeHtml(s.title));
+    if (s.teacherName) secondaryBits.push(escapeHtml(s.teacherName));
     return `
     <div class="card">
       <div class="ml-top">
-        <span>${escapeHtml(s.title)}${s.teacherName?` <span class="muted">· ${escapeHtml(s.teacherName)}</span>`:''}</span>
+        <span style="font-weight:700">${escapeHtml(primaryLabel)}</span>
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
+      ${secondaryBits.length?`<div class="muted" style="font-size:12.5px;margin-top:1px">${secondaryBits.join(' · ')}</div>`:''}
       <div class="ml-bottom">
         <span style="display:inline-flex;align-items:center;gap:1px">
-          ${s.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(s))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
-          ${navButtonHtml({lat:s.lat, lng:s.lng, address:s.location})}
-          <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
-          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+          <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
+          ${canDeleteShiur(s)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
         </span>
-        ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
+        ${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
         ${distanceBadge}
       </div>
       ${(s.contactName || s.notes) ? `<div class="muted" style="margin-top:3px;font-size:12px">${s.contactName?`איש קשר: ${escapeHtml(s.contactName)}${s.contactPhone?' · '+escapeHtml(s.contactPhone):''}`:''}${s.notes?(s.contactName?' · ':'')+escapeHtml(s.notes):''}</div>` : ''}
@@ -1462,6 +1546,63 @@ function closeNavPopover(){
   if (el) el.remove();
   document.removeEventListener('click', closeNavPopover);
 }
+function openMinyanMenuPopover(e, shulId, minyanId){
+  e.stopPropagation();
+  closeNavPopover();
+  const m = data.minyanim.find(x=>x.id===minyanId);
+  const shul = data.shuls.find(x=>x.id===shulId);
+  if (!m) return;
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const links = shul ? getNavLinks(shul) : null;
+  const pop = document.createElement('div');
+  pop.id = 'navPopoverDynamic';
+  pop.className = 'info-popover show';
+  pop.style.position = 'fixed';
+  pop.style.top = (rect.bottom + 6) + 'px';
+  pop.style.right = (window.innerWidth - rect.right) + 'px';
+  pop.style.width = '230px';
+  let html = '';
+  if (m.updatedAt){
+    html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(m)}</div>`;
+  }
+  if (links){
+    html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
+    html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
+  }
+  html += `<a href="#" onclick="closeNavPopover();openMinyanForm('${shulId}','${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none">✏️ עריכה</a>`;
+  pop.innerHTML = html;
+  document.body.appendChild(pop);
+  setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
+}
+function openShiurMenuPopover(e, shiurId){
+  e.stopPropagation();
+  closeNavPopover();
+  const s = data.shiurim.find(x=>x.id===shiurId);
+  if (!s) return;
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const links = getNavLinks({lat:s.lat, lng:s.lng, address:s.location});
+  const pop = document.createElement('div');
+  pop.id = 'navPopoverDynamic';
+  pop.className = 'info-popover show';
+  pop.style.position = 'fixed';
+  pop.style.top = (rect.bottom + 6) + 'px';
+  pop.style.right = (window.innerWidth - rect.right) + 'px';
+  pop.style.width = '230px';
+  let html = '';
+  if (s.updatedAt){
+    html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(s)}</div>`;
+  }
+  if (links){
+    html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
+    html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
+  }
+  html += `<a href="#" onclick="closeNavPopover();openShiurForm('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none">✏️ עריכה</a>`;
+  pop.innerHTML = html;
+  document.body.appendChild(pop);
+  setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
+}
 function openInfoPopover(e){
   e.stopPropagation();
   closeNavPopover();
@@ -1484,6 +1625,7 @@ function openShulForm(shulId){
   const s = shulId ? data.shuls.find(x=>x.id===shulId) : null;
   document.getElementById('modalBody').innerHTML = `
     <h3>${s?'עריכת בית כנסת':'הוספת בית כנסת'}</h3>
+    ${updatedByLineHtml(s)}
     ${nameFieldHtml()}
     <div class="field"><label>שם בית הכנסת</label><input id="f_name" value="${s?escapeHtml(s.name):''}"></div>
     <div class="field optional"><label>כתובת</label><input id="f_address" value="${s?escapeHtml(s.address||''):''}"></div>
@@ -1619,9 +1761,7 @@ function deleteShul(id){
 
 // ---------- דף בית כנסת ----------
 function canEditShul(shul){
-  if (isAdminLevel()) return true;
-  if (currentUser && shul.editorUids && shul.editorUids.includes(currentUser.uid)) return true;
-  return false;
+  return canManageShul(shul.id);
 }
 function openShulPage(shulId){
   if (!shulId) return;
@@ -1719,9 +1859,8 @@ function renderShulPage(){
       <div class="ml-bottom">
         <span class="muted">
           <span style="display:inline-flex;align-items:center;gap:1px">
-            ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
-            <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
-            ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+            <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
+            ${canDeleteInShul(shul.id)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
           </span>
           ${daysToLabel(m.days)}
         </span>
@@ -1736,11 +1875,17 @@ function renderShulPage(){
     return `
     <div class="minyan-line">
       <div class="ml-top">
-        <span>${escapeHtml(topicOrTitle)}</span>
+        <span style="font-weight:700">${escapeHtml(topicOrTitle)}</span>
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
       <div class="ml-bottom">
-        <span class="muted">${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}</span>
+        <span class="muted">
+          <span style="display:inline-flex;align-items:center;gap:1px">
+            <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט ועריכה" aria-label="מידע, ניווט ועריכה">${INFO_ICON_SVG}</button>
+            ${canDeleteShiur(s)?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+          </span>
+          ${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}
+        </span>
       </div>
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין שיעורים רשומים במיקום זה</div>';
@@ -1865,6 +2010,7 @@ function openMinyanForm(shulId, minyanId){
   const needsShulSelect = !shulId;
   document.getElementById('modalBody').innerHTML = `
     <h3>${m?'עריכת מניין':'הוספת מניין'}</h3>
+    ${updatedByLineHtml(m)}
     ${nameFieldHtml()}
     ${needsShulSelect ? `<div class="field"><label>בית כנסת</label>
       <select id="f_shulId">
@@ -1956,6 +2102,7 @@ function openShiurForm(shiurId){
   const s = shiurId ? data.shiurim.find(x=>x.id===shiurId) : null;
   document.getElementById('modalBody').innerHTML = `
     <h3>${s?'עריכת שיעור':'הוספת שיעור'}</h3>
+    ${updatedByLineHtml(s)}
     ${nameFieldHtml()}
     <div class="field"><label>כותרת</label><input id="f_title" value="${s?escapeHtml(s.title):''}"></div>
     <div class="field"><label>נושאים (ניתן לבחור יותר מאחד)</label>
