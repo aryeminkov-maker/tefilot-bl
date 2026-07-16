@@ -72,6 +72,10 @@
   .tline-divider:first-child{border-top:none;margin-top:0;padding-top:0}
   .tline-divider::before{content:'';position:absolute;right:-19px;top:14px;width:9px;height:9px;border-radius:50%;background:var(--dot-color, var(--accent))}
   .tline-divider:first-child::before{top:4px}
+  .tline-now{position:relative;margin:12px 0;padding-right:10px;display:flex;align-items:center;gap:8px}
+  .tline-now::before{content:'';position:absolute;right:-20px;top:50%;transform:translateY(-50%);width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--surface);z-index:1}
+  .tline-now-line{flex:1;height:2px;background:var(--accent)}
+  .tline-now-label{font-size:11px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:3px 9px;border-radius:20px;white-space:nowrap}
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
   .filters-panel{display:none;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px}
   .filters-panel.show{display:block}
@@ -230,6 +234,7 @@
       <button class="icon-btn" style="flex-shrink:0" onclick="shareShiurimFilter()" aria-label="שיתוף" title="שיתוף התצוגה המסוננת">🔗</button>
       <button class="btn primary" id="addShiurBtn" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">+ הוסף שיעור</button>
     </div>
+    <div id="topicChipsRow" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"></div>
     <div id="shiurimFiltersPanel" class="filters-panel">
       <div class="filters">
         <select id="filterTopic"><option value="">כל הנושאים</option></select>
@@ -300,6 +305,15 @@
       <div id="shulsAdminList"></div>
     </div>
     <p class="muted" style="margin:20px 0 12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל יישוב ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
+    <div class="filters">
+      <input id="userSearchFilter" placeholder="חיפוש לפי שם או מייל..." oninput="renderUsers()">
+      <select id="userRoleFilter" onchange="renderUsers()">
+        <option value="">כל הרמות</option>
+        <option value="resident">תושב</option>
+        <option value="gabai">גבאי</option>
+        <option value="manager">מנהל יישוב</option>
+      </select>
+    </div>
     <div id="usersList"></div>
   </div>
   </div>
@@ -410,6 +424,8 @@ const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 let currentUser = null;
 let currentRole = 'guest';
+let currentUserBlocked = false;
+let lastShownMessageKey = null;
 let currentUserName = '';
 let unsubUserDoc;
 
@@ -452,6 +468,7 @@ auth.onAuthStateChanged(async user=>{
   unsubUserDoc = userRef.onSnapshot(doc=>{
     const d = doc.data();
     currentRole = d ? d.role : 'resident';
+    currentUserBlocked = !!(d && d.blocked);
     currentUserName = (d && d.name) ? d.name : (user.displayName || user.email);
     document.getElementById('userNameLabel').textContent = currentUserName;
     const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
@@ -465,6 +482,7 @@ auth.onAuthStateChanged(async user=>{
       document.getElementById('admin-tab').style.display = 'none';
     }
     attachUsersListenerIfManager();
+    if (d) maybeShowPendingMessage(d);
     render();
   });
 });
@@ -481,11 +499,19 @@ function attachUsersListenerIfManager(){
 function renderUsers(){
   const el = document.getElementById('usersList');
   if (!data.users.length){ el.innerHTML = '<div class="empty">אין עדיין משתמשים רשומים</div>'; return; }
+  const searchF = (document.getElementById('userSearchFilter').value||'').trim().toLowerCase();
+  const roleF = document.getElementById('userRoleFilter').value;
+  const filtered = data.users.filter(u=>{
+    if (roleF && u.role !== roleF) return false;
+    if (searchF && !((u.name||'')+' '+(u.email||'')).toLowerCase().includes(searchF)) return false;
+    return true;
+  });
+  if (!filtered.length){ el.innerHTML = '<div class="empty">לא נמצאו משתמשים תואמים</div>'; return; }
   const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
-  el.innerHTML = data.users.map(u=>`
+  el.innerHTML = filtered.map(u=>`
     <div class="card">
       <div class="row">
-        <div class="muted">${escapeHtml(u.email||'')}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}</div>
+        <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}</div>
         <select onchange="changeUserRole('${u.id}', this.value)">
           <option value="resident" ${u.role==='resident'?'selected':''}>תושב</option>
           <option value="gabai" ${u.role==='gabai'?'selected':''}>גבאי</option>
@@ -499,7 +525,34 @@ function renderUsers(){
           <button class="btn" onclick="changeUserName('${u.id}')">שמירה</button>
         </div>
       </div>
+      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+        <button class="btn" onclick="openSendMessageForm('${u.id}')">✉️ שליחת הודעה</button>
+        <button class="btn ${u.blocked?'':'danger'}" onclick="toggleUserBlocked('${u.id}', ${!u.blocked})">${u.blocked?'ביטול חסימה':'חסימה מעריכה'}</button>
+      </div>
     </div>`).join('');
+}
+function openSendMessageForm(targetUid){
+  document.getElementById('modalBody').innerHTML = `
+    <h3>שליחת הודעה למשתמש</h3>
+    <p class="muted" style="margin-bottom:10px">ההודעה תוצג למשתמש כחלונית קופצת בכניסה הבאה שלו לאפליקציה.</p>
+    <textarea id="f_messageText" rows="4" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="sendUserMessage('${targetUid}')">שליחה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function sendUserMessage(targetUid){
+  const text = document.getElementById('f_messageText').value.trim();
+  if (!text){ alert('יש לכתוב הודעה'); return; }
+  const message = { text, date: new Date().toISOString(), from: currentUserName || (currentUser&&currentUser.displayName) || 'מנהל היישוב' };
+  db.collection('users').doc(targetUid).update({
+    messages: firebase.firestore.FieldValue.arrayUnion(message)
+  }).then(()=>{ alert('ההודעה נשלחה'); closeModal(); }).catch(e=>alert('שגיאה בשליחה: '+e.message));
+}
+function toggleUserBlocked(targetUid, newBlocked){
+  if (newBlocked && !confirm('לחסום את המשתמש מעריכה? הוא עדיין יוכל לצפות, אבל לא להוסיף או לערוך.')) return;
+  db.collection('users').doc(targetUid).update({ blocked: newBlocked }).catch(e=>alert('שגיאה: '+e.message));
 }
 function changeUserRole(targetUid, newRole){
   db.collection('users').doc(targetUid).update({ role: newRole }).catch(e=>alert('שגיאה בעדכון הרשאה: '+e.message));
@@ -643,7 +696,7 @@ function exportToExcel(){
     'כותרת': s.title || '',
     'נושא': getShiurTopics(s).join(', '),
     'קהל יעד': AUDIENCE_LABEL[s.audience||'all'],
-    'ימים': daysToLabel(s.days),
+    'ימים': shiurScheduleLabel(s),
     'שעה': s.time || '',
     'מיקום': s.location || '',
     'מעביר השיעור': s.teacherName || '',
@@ -913,6 +966,57 @@ function nameFieldHtml(){
 }
 function isAdminLevel(){ return currentRole === 'gabai' || currentRole === 'manager'; }
 function isManager(){ return currentRole === 'manager'; }
+function showEditAuthGate(){
+  document.getElementById('modalBody').innerHTML = `
+    <h3>נדרשת התחברות</h3>
+    <p style="line-height:1.7;margin-bottom:18px">על מנת לערוך יש להתחבר לחשבון הגוגל שלך.</p>
+    <button type="button" class="btn primary" onclick="closeModal();doSignIn()" style="display:inline-flex;align-items:center;gap:8px">
+      ${GOOGLE_ICON_SVG} התחברות עם Google
+    </button>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function showBlockedGate(){
+  document.getElementById('modalBody').innerHTML = `
+    <h3>העריכה חסומה עבורך</h3>
+    <p style="line-height:1.7;margin-bottom:18px">מנהל היישוב חסם את היכולת שלך להוסיף או לערוך. אם זו טעות, פנו למנהל היישוב.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function requireEditPermission(){
+  if (!currentUser){ showEditAuthGate(); return false; }
+  if (currentUserBlocked){ showBlockedGate(); return false; }
+  return true;
+}
+function maybeShowPendingMessage(d){
+  if (!d.messages || !d.messages.length) return;
+  const msg = d.messages[0];
+  if (msg.date === lastShownMessageKey) return;
+  if (document.getElementById('overlay').classList.contains('show')) return;
+  lastShownMessageKey = msg.date;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>הודעה מ${escapeHtml(msg.from||'מנהל היישוב')}</h3>
+    <p style="line-height:1.7;margin-bottom:18px;white-space:pre-wrap">${escapeHtml(msg.text)}</p>
+    <div class="modal-actions">
+      <button class="btn primary" onclick="dismissPendingMessage()">הבנתי</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function dismissPendingMessage(){
+  closeModal();
+  if (!currentUser) return;
+  const userRef = db.collection('users').doc(currentUser.uid);
+  userRef.get().then(doc=>{
+    const d = doc.data();
+    if (d && d.messages && d.messages.length){
+      userRef.update({ messages: firebase.firestore.FieldValue.arrayRemove(d.messages[0]) }).catch(()=>{});
+    }
+  });
+}
 function uid(){ return 'id' + Math.random().toString(36).slice(2,10); }
 
 // ---------- רינדור: תפילות ----------
@@ -932,10 +1036,48 @@ function tefilaColor(t){
 }
 let TOPIC_LIST = [...TOPIC_BASE];
 let TOPIC_DESCRIPTIONS = {};
+let topicChipsExpanded = false;
 function getShiurTopics(s){
   if (s.topics && Array.isArray(s.topics)) return s.topics;
   if (s.topic) return [s.topic];
   return [];
+}
+function shiurScheduleLabel(s){
+  if (s.oneTime && s.oneTimeDate){
+    const d = new Date(s.oneTimeDate + 'T00:00:00');
+    return 'חד פעמי · ' + d.toLocaleDateString('he-IL');
+  }
+  return daysToLabel(s.days);
+}
+function isShiurExpired(s){
+  if (!s.oneTime || !s.oneTimeDate) return false;
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const shiurDate = new Date(s.oneTimeDate + 'T00:00:00');
+  return shiurDate < today;
+}
+function renderTopicChips(currentFilter){
+  const container = document.getElementById('topicChipsRow');
+  if (!container) return;
+  const usedTopics = [...new Set(data.shiurim.filter(s=>!isShiurExpired(s)).flatMap(s=>getShiurTopics(s)))];
+  const usedInOrder = TOPIC_LIST.filter(t=>usedTopics.includes(t));
+  const unusedInOrder = TOPIC_LIST.filter(t=>!usedTopics.includes(t));
+  const chip = t => `<span class="daychip ${currentFilter===t?'active':''}" onclick="selectTopicChip('${escapeHtml(t)}')">${escapeHtml(t)}</span>`;
+  let html = `<span class="daychip ${!currentFilter?'active':''}" onclick="selectTopicChip('')">הכל</span>` + usedInOrder.map(chip).join('');
+  if (unusedInOrder.length){
+    html += topicChipsExpanded
+      ? unusedInOrder.map(chip).join('') + `<span class="daychip" onclick="toggleTopicChipsExpand()">‹ פחות</span>`
+      : `<span class="daychip" onclick="toggleTopicChipsExpand()">עוד ›</span>`;
+  }
+  container.innerHTML = html;
+}
+function selectTopicChip(t){
+  document.getElementById('filterTopic').value = t;
+  render();
+}
+function toggleTopicChipsExpand(){
+  topicChipsExpanded = !topicChipsExpanded;
+  render();
 }
 const TEFILA_DEFAULT_TIME = {'שחרית':'07:00', 'מנחה':'19:00', 'ערבית':'21:00'};
 let TEFILA_ORDER = [...TEFILA_BASE];
@@ -1049,9 +1191,11 @@ function renderTefilot(){
           </div>
           <div class="ml-bottom">
             <span class="muted">
-              ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
-              <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
-              ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+              <span style="display:inline-flex;align-items:center;gap:1px">
+                ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
+                <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
+                ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+              </span>
               ${daysToLabel(m.days)}
             </span>
           </div>
@@ -1100,18 +1244,27 @@ function renderTefilot(){
     const usedTefilot = [...new Set(items.map(it=>it.m.tefila))];
     const legendHtml = `<div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:12px">${usedTefilot.map(t=>`<span style="display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-soft)"><span style="width:9px;height:9px;border-radius:50%;background:${tefilaColor(t)};display:inline-block"></span>${escapeHtml(t)}</span>`).join('')}</div>`;
     let lastTefila = null;
-    const itemsHtml = items.map(it=>{
+    let nowMarkerInserted = !!(selectedDayKey || nextOnly);
+    let itemsHtml = items.map(it=>{
       let divider = '';
       if (it.m.tefila !== lastTefila){
         lastTefila = it.m.tefila;
         divider = `<div class="tline-divider" style="--dot-color:${tefilaColor(it.m.tefila)}">${escapeHtml(it.m.tefila)}</div>`;
       }
-      return divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
+      let nowMarker = '';
+      if (!nowMarkerInserted && timeMinutesIsrael(it.t) >= nowMins){
+        nowMarkerInserted = true;
+        nowMarker = `<div class="tline-now"><span class="tline-now-label">⏱ עכשיו</span><span class="tline-now-line"></span></div>`;
+      }
+      return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
         ${it.m.tefila} · <span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
       </div>`;
     }).join('');
+    if (!nowMarkerInserted){
+      itemsHtml += `<div class="tline-now"><span class="tline-now-label">⏱ עכשיו</span><span class="tline-now-line"></span></div>`;
+    }
     el.innerHTML = '<div class="card">' + dayHeadingHtml + legendHtml + '<div class="timeline">' + itemsHtml + '</div></div>';
   }
 }
@@ -1135,7 +1288,10 @@ function renderShiurim(){
     descBox.innerHTML = '';
   }
 
+  renderTopicChips(topicF);
+
   let list = data.shiurim.filter(s=>{
+    if (isShiurExpired(s)) return false;
     const sTopics = getShiurTopics(s);
     if (topicF && !sTopics.includes(topicF)) return false;
     if (audF && (s.audience||'all') !== audF) return false;
@@ -1168,11 +1324,13 @@ function renderShiurim(){
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
       <div class="ml-bottom">
-        ${s.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(s))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
-        ${navButtonHtml({lat:s.lat, lng:s.lng, address:s.location})}
-        <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
-        ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
-        ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
+        <span style="display:inline-flex;align-items:center;gap:1px">
+          ${s.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(s))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
+          ${navButtonHtml({lat:s.lat, lng:s.lng, address:s.location})}
+          <button class="row-icon-btn" onclick="openShiurForm('${s.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
+          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteShiur('${s.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+        </span>
+        ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
         ${distanceBadge}
       </div>
       ${(s.contactName || s.notes) ? `<div class="muted" style="margin-top:3px;font-size:12px">${s.contactName?`איש קשר: ${escapeHtml(s.contactName)}${s.contactPhone?' · '+escapeHtml(s.contactPhone):''}`:''}${s.notes?(s.contactName?' · ':'')+escapeHtml(s.notes):''}</div>` : ''}
@@ -1560,16 +1718,18 @@ function renderShulPage(){
       </div>
       <div class="ml-bottom">
         <span class="muted">
-          ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
-          <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
-          ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+          <span style="display:inline-flex;align-items:center;gap:1px">
+            ${m.updatedAt?`<button class="row-icon-btn" data-info="${escapeHtml(lastUpdatedLabel(m))}" onclick="openInfoPopover(event)" title="פרטי עדכון" aria-label="פרטי עדכון">${INFO_ICON_SVG}</button>`:''}
+            <button class="row-icon-btn" onclick="openMinyanForm('${shul.id}','${m.id}')" title="עריכה" aria-label="עריכה">${EDIT_ICON_SVG}</button>
+            ${isAdminLevel()?`<button class="row-icon-btn" style="color:var(--danger)" onclick="deleteMinyan('${m.id}')" title="מחיקה" aria-label="מחיקה">${DELETE_ICON_SVG}</button>`:''}
+          </span>
           ${daysToLabel(m.days)}
         </span>
       </div>
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים</div>';
 
-  const shiurimHere = data.shiurim.filter(s=>s.locationShulId===shul.id);
+  const shiurimHere = data.shiurim.filter(s=>s.locationShulId===shul.id && !isShiurExpired(s));
   const shiurLines = shiurimHere.map(s=>{
     const topics = getShiurTopics(s);
     const topicOrTitle = topics.length ? topics.join(', ') : s.title;
@@ -1580,7 +1740,7 @@ function renderShulPage(){
         <span class="badge ${s.audience||'all'}">${AUDIENCE_LABEL[s.audience||'all']}</span>
       </div>
       <div class="ml-bottom">
-        <span class="muted">${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${daysToLabel(s.days)} · ${escapeHtml(s.time||'')}</span>
+        <span class="muted">${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}</span>
       </div>
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין שיעורים רשומים במיקום זה</div>';
@@ -1623,8 +1783,8 @@ function renderShulPage(){
       ${shul.photo?`<img src="${escapeHtml(shul.photo)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
       <h2 style="margin:0;font-size:30px">${escapeHtml(shul.name)}</h2>
       <div class="muted" style="margin-top:6px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
-      ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">רב בית הכנסת: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
-      ${shul.gabaiNames && shul.gabaiNames.length ? `<div class="muted" style="margin-top:2px">גבאים: ${shul.gabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
+      ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">${shul.rabbiNames.length > 1 ? 'רבני בית הכנסת' : 'רב בית הכנסת'}: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
+      ${shul.gabaiNames && shul.gabaiNames.length ? `<div class="muted" style="margin-top:2px">${shul.gabaiNames.length > 1 ? 'גבאים' : 'גבאי'}: ${shul.gabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
       <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="icon-btn" onclick="shareShulLink('${shul.id}')" aria-label="שיתוף" title="שיתוף">🔗</button>
         ${editable?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>`:''}
@@ -1700,6 +1860,7 @@ function removeShulEditor(shulId, uidToRemove){
 const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const DAY_LABELS = ['א','ב','ג','ד','ה','ו','ש'];
 function openMinyanForm(shulId, minyanId){
+  if (!requireEditPermission()) return;
   const m = minyanId ? data.minyanim.find(x=>x.id===minyanId) : null;
   const needsShulSelect = !shulId;
   document.getElementById('modalBody').innerHTML = `
@@ -1791,6 +1952,7 @@ function deleteMinyan(id){
 
 // ---------- טפסים: שיעור ----------
 function openShiurForm(shiurId){
+  if (!requireEditPermission()) return;
   const s = shiurId ? data.shiurim.find(x=>x.id===shiurId) : null;
   document.getElementById('modalBody').innerHTML = `
     <h3>${s?'עריכת שיעור':'הוספת שיעור'}</h3>
@@ -1807,9 +1969,16 @@ function openShiurForm(shiurId){
         <option value="youth" ${s&&s.audience==='youth'?'selected':''}>נוער</option>
       </select>
     </div>
-    <div class="field"><label>ימי השיעור</label>
+    <div class="field">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+        <input type="checkbox" id="f_oneTime" onchange="onOneTimeChange()" ${s&&s.oneTime?'checked':''}>
+        שיעור חד פעמי (לא קבוע) - יוסתר אוטומטית אחרי המועד
+      </label>
+    </div>
+    <div class="field" id="recurringDaysField"><label>ימי השיעור</label>
       <div class="days" id="f_shiurDays">${DAY_KEYS.map((k,i)=>`<span class="daychip ${s&&s.days&&s.days.includes(k)?'active':''}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
     </div>
+    <div class="field" id="oneTimeDateField" style="display:none"><label>תאריך השיעור</label><input type="date" id="f_oneTimeDate" value="${s&&s.oneTimeDate?s.oneTimeDate:''}"></div>
     <div class="inline2">
       <div class="field"><label>שעה</label><input id="f_time" type="time" value="${s?s.time:'20:30'}"></div>
       <div class="field"><label>מיקום השיעור</label>
@@ -1841,6 +2010,12 @@ function openShiurForm(shiurId){
     </div>`;
   document.getElementById('overlay').classList.add('show');
   onShiurLocationChange();
+  onOneTimeChange();
+}
+function onOneTimeChange(){
+  const isOneTime = document.getElementById('f_oneTime').checked;
+  document.getElementById('recurringDaysField').style.display = isOneTime ? 'none' : '';
+  document.getElementById('oneTimeDateField').style.display = isOneTime ? '' : 'none';
 }
 function onShiurLocationChange(){
   const val = document.getElementById('f_locationSelect').value;
@@ -1868,15 +2043,24 @@ function saveShiur(shiurId){
     lng = shul.lng || null;
     locationShulId = shul.id;
   }
-  const days = [...document.querySelectorAll('#f_shiurDays .daychip.active')].map(d=>d.dataset.day);
-  if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  const isOneTime = document.getElementById('f_oneTime').checked;
+  let days = [], oneTimeDate = '';
+  if (isOneTime){
+    oneTimeDate = document.getElementById('f_oneTimeDate').value;
+    if (!oneTimeDate){ alert('יש לבחור תאריך לשיעור החד פעמי'); return; }
+  } else {
+    days = [...document.querySelectorAll('#f_shiurDays .daychip.active')].map(d=>d.dataset.day);
+    if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  }
   const topics = [...document.querySelectorAll('#f_topics .daychip.active')].map(d=>d.dataset.topic);
   const id = shiurId || uid();
   const obj = stamp({
     title,
     topics,
     audience: document.getElementById('f_audience').value,
+    oneTime: isOneTime,
     days,
+    oneTimeDate,
     time: document.getElementById('f_time').value,
     location,
     lat,
@@ -1910,6 +2094,7 @@ function isMobileDevice(){
   return /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 const MAIL_ICON_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>';
+const GOOGLE_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-4px"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>';
 function openAboutModal(){
   document.getElementById('modalBody').innerHTML = `
     <h3>אודות</h3>
