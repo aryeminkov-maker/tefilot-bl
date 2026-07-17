@@ -13,7 +13,7 @@
   :root{
     --bg:#F6F1E6; --surface:#FFFDF8; --surface-2:#FBF6EC;
     --ink:#22303A; --ink-soft:#5B6B72; --border:#E3DAC3;
-    --accent:#C6873C; --accent-ink:#5C3F16;
+    --accent:#C6873C; --accent-ink:#33220A;
     --dusk:#2F5D62; --dusk-ink:#FFFFFF;
     --danger:#B5473A; --danger-bg:#FBEAE7;
     --radius:10px;
@@ -86,6 +86,7 @@
   .overlay{position:fixed;inset:0;background:rgba(34,48,58,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
   .overlay.show{display:flex}
   .modal{background:var(--surface);border-radius:var(--radius);padding:20px;max-width:440px;width:100%;max-height:85vh;overflow:auto}
+  .modal:focus{outline:none}
   .modal h3{margin-bottom:14px}
   .field{margin-bottom:12px}
   .field label{display:block;font-size:12.5px;color:var(--ink-soft);margin-bottom:4px}
@@ -97,6 +98,12 @@
   .topic-chips-row{display:flex;flex-wrap:wrap;gap:6px;overflow:hidden;max-height:68px}
   .topic-chips-row.expanded{max-height:none}
   .daychip{padding:5px 9px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer;background:var(--surface)}
+  .day-letter-btn{width:26px;height:26px;min-width:26px;border-radius:50%;border:1px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;color:var(--ink-soft);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-family:'Rubik'}
+  .day-letter-btn.active{background:var(--dusk);color:var(--dusk-ink);border-color:var(--dusk)}
+  [role="button"]:focus-visible{outline:3px solid var(--dusk);outline-offset:2px}
+  html.a11y-high-contrast{--bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#FFFFFF; --ink:#000000; --ink-soft:#000000; --border:#000000; --dusk:#000000; --dusk-ink:#FFFFFF; --accent:#000000; --accent-ink:#FFFFFF; --danger:#B30000; --danger-bg:#FFFFFF;}
+  html.a11y-high-contrast .card, html.a11y-high-contrast .btn, html.a11y-high-contrast .daychip, html.a11y-high-contrast .badge{border-width:2px}
+  html.a11y-no-motion *, html.a11y-no-motion *::before, html.a11y-no-motion *::after{transition:none!important; animation:none!important; scroll-behavior:auto!important;}
   .daychip.active{background:var(--dusk);color:#fff;border-color:var(--dusk)}
   .modal-actions{display:flex;gap:8px;margin-top:16px;justify-content:flex-end}
   footer.note{max-width:760px;margin:26px auto 0;padding:0 16px;font-size:12px;color:var(--ink-soft);line-height:1.6}
@@ -196,9 +203,9 @@
       </div>
       <button class="btn primary" onclick="openMinyanForm()">+ הוסף מניין</button>
     </div>
-    <div class="row" style="margin-bottom:10px">
-      <button class="btn" id="tefilotFiltersToggle" type="button" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
-      <span></span>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:nowrap">
+      <button class="btn" id="tefilotFiltersToggle" type="button" style="flex-shrink:0" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
+      <div id="dayLetterBar" role="group" aria-label="בחירת יום בשבוע" style="display:flex;gap:3px;flex-shrink:0"></div>
     </div>
     <div id="tefilotFiltersPanel" class="filters-panel">
       <div class="filters">
@@ -311,8 +318,8 @@
         <button type="button" class="btn ghost" id="topicDescRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeTopicDescImage()">✕ הסרת תמונה</button>
       </div>
       <div class="inline2">
-        <div class="field optional"><label>טקסט הקישור</label><input id="topicDescLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
-        <div class="field optional"><label>כתובת הקישור (URL)</label><input id="topicDescLink" placeholder="https://..."></div>
+        <div class="field optional"><label for="topicDescLinkLabel">טקסט הקישור</label><input id="topicDescLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
+        <div class="field optional"><label for="topicDescLink">כתובת הקישור (URL)</label><input id="topicDescLink" placeholder="https://..."></div>
       </div>
       <button class="btn primary" onclick="saveTopicDescription()">שמירה</button>
     </div>
@@ -323,7 +330,7 @@
         <input type="checkbox" id="annEnabled">
         החלונית פעילה
       </label>
-      <div class="field"><label>טקסט</label>
+      <div class="field"><label for="annText">טקסט</label>
         <textarea id="annText" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
       </div>
       <div class="field optional">
@@ -339,10 +346,10 @@
         <button type="button" class="btn ghost" id="annRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeAnnouncementImage()">✕ הסרת תמונה</button>
       </div>
       <div class="inline2">
-        <div class="field optional"><label>טקסט הקישור</label><input id="annLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
-        <div class="field optional"><label>כתובת הקישור (URL)</label><input id="annLink" placeholder="https://..."></div>
+        <div class="field optional"><label for="annLinkLabel">טקסט הקישור</label><input id="annLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
+        <div class="field optional"><label for="annLink">כתובת הקישור (URL)</label><input id="annLink" placeholder="https://..."></div>
       </div>
-      <div class="field"><label>תדירות הצגה</label>
+      <div class="field"><label for="annFrequency">תדירות הצגה</label>
         <select id="annFrequency">
           <option value="once">פעם אחת בלבד לכל משתמש</option>
           <option value="always">בכל כניסה לאפליקציה</option>
@@ -377,7 +384,7 @@
   הזמנים לזריחה / שקיעה / צאת הכוכבים מחושבים אוטומטית לפי קואורדינטות בית אל, ומהווים קירוב — לפני קביעת זמן מניין רגיש יש לוודא מול רב היישוב. תמיכה בלוח שנה עברי מלא (חגים, ראש חודש) מתוכננת לשלב הבא.
 </footer>
 
-<div class="overlay" id="overlay"><div class="modal" id="modalBody"></div></div>
+<div class="overlay" id="overlay"><div class="modal" id="modalBody" role="dialog" aria-modal="true"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
@@ -511,6 +518,7 @@ function doSignIn(){
 
 // הצפייה פתוחה לכולם - מאזינים לנתונים כבר בטעינת הדף, בלי קשר להתחברות
 attachListeners();
+initA11yPrefs();
 
 auth.getRedirectResult().then(result=>{
   if (result && result.user){
@@ -612,7 +620,7 @@ function renderUsers(){
         </select>
       </div>
       <div class="field" style="margin:12px 0 0">
-        <label>שם תצוגה (יופיע ליד עדכונים שהמשתמש מבצע)</label>
+        <label for="name_${u.id}">שם תצוגה (יופיע ליד עדכונים שהמשתמש מבצע)</label>
         <div style="display:flex;gap:8px">
           <input id="name_${u.id}" value="${escapeHtml(u.name||'')}" style="flex:1;width:auto">
           <button class="btn" onclick="changeUserName('${u.id}')">שמירה</button>
@@ -716,9 +724,9 @@ function openGabaiShulAssignModal(targetUid){
   document.getElementById('modalBody').innerHTML = `
     <h3>שיוך גבאי לבתי כנסת</h3>
     <p class="muted" style="margin-bottom:12px">לאיזה בית/בתי כנסת לשייך את ${escapeHtml(u?(u.name||u.email||''):'')}? אפשר לבחור יותר מאחד. גבאי יוכל לערוך ולמחוק רק בבתי הכנסת שנבחרו כאן.</p>
-    <div class="days" id="gabaiShulChips" style="margin-bottom:14px">
-      <span class="daychip ${!currentIds.length?'active':''}" data-shul="" onclick="onGabaiNoneChipClick(this)">ללא שיוך לבית כנסת</span>
-      ${shulsSorted.map(s=>`<span class="daychip ${currentIds.includes(s.id)?'active':''}" data-shul="${s.id}" onclick="onGabaiShulChipClick(this)">${escapeHtml(s.name)}</span>`).join('')}
+    <div class="days" id="gabaiShulChips" role="group" aria-label="בחירת בתי כנסת לשיוך" style="margin-bottom:14px">
+      <span class="daychip ${!currentIds.length?'active':''}" data-shul="" tabindex="0" role="button" onclick="onGabaiNoneChipClick(this)">ללא שיוך לבית כנסת</span>
+      ${shulsSorted.map(s=>`<span class="daychip ${currentIds.includes(s.id)?'active':''}" data-shul="${s.id}" tabindex="0" role="button" onclick="onGabaiShulChipClick(this)">${escapeHtml(s.name)}</span>`).join('')}
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal();renderUsers()">ביטול</button>
@@ -757,7 +765,7 @@ function renderShulsAdmin(){
   el.innerHTML = data.shuls.map(s=>`
     <div class="card row">
       <div>
-        <h3 style="cursor:pointer" onclick="openShulPage('${s.id}')">${escapeHtml(s.name)}</h3>
+        <h3><span style="cursor:pointer" tabindex="0" role="button" onclick="openShulPage('${s.id}')">${escapeHtml(s.name)}</span></h3>
         <div class="muted">${escapeHtml(s.address||'')}${s.nusach?' · '+escapeHtml(s.nusach):''}${s.lat?' · 📍 יש מיקום GPS':''}</div>
       </div>
       <div>
@@ -841,7 +849,7 @@ function loadTopicDescription(){
   const preview = document.getElementById('topicDescImagePreview');
   const removeBtn = document.getElementById('topicDescRemoveImageBtn');
   if (TOPIC_DESC_IMAGE_DATA){
-    preview.innerHTML = `<img src="${TOPIC_DESC_IMAGE_DATA}" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
+    preview.innerHTML = `<img src="${TOPIC_DESC_IMAGE_DATA}" alt="תצוגה מקדימה של תמונת הנושא" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
     removeBtn.style.display = '';
   } else {
     preview.innerHTML = '';
@@ -879,7 +887,7 @@ function handleTopicDescImageUpload(input){
         return;
       }
       TOPIC_DESC_IMAGE_DATA = dataUrl;
-      document.getElementById('topicDescImagePreview').innerHTML = `<img src="${dataUrl}" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
+      document.getElementById('topicDescImagePreview').innerHTML = `<img src="${dataUrl}" alt="תצוגה מקדימה של תמונת הנושא" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
       document.getElementById('topicDescRemoveImageBtn').style.display = '';
       statusEl.textContent = '✓ מוכן לשמירה (כ-' + Math.round(dataUrl.length*0.75/1024) + ' KB)';
       input.value = '';
@@ -926,7 +934,7 @@ function populateAnnouncementAdmin(){
   const preview = document.getElementById('annImagePreview');
   const removeBtn = document.getElementById('annRemoveImageBtn');
   if (ANNOUNCEMENT_IMAGE_DATA){
-    preview.innerHTML = `<img src="${ANNOUNCEMENT_IMAGE_DATA}" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
+    preview.innerHTML = `<img src="${ANNOUNCEMENT_IMAGE_DATA}" alt="תצוגה מקדימה של תמונת ההודעה" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
     removeBtn.style.display = '';
   } else {
     preview.innerHTML = '';
@@ -964,7 +972,7 @@ function handleAnnouncementImageUpload(input){
         return;
       }
       ANNOUNCEMENT_IMAGE_DATA = dataUrl;
-      document.getElementById('annImagePreview').innerHTML = `<img src="${dataUrl}" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
+      document.getElementById('annImagePreview').innerHTML = `<img src="${dataUrl}" alt="תצוגה מקדימה של תמונת ההודעה" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
       document.getElementById('annRemoveImageBtn').style.display = '';
       statusEl.textContent = '✓ מוכן לשמירה (כ-' + Math.round(dataUrl.length*0.75/1024) + ' KB)';
       input.value = '';
@@ -1007,7 +1015,7 @@ function maybeShowAnnouncement(){
   }
   announcementShownThisSession = true;
   document.getElementById('modalBody').innerHTML = `
-    ${ANNOUNCEMENT_CONFIG.image?`<img src="${ANNOUNCEMENT_CONFIG.image}" style="width:100%;border-radius:10px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
+    ${ANNOUNCEMENT_CONFIG.image?`<img src="${ANNOUNCEMENT_CONFIG.image}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
     ${ANNOUNCEMENT_CONFIG.text?`<p style="line-height:1.7;margin-bottom:16px;white-space:pre-wrap">${escapeHtml(ANNOUNCEMENT_CONFIG.text)}</p>`:''}
     ${ANNOUNCEMENT_CONFIG.link?`<a href="${escapeHtml(ANNOUNCEMENT_CONFIG.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-bottom:10px">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'לפרטים נוספים')}</a>`:''}
     <div class="modal-actions">
@@ -1336,7 +1344,7 @@ function stamp(obj){
 }
 function nameFieldHtml(){
   if (currentUser) return '';
-  return `<div class="field"><label>השם שלך</label><input id="userName" placeholder="לדוגמה: יוסי כהן" value="${escapeHtml(lastName)}"></div>`;
+  return `<div class="field"><label for="userName">השם שלך</label><input id="userName" placeholder="לדוגמה: יוסי כהן" value="${escapeHtml(lastName)}"></div>`;
 }
 function isAdminLevel(){ return currentRole === 'gabai' || currentRole === 'manager'; }
 function canManageShul(shulId){
@@ -1428,8 +1436,14 @@ let TOPIC_DESCRIPTIONS = {};
 let ANNOUNCEMENT_CONFIG = null;
 let ANNOUNCEMENT_IMAGE_DATA = '';
 let TOPIC_DESC_IMAGE_DATA = '';
+let a11yFontLevel = 0;
 let announcementShownThisSession = false;
 let topicChipsExpanded = false;
+let expandedShulIds = new Set();
+function toggleShulExpand(shulId){
+  if (expandedShulIds.has(shulId)) expandedShulIds.delete(shulId); else expandedShulIds.add(shulId);
+  render();
+}
 function getShiurTopics(s){
   if (s.topics && Array.isArray(s.topics)) return s.topics;
   if (s.topic) return [s.topic];
@@ -1460,9 +1474,9 @@ function renderTopicChips(currentFilter){
   const usedSortedByCount = usedTopics.sort((a,b)=> countByTopic[b] - countByTopic[a]);
   const unusedTopics = TOPIC_LIST.filter(t=>!usedTopics.includes(t));
   const orderedTopics = [...usedSortedByCount, ...unusedTopics];
-  const chip = t => `<span class="daychip ${currentFilter===t?'active':''}" onclick="selectTopicChip('${escapeHtml(t)}')">${escapeHtml(t)}</span>`;
+  const chip = t => `<span class="daychip ${currentFilter===t?'active':''}" tabindex="0" role="button" onclick="selectTopicChip('${escapeHtml(t)}')">${escapeHtml(t)}</span>`;
   container.className = 'topic-chips-row' + (topicChipsExpanded ? ' expanded' : '');
-  container.innerHTML = `<span class="daychip ${!currentFilter?'active':''}" onclick="selectTopicChip('')">הכל</span>` + orderedTopics.map(chip).join('');
+  container.innerHTML = `<span class="daychip ${!currentFilter?'active':''}" tabindex="0" role="button" onclick="selectTopicChip('')">הכל</span>` + orderedTopics.map(chip).join('');
   // בודקים בפועל אם התוכן חורג משתי השורות, ומציגים את כפתור עוד/פחות רק אם צריך
   const collapsedMaxHeight = window.innerWidth <= 600 ? 92 : 68;
   const isOverflowing = container.scrollHeight > collapsedMaxHeight + 4;
@@ -1507,6 +1521,22 @@ function onDayFilterChange(){
   }
   render();
 }
+function selectDayLetter(key){
+  const todayKey = DAY_KEYS[new Date().getDay()];
+  selectedDayKey = (key === todayKey) ? '' : key;
+  const sel = document.getElementById('filterDay');
+  if (sel) sel.value = selectedDayKey;
+  currentView = 'chrono';
+  document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
+  render();
+}
+function renderDayLetterBar(){
+  const bar = document.getElementById('dayLetterBar');
+  if (!bar) return;
+  const todayKey = DAY_KEYS[new Date().getDay()];
+  const activeKey = selectedDayKey || todayKey;
+  bar.innerHTML = DAY_KEYS.map((k,i)=>`<button type="button" class="day-letter-btn ${k===activeKey?'active':''}" onclick="selectDayLetter('${k}')" aria-label="יום ${DAYS_HE_FULL[i]}${k===todayKey?' (היום)':''}" aria-pressed="${k===activeKey}">${DAY_LABELS[i]}</button>`).join('');
+}
 function onTimeModeChange(){
   const mode = document.getElementById('filterTimeMode').value;
   document.getElementById('filterTimeFrom').style.display = mode === 'from' ? '' : 'none';
@@ -1519,6 +1549,7 @@ function timeInRange(t, fromStr, toStr){
   return true;
 }
 function renderTefilot(){
+  renderDayLetterBar();
   const dayLabelEl = document.getElementById('todayLabel');
   if (selectedDayKey){
     dayLabelEl.textContent = 'מוצגים מניינים ליום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(selectedDayKey)] + ' (זמנים משוערים)';
@@ -1583,6 +1614,7 @@ function renderTefilot(){
         minsWithTime = minsWithTime.filter(x=>x.isToday && x.t && timeMinutesIsrael(x.t) >= nowMins).sort((a,b)=>a.t-b.t);
       }
       if ((tefilaF || nextOnly) && !minsWithTime.length) return ''; // אין תוצאות תואמות לבית כנסת זה
+      const isExpanded = expandedShulIds.has(shul.id) || !!(tefilaF || nextOnly || timeFrom || shulF);
       const lines = minsWithTime.map(({m,t,isToday})=>{
         const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
         return `<div class="minyan-line">
@@ -1605,19 +1637,27 @@ function renderTefilot(){
         : '';
       return `<div class="card">
         <div class="row" style="margin-bottom:2px;align-items:center">
-          <h3 style="cursor:pointer" onclick="openShulPage('${shul.id}')">${escapeHtml(shul.name)}</h3>
+          <h3><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" tabindex="0" role="button" aria-expanded="${isExpanded}" onclick="toggleShulExpand('${shul.id}')">
+            <span style="display:inline-block;transition:transform .15s;transform:rotate(${isExpanded?'90':'0'}deg);font-size:12px;color:var(--ink-soft)">◂</span>
+            ${escapeHtml(shul.name)}
+          </span></h3>
           <div style="display:flex;align-items:center;gap:8px">
             ${distanceBadge}
             <button class="icon-btn" style="font-size:22px;color:var(--dusk)" onclick="openMinyanForm('${shul.id}')" aria-label="הוסף מניין" title="הוסף מניין">﹢</button>
           </div>
         </div>
         <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
-        ${navLinksHtml(shul)}
-        ${canManageShul(shul.id)?`<div class="row" style="margin-top:8px">
-          <span></span>
-          <button class="btn" onclick="openShulForm('${shul.id}')">עריכה</button>
-        </div>`:''}
-        <div style="margin-top:10px">${lines}</div>
+        ${isExpanded ? `
+          ${navLinksHtml(shul)}
+          ${canManageShul(shul.id)?`<div class="row" style="margin-top:8px">
+            <span></span>
+            <button class="btn" onclick="openShulForm('${shul.id}')">עריכה</button>
+          </div>`:''}
+          <div style="margin-top:10px">${lines}</div>
+          <div style="margin-top:10px;text-align:center">
+            <span style="cursor:pointer;text-decoration:underline;color:var(--dusk);font-size:13px;font-weight:500" tabindex="0" role="button" onclick="openShulPage('${shul.id}')">לדף בית הכנסת המלא ←</span>
+          </div>
+        ` : ''}
       </div>`;
     }).filter(Boolean);
     el.innerHTML = cards.length ? cards.join('') : '<div class="empty">אין מניינים מהסוג/מהטווח שנבחר</div>';
@@ -1657,7 +1697,7 @@ function renderTefilot(){
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
-        ${it.m.tefila} · <span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
+        ${it.m.tefila} · <span style="cursor:pointer;text-decoration:underline" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
       </div>`;
     }).join('');
@@ -1684,7 +1724,7 @@ function renderShiurim(){
   const descObj = topicF ? getTopicDescObj(topicF) : null;
   if (descObj){
     descBox.innerHTML = `<div class="card" style="margin-bottom:14px">
-      ${descObj.image?`<img src="${escapeHtml(descObj.image)}" style="width:100%;border-radius:8px;margin-bottom:10px" onerror="this.style.display='none'">`:''}
+      ${descObj.image?`<img src="${escapeHtml(descObj.image)}" alt="" style="width:100%;border-radius:8px;margin-bottom:10px" onerror="this.style.display='none'">`:''}
       <h3 style="margin-bottom:6px">${escapeHtml(topicF)}</h3>
       ${descObj.text?`<p style="line-height:1.7;margin:0 0 10px">${escapeHtml(descObj.text)}</p>`:''}
       ${descObj.link?`<a href="${escapeHtml(descObj.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none">${escapeHtml(descObj.linkLabel||'לפרטים נוספים')}</a>`:''}
@@ -1736,7 +1776,7 @@ function renderShiurim(){
         <span style="display:inline-flex;align-items:center;gap:1px">
           <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
         </span>
-        ${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
+        ${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')} · ${s.locationShulId?`<span style="cursor:pointer;text-decoration:underline" tabindex="0" role="button" onclick="openShulPage('${s.locationShulId}')">${escapeHtml(s.location)}</span>`:escapeHtml(s.location)}
         ${distanceBadge}
       </div>
       ${(s.contactName || s.notes) ? `<div class="muted" style="margin-top:3px;font-size:12px">${s.contactName?`איש קשר: ${escapeHtml(s.contactName)}${s.contactPhone?' · '+escapeHtml(s.contactPhone):''}`:''}${s.notes?(s.contactName?' · ':'')+escapeHtml(s.notes):''}</div>` : ''}
@@ -1955,8 +1995,8 @@ function openShulForm(shulId){
     <h3>${s?'עריכת בית כנסת':'הוספת בית כנסת'}</h3>
     ${updatedByLineHtml(s)}
     ${nameFieldHtml()}
-    <div class="field"><label>שם בית הכנסת</label><input id="f_name" value="${s?escapeHtml(s.name):''}"></div>
-    <div class="field optional"><label>כתובת</label><input id="f_address" value="${s?escapeHtml(s.address||''):''}"></div>
+    <div class="field"><label for="f_name">שם בית הכנסת</label><input id="f_name" value="${s?escapeHtml(s.name):''}"></div>
+    <div class="field optional"><label for="f_address">כתובת</label><input id="f_address" value="${s?escapeHtml(s.address||''):''}"></div>
     <div class="field optional">
       <label>מיקום מדויק (GPS)</label>
       <div style="display:flex;gap:8px;align-items:center">
@@ -1967,7 +2007,7 @@ function openShulForm(shulId){
       <input type="hidden" id="f_lng" value="${s&&s.lng?s.lng:''}">
       <p class="muted" style="margin-top:6px">לתוצאה הכי מדויקת, לחצו כשאתם עומדים פיזית בכניסה לבית הכנסת. זה מה שמאפשר ניווט מדויק (וייז / Google Maps) בהמשך — לא חובה, אפשר להסתפק בכתובת בלבד.</p>
     </div>
-    <div class="field optional"><label>נוסח</label>
+    <div class="field optional"><label for="f_nusach">נוסח</label>
       <select id="f_nusach">
         <option value="" ${!s||!s.nusach?'selected':''}>לא צוין</option>
         <option value="אשכנזי" ${s&&s.nusach==='אשכנזי'?'selected':''}>אשכנזי</option>
@@ -1989,14 +2029,14 @@ function openShulForm(shulId){
         </label>
         <span class="muted" id="photoUploadStatus"></span>
       </div>
-      <div id="photoPreview">${s&&s.photo?`<img src="${escapeHtml(s.photo)}" style="max-width:120px;max-height:120px;border-radius:8px;display:block;margin-bottom:6px">`:''}</div>
+      <div id="photoPreview">${s&&s.photo?`<img src="${escapeHtml(s.photo)}" alt="תצוגה מקדימה של תמונת בית הכנסת" style="max-width:120px;max-height:120px;border-radius:8px;display:block;margin-bottom:6px">`:''}</div>
       ${s&&s.photo?`<button type="button" class="btn ghost" style="color:var(--danger);margin-bottom:8px" onclick="removePhotoField()">✕ הסרת תמונה</button>`:''}
       <input id="f_photo" value="${s?escapeHtml(s.photo||''):''}" placeholder="או הדביקו כתובת URL לתמונה קיימת ברשת" style="font-size:11px">
     </div>
-    <div class="field optional"><label>תיאור / מידע נוסף</label><textarea id="f_description" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${s?escapeHtml(s.description||''):''}</textarea></div>
-    <div class="field optional"><label>קישור לתרומה</label><input id="f_donationLink" value="${s?escapeHtml(s.donationLink||''):''}" placeholder="https://..."></div>
-    <div class="field optional"><label>שם/שמות הרב</label><input id="f_rabbiNames" value="${s&&s.rabbiNames?escapeHtml(s.rabbiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
-    <div class="field optional"><label>שמות הגבאים</label><input id="f_gabaiNames" value="${s&&s.gabaiNames?escapeHtml(s.gabaiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
+    <div class="field optional"><label for="f_description">תיאור / מידע נוסף</label><textarea id="f_description" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${s?escapeHtml(s.description||''):''}</textarea></div>
+    <div class="field optional"><label for="f_donationLink">קישור לתרומה</label><input id="f_donationLink" value="${s?escapeHtml(s.donationLink||''):''}" placeholder="https://..."></div>
+    <div class="field optional"><label for="f_rabbiNames">שם/שמות הרב</label><input id="f_rabbiNames" value="${s&&s.rabbiNames?escapeHtml(s.rabbiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
+    <div class="field optional"><label for="f_gabaiNames">שמות הגבאים</label><input id="f_gabaiNames" value="${s&&s.gabaiNames?escapeHtml(s.gabaiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveShul('${shulId||''}')">שמירה</button>
@@ -2034,7 +2074,7 @@ function handlePhotoUpload(input){
         return;
       }
       document.getElementById('f_photo').value = dataUrl;
-      document.getElementById('photoPreview').innerHTML = `<img src="${dataUrl}" style="max-width:120px;max-height:120px;border-radius:8px;display:block;margin-bottom:6px">`;
+      document.getElementById('photoPreview').innerHTML = `<img src="${dataUrl}" alt="תצוגה מקדימה של תמונת בית הכנסת" style="max-width:120px;max-height:120px;border-radius:8px;display:block;margin-bottom:6px">`;
       statusEl.textContent = '✓ מוכן לשמירה (כ-' + Math.round(dataUrl.length*0.75/1024) + ' KB)';
       input.value = '';
     };
@@ -2275,7 +2315,7 @@ function renderShulPage(){
   el.innerHTML = `
     <button class="btn ghost" onclick="closeShulPage()">→ חזרה</button>
     <div style="text-align:center;margin-top:8px">
-      ${shul.photo?`<img src="${escapeHtml(shul.photo)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
+      ${shul.photo?`<img src="${escapeHtml(shul.photo)}" alt="תמונה של ${escapeHtml(shul.name)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
       <h2 style="margin:0;font-size:30px">${escapeHtml(shul.name)}</h2>
       <div class="muted" style="margin-top:6px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
       ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">${shul.rabbiNames.length > 1 ? 'רבני בית הכנסת' : 'רב בית הכנסת'}: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
@@ -2362,44 +2402,44 @@ function openMinyanForm(shulId, minyanId){
     <h3>${m?'עריכת מניין':'הוספת מניין'}</h3>
     ${updatedByLineHtml(m)}
     ${nameFieldHtml()}
-    ${needsShulSelect ? `<div class="field"><label>בית כנסת</label>
+    ${needsShulSelect ? `<div class="field"><label for="f_shulId">בית כנסת</label>
       <select id="f_shulId">
         <option value="">בחרו בית כנסת...</option>
         ${data.shuls.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
       </select>
     </div>` : ''}
-    <div class="field"><label>תפילה</label>
+    <div class="field"><label for="f_tefila">תפילה</label>
       <select id="f_tefila" onchange="onTefilaChange(${m?'true':'false'})">${TEFILA_ORDER.map(t=>`<option ${m&&m.tefila===t?'selected':''}>${t}</option>`).join('')}</select>
     </div>
-    <div class="field"><label>ימים</label>
-      <div class="days" id="f_days">${DAY_KEYS.map((k,i)=>`<span class="daychip ${m&&(m.days||[]).includes(k)?'active':(!m&&i<5?'active':'')}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
+    <div class="field"><label id="f_days_label">ימים</label>
+      <div class="days" id="f_days" role="group" aria-labelledby="f_days_label">${DAY_KEYS.map((k,i)=>`<span class="daychip ${m&&(m.days||[]).includes(k)?'active':(!m&&i<5?'active':'')}" data-day="${k}" tabindex="0" role="button" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
     </div>
-    <div class="field"><label>סוג זמן</label>
+    <div class="field"><label for="f_timeType">סוג זמן</label>
       <select id="f_timeType" onchange="toggleTimeFields()">
         <option value="fixed" ${m&&m.timeType==='fixed'?'selected':''}>שעה קבועה</option>
         <option value="relative" ${m&&m.timeType==='relative'?'selected':''}>יחסי לזריחה/שקיעה/צאת הכוכבים</option>
       </select>
     </div>
-    <div class="field" id="fixedField"><label>שעה</label><input id="f_fixedTime" type="time" value="${m&&m.fixedTime ? m.fixedTime : (TEFILA_DEFAULT_TIME[m?m.tefila:TEFILA_ORDER[0]]||'19:00')}"></div>
+    <div class="field" id="fixedField"><label for="f_fixedTime">שעה</label><input id="f_fixedTime" type="time" value="${m&&m.fixedTime ? m.fixedTime : (TEFILA_DEFAULT_TIME[m?m.tefila:TEFILA_ORDER[0]]||'19:00')}"></div>
     <div id="relativeField" style="display:none">
       <div class="inline2">
-        <div class="field"><label>ביחס ל</label>
+        <div class="field"><label for="f_anchor">ביחס ל</label>
           <select id="f_anchor">
             <option value="sunrise" ${m&&m.anchor==='sunrise'?'selected':''}>הנץ החמה</option>
             <option value="sunset" ${m&&m.anchor==='sunset'?'selected':''}>שקיעה</option>
             <option value="tzeit" ${m&&m.anchor==='tzeit'?'selected':''}>צאת הכוכבים</option>
           </select>
         </div>
-        <div class="field"><label>לפני/אחרי</label>
+        <div class="field"><label for="f_offsetSign">לפני/אחרי</label>
           <select id="f_offsetSign">
             <option value="before" ${m&&m.offsetSign==='before'?'selected':''}>לפני</option>
             <option value="after" ${m&&m.offsetSign==='after'?'selected':''}>אחרי</option>
           </select>
         </div>
       </div>
-      <div class="field"><label>מספר דקות</label><input id="f_offsetMinutes" type="number" min="0" value="${m&&m.offsetMinutes||20}"></div>
+      <div class="field"><label for="f_offsetMinutes">מספר דקות</label><input id="f_offsetMinutes" type="number" min="0" value="${m&&m.offsetMinutes||20}"></div>
     </div>
-    <div class="field optional"><label>הערות</label><input id="f_notes" value="${m?escapeHtml(m.notes||''):''}" placeholder="למשל: ותיקין, מניין מהיר"></div>
+    <div class="field optional"><label for="f_notes">הערות</label><input id="f_notes" value="${m?escapeHtml(m.notes||''):''}" placeholder="למשל: ותיקין, מניין מהיר"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveMinyan('${shulId||''}','${minyanId||''}')">שמירה</button>
@@ -2454,11 +2494,11 @@ function openShiurForm(shiurId){
     <h3>${s?'עריכת שיעור':'הוספת שיעור'}</h3>
     ${updatedByLineHtml(s)}
     ${nameFieldHtml()}
-    <div class="field"><label>כותרת</label><input id="f_title" value="${s?escapeHtml(s.title):''}"></div>
-    <div class="field"><label>נושאים (ניתן לבחור יותר מאחד)</label>
-      <div class="days" id="f_topics">${TOPIC_LIST.map(t=>`<span class="daychip ${s&&getShiurTopics(s).includes(t)?'active':''}" data-topic="${escapeHtml(t)}" onclick="this.classList.toggle('active')">${escapeHtml(t)}</span>`).join('')}</div>
+    <div class="field"><label for="f_title">כותרת</label><input id="f_title" value="${s?escapeHtml(s.title):''}"></div>
+    <div class="field"><label id="f_topics_label">נושאים (ניתן לבחור יותר מאחד)</label>
+      <div class="days" id="f_topics" role="group" aria-labelledby="f_topics_label">${TOPIC_LIST.map(t=>`<span class="daychip ${s&&getShiurTopics(s).includes(t)?'active':''}" data-topic="${escapeHtml(t)}" tabindex="0" role="button" onclick="this.classList.toggle('active')">${escapeHtml(t)}</span>`).join('')}</div>
     </div>
-    <div class="field"><label>קהל יעד</label>
+    <div class="field"><label for="f_audience">קהל יעד</label>
       <select id="f_audience">
         <option value="all" ${(!s||s.audience==='all')?'selected':''}>כולם</option>
         <option value="men" ${s&&s.audience==='men'?'selected':''}>גברים</option>
@@ -2472,13 +2512,13 @@ function openShiurForm(shiurId){
         שיעור חד פעמי (לא קבוע) - יוסתר אוטומטית אחרי המועד
       </label>
     </div>
-    <div class="field" id="recurringDaysField"><label>ימי השיעור</label>
-      <div class="days" id="f_shiurDays">${DAY_KEYS.map((k,i)=>`<span class="daychip ${s&&s.days&&s.days.includes(k)?'active':''}" data-day="${k}" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
+    <div class="field" id="recurringDaysField"><label id="f_shiurDays_label">ימי השיעור</label>
+      <div class="days" id="f_shiurDays" role="group" aria-labelledby="f_shiurDays_label">${DAY_KEYS.map((k,i)=>`<span class="daychip ${s&&s.days&&s.days.includes(k)?'active':''}" data-day="${k}" tabindex="0" role="button" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
     </div>
-    <div class="field" id="oneTimeDateField" style="display:none"><label>תאריך השיעור</label><input type="date" id="f_oneTimeDate" value="${s&&s.oneTimeDate?s.oneTimeDate:''}"></div>
+    <div class="field" id="oneTimeDateField" style="display:none"><label for="f_oneTimeDate">תאריך השיעור</label><input type="date" id="f_oneTimeDate" value="${s&&s.oneTimeDate?s.oneTimeDate:''}"></div>
     <div class="inline2">
-      <div class="field"><label>שעה</label><input id="f_time" type="time" value="${s?s.time:'20:30'}"></div>
-      <div class="field"><label>מיקום השיעור</label>
+      <div class="field"><label for="f_time">שעה</label><input id="f_time" type="time" value="${s?s.time:'20:30'}"></div>
+      <div class="field"><label for="f_locationSelect">מיקום השיעור</label>
         <select id="f_locationSelect" onchange="onShiurLocationChange()">
           <option value="">— בחרו —</option>
           <option value="custom" ${s&&!s.locationShulId?'selected':''}>מיקום אחר (הזנה ידנית)</option>
@@ -2487,7 +2527,7 @@ function openShiurForm(shiurId){
       </div>
     </div>
     <div id="customLocationFields" style="display:none">
-      <div class="field"><label>תיאור המיקום</label><input id="f_location" value="${s&&!s.locationShulId?escapeHtml(s.location||''):''}" placeholder="לדוגמה: בית משפחת כהן, רחוב האלון 5"></div>
+      <div class="field"><label for="f_location">תיאור המיקום</label><input id="f_location" value="${s&&!s.locationShulId?escapeHtml(s.location||''):''}" placeholder="לדוגמה: בית משפחת כהן, רחוב האלון 5"></div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px">
         <button type="button" class="btn" onclick="captureGpsInto('f_lat','f_lng','shiurGpsStatus')">📍 קבע לפי המיקום שלי עכשיו</button>
         <span class="muted" id="shiurGpsStatus"></span>
@@ -2495,12 +2535,12 @@ function openShiurForm(shiurId){
       <input type="hidden" id="f_lat" value="${s&&!s.locationShulId&&s.lat?s.lat:''}">
       <input type="hidden" id="f_lng" value="${s&&!s.locationShulId&&s.lng?s.lng:''}">
     </div>
-    <div class="field optional"><label>שם מעביר השיעור</label><input id="f_teacherName" value="${s?escapeHtml(s.teacherName||''):''}"></div>
+    <div class="field optional"><label for="f_teacherName">שם מעביר השיעור</label><input id="f_teacherName" value="${s?escapeHtml(s.teacherName||''):''}"></div>
     <div class="inline2">
-      <div class="field optional"><label>איש קשר לפרטים</label><input id="f_contactName" value="${s?escapeHtml(s.contactName||''):''}"></div>
-      <div class="field optional"><label>טלפון איש קשר</label><input id="f_contactPhone" value="${s?escapeHtml(s.contactPhone||''):''}"></div>
+      <div class="field optional"><label for="f_contactName">איש קשר לפרטים</label><input id="f_contactName" value="${s?escapeHtml(s.contactName||''):''}"></div>
+      <div class="field optional"><label for="f_contactPhone">טלפון איש קשר</label><input id="f_contactPhone" value="${s?escapeHtml(s.contactPhone||''):''}"></div>
     </div>
-    <div class="field optional"><label>הערות</label><input id="f_shiurNotes" value="${s?escapeHtml(s.notes||''):''}"></div>
+    <div class="field optional"><label for="f_shiurNotes">הערות</label><input id="f_shiurNotes" value="${s?escapeHtml(s.notes||''):''}"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveShiur('${shiurId||''}')">שמירה</button>
@@ -2600,8 +2640,74 @@ function openAboutModal(){
     <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - יש לפנות למחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a></p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn primary" onclick="openUserGuide()">📖 מדריך למשתמש</button>
+      <button type="button" class="btn" onclick="openAccessibilityPanel()">♿ נגישות</button>
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
       ${isMobileDevice()?`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`:''}
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+// ---------- נגישות ----------
+function applyA11yFontSize(){
+  const zoomMap = {'-1':'92%','0':'100%','1':'115%','2':'130%'};
+  document.documentElement.style.zoom = zoomMap[String(a11yFontLevel)];
+  try{ localStorage.setItem('a11yFontLevel', String(a11yFontLevel)); }catch(e){}
+}
+function increaseA11yFont(){ if (a11yFontLevel < 2){ a11yFontLevel++; applyA11yFontSize(); } }
+function decreaseA11yFont(){ if (a11yFontLevel > -1){ a11yFontLevel--; applyA11yFontSize(); } }
+function resetA11yFont(){ a11yFontLevel = 0; applyA11yFontSize(); }
+function toggleA11yHighContrast(){
+  const on = document.documentElement.classList.toggle('a11y-high-contrast');
+  try{ localStorage.setItem('a11yHighContrast', on?'1':'0'); }catch(e){}
+}
+function toggleA11yNoMotion(){
+  const on = document.documentElement.classList.toggle('a11y-no-motion');
+  try{ localStorage.setItem('a11yNoMotion', on?'1':'0'); }catch(e){}
+}
+function initA11yPrefs(){
+  try{
+    const fl = localStorage.getItem('a11yFontLevel');
+    if (fl !== null){ a11yFontLevel = parseInt(fl, 10) || 0; applyA11yFontSize(); }
+    if (localStorage.getItem('a11yHighContrast') === '1') document.documentElement.classList.add('a11y-high-contrast');
+    if (localStorage.getItem('a11yNoMotion') === '1') document.documentElement.classList.add('a11y-no-motion');
+  }catch(e){}
+}
+function openAccessibilityPanel(){
+  const hc = document.documentElement.classList.contains('a11y-high-contrast');
+  const nm = document.documentElement.classList.contains('a11y-no-motion');
+  document.getElementById('modalBody').innerHTML = `
+    <h3 style="margin-bottom:14px">נגישות</h3>
+    <div style="margin-bottom:20px">
+      <h4 style="margin:0 0 8px;color:var(--dusk);font-size:15px">הגדרות תצוגה</h4>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button type="button" class="btn" onclick="decreaseA11yFont()" aria-label="הקטנת גודל טקסט">א- הקטן טקסט</button>
+        <button type="button" class="btn" onclick="resetA11yFont()" aria-label="איפוס גודל טקסט">איפוס</button>
+        <button type="button" class="btn" onclick="increaseA11yFont()" aria-label="הגדלת גודל טקסט">א+ הגדל טקסט</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn ${hc?'active':''}" onclick="toggleA11yHighContrast();openAccessibilityPanel()">${hc?'✓ ':''}ניגודיות גבוהה</button>
+        <button type="button" class="btn ${nm?'active':''}" onclick="toggleA11yNoMotion();openAccessibilityPanel()">${nm?'✓ ':''}עצירת אנימציות</button>
+      </div>
+    </div>
+    <div style="margin-bottom:16px">
+      <h4 style="margin:0 0 8px;color:var(--dusk);font-size:15px">הצהרת נגישות</h4>
+      <p style="line-height:1.8;font-size:14px;margin:0 0 8px">
+        האתר "לוח תפילות ושיעורים · בית אל" פועל לשיפור מתמיד של הנגישות עבור אנשים עם מוגבלות, מתוך אמונה כי לכל אדם מגיעה גישה שווה למידע.
+        באתר קיימים כיום: תמיכה בהגדלת/הקטנת טקסט, מצב ניגודיות גבוהה, עצירת אנימציות, תיאורי טקסט לתמונות, וניווט מלא באמצעות מקלדת.
+      </p>
+      <p style="line-height:1.8;font-size:14px;margin:0">
+        האתר טרם עבר בדיקת התאמה מלאה לתקן הנגישות הישראלי (ת"י 5568) ברמה AA. אנו ממשיכים לעבוד על שיפור הנגישות באופן שוטף.
+      </p>
+    </div>
+    <div style="margin-bottom:8px">
+      <h4 style="margin:0 0 8px;color:var(--dusk);font-size:15px">רכז/ת נגישות</h4>
+      <p style="line-height:1.8;font-size:14px;margin:0">
+        אריה מינקוב<br>
+        <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a><br>
+        נתקלתם בבעיית נגישות באתר? נשמח שתפנו אלינו ונטפל בהקדם.
+      </p>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">סגירה</button>
@@ -2712,6 +2818,37 @@ document.getElementById('filterTopic').addEventListener('change', render);
 document.getElementById('filterAudience').addEventListener('change', render);
 document.getElementById('filterSearch').addEventListener('input', render);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
+
+// נגישות: מפעיל אלמנטים בעלי role="button" (כמו צ'יפים ובתי כנסת לחיצים) גם באמצעות Enter/Space במקלדת
+document.addEventListener('keydown', e=>{
+  if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.getAttribute && e.target.getAttribute('role') === 'button'){
+    e.preventDefault();
+    e.target.click();
+  }
+});
+
+// נגישות: ניהול פוקוס בפתיחה/סגירה של חלוניות - כשחלונית נפתחת הפוקוס עובר אליה, וכשהיא נסגרת הוא חוזר למקום ממנו יצא
+let lastFocusedBeforeModal = null;
+new MutationObserver(()=>{
+  const overlay = document.getElementById('overlay');
+  const modal = document.getElementById('modalBody');
+  if (overlay.classList.contains('show')){
+    if (!lastFocusedBeforeModal) lastFocusedBeforeModal = document.activeElement;
+    setTimeout(()=>{ modal.setAttribute('tabindex','-1'); modal.focus(); }, 30);
+  } else {
+    if (lastFocusedBeforeModal && document.body.contains(lastFocusedBeforeModal) && typeof lastFocusedBeforeModal.focus === 'function'){
+      lastFocusedBeforeModal.focus();
+    }
+    lastFocusedBeforeModal = null;
+  }
+}).observe(document.getElementById('overlay'), { attributes: true, attributeFilter: ['class'] });
+
+// נגישות: מקש Escape סוגר חלונית פתוחה
+document.addEventListener('keydown', e=>{
+  if (e.key === 'Escape' && document.getElementById('overlay').classList.contains('show')){
+    closeModal();
+  }
+});
 
 (function applySharedShiurimFilterFromUrl(){
   try{
