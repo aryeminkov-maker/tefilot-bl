@@ -367,14 +367,14 @@
       <p class="muted" style="margin-bottom:12px">הוספה חדשה, ועריכת הפרטים של כל בית כנסת קיים - שם, כתובת, מיקום GPS ונוסח.</p>
       <div id="shulsAdminList"></div>
     </div>
-    <p class="muted" style="margin:20px 0 12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל יישוב ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
+    <p class="muted" style="margin:20px 0 12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
     <div class="filters">
       <input id="userSearchFilter" placeholder="חיפוש לפי שם או מייל..." oninput="renderUsers()">
       <select id="userRoleFilter" onchange="renderUsers()">
         <option value="">כל הרמות</option>
         <option value="resident">תושב</option>
         <option value="gabai">גבאי</option>
-        <option value="manager">מנהל יישוב</option>
+        <option value="manager">מנהל</option>
       </select>
     </div>
     <div id="usersList"></div>
@@ -570,7 +570,7 @@ auth.onAuthStateChanged(async user=>{
     currentUserAssignedShulIds = (d && Array.isArray(d.assignedShulIds)) ? d.assignedShulIds : [];
     currentUserName = (d && d.name) ? d.name : (user.displayName || user.email);
     document.getElementById('userNameLabel').textContent = currentUserName;
-    const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
+    const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל'};
     document.getElementById('userRoleBadge').textContent = labels[currentRole] || currentRole;
     document.getElementById('adminTabBtn').style.display = isManager() ? '' : 'none';
     if (!isManager() && currentTab === 'admin'){
@@ -610,7 +610,7 @@ function renderUsers(){
     return true;
   });
   if (!filtered.length){ el.innerHTML = '<div class="empty">לא נמצאו משתמשים תואמים</div>'; return; }
-  const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל יישוב'};
+  const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל'};
   el.innerHTML = filtered.map(u=>`
     <div class="card">
       <div class="row">
@@ -618,7 +618,7 @@ function renderUsers(){
         <select onchange="changeUserRole('${u.id}', this.value)">
           <option value="resident" ${u.role==='resident'?'selected':''}>תושב</option>
           <option value="gabai" ${u.role==='gabai'?'selected':''}>גבאי</option>
-          <option value="manager" ${u.role==='manager'?'selected':''}>מנהל יישוב</option>
+          <option value="manager" ${u.role==='manager'?'selected':''}>מנהל</option>
         </select>
       </div>
       <div class="field" style="margin:12px 0 0">
@@ -650,7 +650,7 @@ function openSendMessageForm(targetUid){
 function sendUserMessage(targetUid){
   const text = document.getElementById('f_messageText').value.trim();
   if (!text){ alert('יש לכתוב הודעה'); return; }
-  const message = { text, date: new Date().toISOString(), from: currentUserName || (currentUser&&currentUser.displayName) || 'מנהל היישוב' };
+  const message = { text, date: new Date().toISOString(), from: currentUserName || (currentUser&&currentUser.displayName) || 'מנהל' };
   db.collection('users').doc(targetUid).update({
     messages: firebase.firestore.FieldValue.arrayUnion(message)
   }).then(()=>{ alert('ההודעה נשלחה'); closeModal(); }).catch(e=>alert('שגיאה בשליחה: '+e.message));
@@ -1380,7 +1380,7 @@ function showEditAuthGate(){
 function showBlockedGate(){
   document.getElementById('modalBody').innerHTML = `
     <h3>העריכה חסומה עבורך</h3>
-    <p style="line-height:1.7;margin-bottom:18px">מנהל היישוב חסם את היכולת שלך להוסיף או לערוך. אם זו טעות, פנו למנהל היישוב.</p>
+    <p style="line-height:1.7;margin-bottom:18px">מנהל חסם את היכולת שלך להוסיף או לערוך. אם זו טעות, פנו למנהל.</p>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">סגירה</button>
     </div>`;
@@ -1398,7 +1398,7 @@ function maybeShowPendingMessage(d){
   if (document.getElementById('overlay').classList.contains('show')) return;
   lastShownMessageKey = msg.date;
   document.getElementById('modalBody').innerHTML = `
-    <h3>הודעה מ${escapeHtml(msg.from||'מנהל היישוב')}</h3>
+    <h3>הודעה מ${escapeHtml(msg.from||'מנהל')}</h3>
     <p style="line-height:1.7;margin-bottom:18px;white-space:pre-wrap">${escapeHtml(msg.text)}</p>
     <div class="modal-actions">
       <button class="btn primary" onclick="dismissPendingMessage()">הבנתי</button>
@@ -1585,7 +1585,7 @@ function renderTefilot(){
   const nowMins = timeMinutesIsrael(new Date());
 
   if (currentView === 'byshul'){
-    if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל היישוב כדי להוסיף.</div>'; return; }
+    if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל כדי להוסיף.</div>'; return; }
     let shulsOrdered = [...data.shuls].sort((a,b)=> a.name.localeCompare(b.name, 'he'));
     if (sortByProximity && userLocation){
       shulsOrdered = [...data.shuls].sort((a,b)=>{
@@ -1697,7 +1697,7 @@ function renderTefilot(){
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
-        <span style="cursor:pointer;text-decoration:underline" tabindex="0" role="button" onclick="confirmEditMinyanFromChrono('${it.m.shulId}','${it.m.id}')">${it.m.tefila}</span> · <span style="cursor:pointer;text-decoration:underline" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
+        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="confirmEditMinyanFromChrono('${it.m.shulId}','${it.m.id}')">${it.m.tefila}</span> · <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
       </div>`;
     }).join('');
@@ -2751,7 +2751,7 @@ function openUserGuide(){
     `)}
     ${sec('הוספה ועריכה', `
       כל אחד יכול להוסיף ולערוך מניין או שיעור - אבל צריך קודם <b>להתחבר עם חשבון Google</b> (האייקון בפינה העליונה ליד הלוגו). אם תנסו לערוך בלי להתחבר, תופיע הנחיה להתחברות.<br>
-      עריכת פרטי בית כנסת עצמו, ומחיקה של מניינים ושיעורים, שמורות לגבאים ולמנהל היישוב.
+      עריכת פרטי בית כנסת עצמו, ומחיקה של מניינים ושיעורים, שמורות לגבאים ולמנהל.
     `)}
     ${sec('התקנה כאפליקציה', `
       בחלונית "אודות" יש אפשרות <b>"📲 הוספה למסך הבית"</b> (מופיעה רק במובייל) - היא מתקינה את האתר כאפליקציה אמיתית, עם אייקון משלה שנפתח ישר בלי הדפדפן.
