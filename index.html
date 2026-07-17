@@ -100,6 +100,8 @@
   .daychip{padding:5px 9px;border-radius:8px;border:1px solid var(--border);font-size:12px;cursor:pointer;background:var(--surface)}
   .day-letter-btn{width:26px;height:26px;min-width:26px;border-radius:50%;border:1px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;color:var(--ink-soft);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-family:'Rubik'}
   .day-letter-btn.active{background:var(--dusk);color:var(--dusk-ink);border-color:var(--dusk)}
+  .expand-toggle-btn{width:32px;height:32px;min-width:32px;border-radius:50%;border:1.5px solid var(--dusk);background:var(--surface-2);color:var(--dusk);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0}
+  .expand-toggle-btn:hover, .expand-toggle-btn:focus-visible{background:var(--dusk);color:var(--dusk-ink)}
   [role="button"]:focus-visible{outline:3px solid var(--dusk);outline-offset:2px}
   html.a11y-high-contrast{--bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#FFFFFF; --ink:#000000; --ink-soft:#000000; --border:#000000; --dusk:#000000; --dusk-ink:#FFFFFF; --accent:#000000; --accent-ink:#FFFFFF; --danger:#B30000; --danger-bg:#FFFFFF;}
   html.a11y-high-contrast .card, html.a11y-high-contrast .btn, html.a11y-high-contrast .daychip, html.a11y-high-contrast .badge{border-width:2px}
@@ -1635,18 +1637,19 @@ function renderTefilot(){
       const distanceBadge = (sortByProximity && userLocation)
         ? `<span class="badge" style="background:var(--surface-2);color:var(--accent-ink);border-color:var(--accent)">📍 ${(shul.lat&&shul.lng) ? fmtDistance(haversineKm(userLocation.lat, userLocation.lng, shul.lat, shul.lng)) : 'ללא מיקום שמור'}</span>`
         : '';
-      return `<div class="card">
-        <div class="row" style="margin-bottom:2px;align-items:center">
-          <h3><span style="cursor:pointer;display:inline-flex;align-items:center;gap:6px" tabindex="0" role="button" aria-expanded="${isExpanded}" onclick="toggleShulExpand('${shul.id}')">
-            <span style="display:inline-block;transition:transform .15s;transform:rotate(${isExpanded?'90':'0'}deg);font-size:12px;color:var(--ink-soft)">◂</span>
-            ${escapeHtml(shul.name)}
-          </span></h3>
-          <div style="display:flex;align-items:center;gap:8px">
-            ${distanceBadge}
-            <button class="icon-btn" style="font-size:22px;color:var(--dusk)" onclick="openMinyanForm('${shul.id}')" aria-label="הוסף מניין" title="הוסף מניין">﹢</button>
-          </div>
+      return `<div class="card" style="padding:14px 16px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <button type="button" class="expand-toggle-btn" aria-expanded="${isExpanded}" aria-label="${isExpanded?'סגירת':'פתיחת'} זמני מניינים - ${escapeHtml(shul.name)}" onclick="toggleShulExpand('${shul.id}')">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;transform:rotate(${isExpanded?'-90deg':'0deg'})"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <h3 style="flex:1;min-width:0;font-size:16px">${escapeHtml(shul.name)}</h3>
+          ${distanceBadge}
         </div>
-        <div class="muted">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
+        <div class="muted" style="font-size:12.5px;margin:2px 0 10px 40px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn" style="flex:1;font-size:12.5px;padding:7px 6px" onclick="openMinyanForm('${shul.id}')">+ הוספת מניין</button>
+          <button class="btn" style="flex:1;font-size:12.5px;padding:7px 6px" onclick="openShulPage('${shul.id}')">לדף בית הכנסת</button>
+        </div>
         ${isExpanded ? `
           ${navLinksHtml(shul)}
           ${canManageShul(shul.id)?`<div class="row" style="margin-top:8px">
@@ -1654,9 +1657,6 @@ function renderTefilot(){
             <button class="btn" onclick="openShulForm('${shul.id}')">עריכה</button>
           </div>`:''}
           <div style="margin-top:10px">${lines}</div>
-          <div style="margin-top:10px;text-align:center">
-            <span style="cursor:pointer;text-decoration:underline;color:var(--dusk);font-size:13px;font-weight:500" tabindex="0" role="button" onclick="openShulPage('${shul.id}')">לדף בית הכנסת המלא ←</span>
-          </div>
         ` : ''}
       </div>`;
     }).filter(Boolean);
@@ -1697,7 +1697,7 @@ function renderTefilot(){
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
-        ${it.m.tefila} · <span style="cursor:pointer;text-decoration:underline" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
+        <span style="cursor:pointer;text-decoration:underline" tabindex="0" role="button" onclick="confirmEditMinyanFromChrono('${it.m.shulId}','${it.m.id}')">${it.m.tefila}</span> · <span style="cursor:pointer;text-decoration:underline" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
       </div>`;
     }).join('');
@@ -2394,6 +2394,16 @@ function removeShulEditor(shulId, uidToRemove){
 // ---------- טפסים: מניין ----------
 const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const DAY_LABELS = ['א','ב','ג','ד','ה','ו','ש'];
+function confirmEditMinyanFromChrono(shulId, minyanId){
+  document.getElementById('modalBody').innerHTML = `
+    <h3>עריכת מניין</h3>
+    <p style="line-height:1.7;margin-bottom:18px">האם ברצונך לערוך את המניין הזה?</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">לא</button>
+      <button class="btn primary" onclick="closeModal();openMinyanForm('${shulId}','${minyanId}')">כן, עריכה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
 function openMinyanForm(shulId, minyanId){
   if (!requireEditPermission()) return;
   const m = minyanId ? data.minyanim.find(x=>x.id===minyanId) : null;
