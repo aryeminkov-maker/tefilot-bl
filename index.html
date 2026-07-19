@@ -103,6 +103,10 @@
   .day-letter-btn.active{background:var(--dusk);color:var(--dusk-ink);border-color:var(--dusk)}
   .expand-toggle-btn{width:32px;height:32px;min-width:32px;border-radius:50%;border:1.5px solid var(--dusk);background:var(--surface-2);color:var(--dusk);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0}
   .expand-toggle-btn:hover, .expand-toggle-btn:focus-visible{background:var(--dusk);color:var(--dusk-ink)}
+  .admin-section-header{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:0;margin:0;cursor:pointer;font-family:'Rubik'}
+  .admin-section-header h3{margin:0}
+  .admin-section-header .chevron{transition:transform .15s;flex-shrink:0;color:var(--ink-soft)}
+  .admin-section-body{margin-top:12px}
   [role="button"]:focus-visible{outline:3px solid var(--dusk);outline-offset:2px}
   html.a11y-high-contrast{--bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#FFFFFF; --ink:#000000; --ink-soft:#000000; --border:#000000; --dusk:#000000; --dusk-ink:#FFFFFF; --accent:#000000; --accent-ink:#FFFFFF; --danger:#B30000; --danger-bg:#FFFFFF;}
   html.a11y-high-contrast .card, html.a11y-high-contrast .btn, html.a11y-high-contrast .daychip, html.a11y-high-contrast .badge{border-width:2px}
@@ -275,117 +279,153 @@
   </div>
 
   <div id="admin-tab" style="display:none">
-    <div class="card">
-      <h3 style="margin-bottom:8px">ייצוא נתונים לאקסל</h3>
-      <p class="muted" style="margin-bottom:12px">מוריד קובץ Excel עם שלושה גליונות — בתי כנסת, מניינים ושיעורים — כולל כל השדות שתושבים מילאו, ומי ומתי עדכן לאחרונה כל פריט.</p>
-      <button class="btn primary" id="exportExcelBtn">⬇ ייצוא לאקסל</button>
+    <div class="card admin-section">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_users" aria-expanded="false" onclick="toggleAdminSection('users')">
+        <h3>👥 משתמשים והרשאות</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_users" style="display:none">
+        <p class="muted" style="margin-bottom:12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל, לחסום מעריכה, ולשלוח הודעה אישית - למשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
+        <div class="filters">
+          <input id="userSearchFilter" placeholder="חיפוש לפי שם או מייל..." oninput="renderUsers()">
+          <select id="userRoleFilter" onchange="renderUsers()">
+            <option value="">כל הרמות</option>
+            <option value="resident">תושב</option>
+            <option value="gabai">גבאי</option>
+            <option value="manager">מנהל</option>
+          </select>
+        </div>
+        <div id="usersList"></div>
+      </div>
     </div>
-    <div class="card" style="margin-top:14px">
-      <h3 style="margin-bottom:8px">ייבוא נתונים בכמות גדולה</h3>
-      <p class="muted" style="margin-bottom:12px">מוסיף בבת אחת הרבה בתי כנסת, מניינים ושיעורים מקובץ אקסל. מומלץ להתחיל מהורדת התבנית, למלא אותה לפי הדוגמאות וההוראות שבה, ואז להעלות בחזרה.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" id="downloadTemplateBtn">📄 הורדת תבנית לייבוא</button>
-        <label class="btn primary" style="cursor:pointer">
-          📤 ייבוא מקובץ אקסל
-          <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_shuls" aria-expanded="false" onclick="toggleAdminSection('shuls')">
+        <h3>🏠 בתי כנסת</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_shuls" style="display:none">
+        <div class="row" style="margin-bottom:8px">
+          <span></span>
+          <button class="btn primary" onclick="openShulForm()">+ הוסף בית כנסת</button>
+        </div>
+        <p class="muted" style="margin-bottom:12px">הוספה חדשה, ועריכת הפרטים של כל בית כנסת קיים - שם, כתובת, מיקום GPS ונוסח.</p>
+        <div id="shulsAdminList"></div>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_announcement" aria-expanded="false" onclick="toggleAdminSection('announcement')">
+        <h3>📢 חלונית קופצת בכניסה לאפליקציה</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_announcement" style="display:none">
+        <p class="muted" style="margin-bottom:12px">הודעה שתוצג לכל מי שנכנס לאפליקציה - טקסט, תמונה ו/או קישור. אפשר לבחור אם היא תוצג פעם אחת בלבד לכל משתמש, או בכל כניסה.</p>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="annEnabled">
+          החלונית פעילה
         </label>
-      </div>
-      <p class="muted" style="margin-top:10px">שימו לב: הייבוא תמיד יוצר פריטים חדשים ולא מעדכן קיימים — אם בית כנסת בשם זהה כבר קיים, ייווצר עותק נוסף. מומלץ לבדוק כפילויות אחרי ייבוא גדול.</p>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <h3 style="margin-bottom:8px">סוגי תפילה</h3>
-      <p class="muted" style="margin-bottom:12px">שחרית, מנחה, ערבית וותיקין קיימים תמיד. כאן אפשר להוסיף סוגי תפילה נוספים (למשל: מוסף, סליחות) שיופיעו בכל טפסי המניינים ובסינון.</p>
-      <div id="tefilaTypesList" style="margin-bottom:12px"></div>
-      <div style="display:flex;gap:8px">
-        <input id="newTefilaType" placeholder="לדוגמה: מוסף" style="flex:1">
-        <button class="btn primary" onclick="addTefilaType()">+ הוספה</button>
-      </div>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <h3 style="margin-bottom:8px">נושאי שיעורים</h3>
-      <p class="muted" style="margin-bottom:12px">הלכה, גמרא, דף יומי, תנ"ך, אמונה, פרשת שבוע ושונות קיימים תמיד. כאן אפשר להוסיף נושאים נוספים שיופיעו בטופס הוספת שיעור ובסינון.</p>
-      <div id="topicsList" style="margin-bottom:12px"></div>
-      <div style="display:flex;gap:8px">
-        <input id="newTopic" placeholder="לדוגמה: מוסר" style="flex:1">
-        <button class="btn primary" onclick="addTopic()">+ הוספה</button>
-      </div>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <h3 style="margin-bottom:8px">תיאור לנושא</h3>
-      <p class="muted" style="margin-bottom:12px">אפשר להוסיף הסבר קצר, תמונה וקישור שיוצגו לתושבים כשהם מסננים שיעורים לפי נושא מסוים (למשל "תפארת זקנים" - להסביר במה עוסקת הסדרה).</p>
-      <select id="topicDescSelect" onchange="loadTopicDescription()" style="width:100%;margin-bottom:8px"></select>
-      <textarea id="topicDescText" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px;margin-bottom:12px"></textarea>
-      <div class="field optional">
-        <label>תמונה</label>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <label class="btn" style="cursor:pointer;margin:0">
-            📷 העלאת תמונה
-            <input type="file" id="topicDescImageFile" accept="image/*" style="display:none" onchange="handleTopicDescImageUpload(this)">
-          </label>
-          <span class="muted" id="topicDescImageStatus"></span>
+        <div class="field"><label for="annText">טקסט</label>
+          <textarea id="annText" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
         </div>
-        <div id="topicDescImagePreview" style="margin-bottom:6px"></div>
-        <button type="button" class="btn ghost" id="topicDescRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeTopicDescImage()">✕ הסרת תמונה</button>
-      </div>
-      <div class="inline2">
-        <div class="field optional"><label for="topicDescLinkLabel">טקסט הקישור</label><input id="topicDescLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
-        <div class="field optional"><label for="topicDescLink">כתובת הקישור (URL)</label><input id="topicDescLink" placeholder="https://..."></div>
-      </div>
-      <button class="btn primary" onclick="saveTopicDescription()">שמירה</button>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <h3 style="margin-bottom:8px">חלונית קופצת בכניסה לאפליקציה</h3>
-      <p class="muted" style="margin-bottom:12px">הודעה שתוצג לכל מי שנכנס לאפליקציה - טקסט, תמונה ו/או קישור. אפשר לבחור אם היא תוצג פעם אחת בלבד לכל משתמש, או בכל כניסה.</p>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:12px">
-        <input type="checkbox" id="annEnabled">
-        החלונית פעילה
-      </label>
-      <div class="field"><label for="annText">טקסט</label>
-        <textarea id="annText" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
-      </div>
-      <div class="field optional">
-        <label>תמונה</label>
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-          <label class="btn" style="cursor:pointer;margin:0">
-            📷 העלאת תמונה
-            <input type="file" id="annImageFile" accept="image/*" style="display:none" onchange="handleAnnouncementImageUpload(this)">
-          </label>
-          <span class="muted" id="annImageStatus"></span>
+        <div class="field optional">
+          <label>תמונה</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <label class="btn" style="cursor:pointer;margin:0">
+              📷 העלאת תמונה
+              <input type="file" id="annImageFile" accept="image/*" style="display:none" onchange="handleAnnouncementImageUpload(this)">
+            </label>
+            <span class="muted" id="annImageStatus"></span>
+          </div>
+          <div id="annImagePreview" style="margin-bottom:6px"></div>
+          <button type="button" class="btn ghost" id="annRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeAnnouncementImage()">✕ הסרת תמונה</button>
         </div>
-        <div id="annImagePreview" style="margin-bottom:6px"></div>
-        <button type="button" class="btn ghost" id="annRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeAnnouncementImage()">✕ הסרת תמונה</button>
+        <div class="inline2">
+          <div class="field optional"><label for="annLinkLabel">טקסט הקישור</label><input id="annLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
+          <div class="field optional"><label for="annLink">כתובת הקישור (URL)</label><input id="annLink" placeholder="https://..."></div>
+        </div>
+        <div class="field"><label for="annFrequency">תדירות הצגה</label>
+          <select id="annFrequency">
+            <option value="once">פעם אחת בלבד לכל משתמש</option>
+            <option value="always">בכל כניסה לאפליקציה</option>
+          </select>
+        </div>
+        <button class="btn primary" onclick="saveAnnouncementConfig()">שמירה</button>
       </div>
-      <div class="inline2">
-        <div class="field optional"><label for="annLinkLabel">טקסט הקישור</label><input id="annLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
-        <div class="field optional"><label for="annLink">כתובת הקישור (URL)</label><input id="annLink" placeholder="https://..."></div>
-      </div>
-      <div class="field"><label for="annFrequency">תדירות הצגה</label>
-        <select id="annFrequency">
-          <option value="once">פעם אחת בלבד לכל משתמש</option>
-          <option value="always">בכל כניסה לאפליקציה</option>
-        </select>
-      </div>
-      <button class="btn primary" onclick="saveAnnouncementConfig()">שמירה</button>
     </div>
-    <div class="card" style="margin-top:14px">
-      <div class="row" style="margin-bottom:8px">
-        <h3>בתי כנסת</h3>
-        <button class="btn primary" onclick="openShulForm()">+ הוסף בית כנסת</button>
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_data" aria-expanded="false" onclick="toggleAdminSection('data')">
+        <h3>📊 ייצוא וייבוא נתונים</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_data" style="display:none">
+        <p class="muted" style="margin-bottom:12px">מוריד קובץ Excel עם שלושה גליונות — בתי כנסת, מניינים ושיעורים — כולל כל השדות שתושבים מילאו, ומי ומתי עדכן לאחרונה כל פריט.</p>
+        <button class="btn primary" id="exportExcelBtn">⬇ ייצוא לאקסל</button>
+        <p class="muted" style="margin:16px 0 12px">אפשר גם להוסיף בבת אחת הרבה בתי כנסת, מניינים ושיעורים מקובץ אקסל. מומלץ להתחיל מהורדת התבנית, למלא אותה לפי הדוגמאות וההוראות שבה, ואז להעלות בחזרה.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="downloadTemplateBtn">📄 הורדת תבנית לייבוא</button>
+          <label class="btn primary" style="cursor:pointer">
+            📤 ייבוא מקובץ אקסל
+            <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
+          </label>
+        </div>
+        <p class="muted" style="margin-top:10px">שימו לב: הייבוא תמיד יוצר פריטים חדשים ולא מעדכן קיימים — אם בית כנסת בשם זהה כבר קיים, ייווצר עותק נוסף. מומלץ לבדוק כפילויות אחרי ייבוא גדול.</p>
       </div>
-      <p class="muted" style="margin-bottom:12px">הוספה חדשה, ועריכת הפרטים של כל בית כנסת קיים - שם, כתובת, מיקום GPS ונוסח.</p>
-      <div id="shulsAdminList"></div>
     </div>
-    <p class="muted" style="margin:20px 0 12px">כאן אפשר להעניק או להסיר הרשאות גבאי / מנהל ממשתמשים שכבר התחברו לפחות פעם אחת לאפליקציה.</p>
-    <div class="filters">
-      <input id="userSearchFilter" placeholder="חיפוש לפי שם או מייל..." oninput="renderUsers()">
-      <select id="userRoleFilter" onchange="renderUsers()">
-        <option value="">כל הרמות</option>
-        <option value="resident">תושב</option>
-        <option value="gabai">גבאי</option>
-        <option value="manager">מנהל</option>
-      </select>
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_tefilaTypes" aria-expanded="false" onclick="toggleAdminSection('tefilaTypes')">
+        <h3>🕍 סוגי תפילה</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_tefilaTypes" style="display:none">
+        <p class="muted" style="margin-bottom:12px">שחרית, מנחה, ערבית וותיקין קיימים תמיד. כאן אפשר להוסיף סוגי תפילה נוספים (למשל: מוסף, סליחות) שיופיעו בכל טפסי המניינים ובסינון.</p>
+        <div id="tefilaTypesList" style="margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px">
+          <input id="newTefilaType" placeholder="לדוגמה: מוסף" style="flex:1">
+          <button class="btn primary" onclick="addTefilaType()">+ הוספה</button>
+        </div>
+      </div>
     </div>
-    <div id="usersList"></div>
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_topics" aria-expanded="false" onclick="toggleAdminSection('topics')">
+        <h3>📖 נושאי שיעורים</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_topics" style="display:none">
+        <p class="muted" style="margin-bottom:12px">הלכה, גמרא, דף יומי, תנ"ך, אמונה, פרשת שבוע ושונות קיימים תמיד. כאן אפשר להוסיף נושאים נוספים שיופיעו בטופס הוספת שיעור ובסינון.</p>
+        <div id="topicsList" style="margin-bottom:12px"></div>
+        <div style="display:flex;gap:8px">
+          <input id="newTopic" placeholder="לדוגמה: מוסר" style="flex:1">
+          <button class="btn primary" onclick="addTopic()">+ הוספה</button>
+        </div>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_topicDesc" aria-expanded="false" onclick="toggleAdminSection('topicDesc')">
+        <h3>📝 תיאור לנושא</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_topicDesc" style="display:none">
+        <p class="muted" style="margin-bottom:12px">אפשר להוסיף הסבר קצר, תמונה וקישור שיוצגו לתושבים כשהם מסננים שיעורים לפי נושא מסוים (למשל "תפארת זקנים" - להסביר במה עוסקת הסדרה).</p>
+        <select id="topicDescSelect" onchange="loadTopicDescription()" style="width:100%;margin-bottom:8px"></select>
+        <textarea id="topicDescText" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px;margin-bottom:12px"></textarea>
+        <div class="field optional">
+          <label>תמונה</label>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+            <label class="btn" style="cursor:pointer;margin:0">
+              📷 העלאת תמונה
+              <input type="file" id="topicDescImageFile" accept="image/*" style="display:none" onchange="handleTopicDescImageUpload(this)">
+            </label>
+            <span class="muted" id="topicDescImageStatus"></span>
+          </div>
+          <div id="topicDescImagePreview" style="margin-bottom:6px"></div>
+          <button type="button" class="btn ghost" id="topicDescRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeTopicDescImage()">✕ הסרת תמונה</button>
+        </div>
+        <div class="inline2">
+          <div class="field optional"><label for="topicDescLinkLabel">טקסט הקישור</label><input id="topicDescLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
+          <div class="field optional"><label for="topicDescLink">כתובת הקישור (URL)</label><input id="topicDescLink" placeholder="https://..."></div>
+        </div>
+        <button class="btn primary" onclick="saveTopicDescription()">שמירה</button>
+      </div>
+    </div>
   </div>
   </div>
 </div>
@@ -1448,6 +1488,16 @@ let a11yFontLevel = 0;
 let announcementShownThisSession = false;
 let topicChipsExpanded = false;
 let expandedShulIds = new Set();
+function toggleAdminSection(key){
+  const body = document.getElementById('adminSection_' + key);
+  const header = document.getElementById('adminSectionHeader_' + key);
+  if (!body || !header) return;
+  const isOpen = body.style.display !== 'none';
+  body.style.display = isOpen ? 'none' : '';
+  header.setAttribute('aria-expanded', String(!isOpen));
+  const chevron = header.querySelector('.chevron');
+  if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
+}
 function toggleShulExpand(shulId){
   if (expandedShulIds.has(shulId)) expandedShulIds.delete(shulId); else expandedShulIds.add(shulId);
   render();
