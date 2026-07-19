@@ -371,6 +371,22 @@
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_backup" aria-expanded="false" onclick="toggleAdminSection('backup')">
+        <h3>💾 גיבוי ושחזור מלא</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_backup" style="display:none">
+        <p class="muted" style="margin-bottom:12px">גיבוי מלא של <b>כל</b> המידע באפליקציה - בתי כנסת, מניינים, שיעורים, וגם משתמשים והרשאות (גבאים, מנהלים, חסימות). שונה מהייצוא לאקסל שמעליו - זה קובץ טכני שנועד לגיבוי ושחזור, לא לקריאה.</p>
+        <button class="btn primary" id="exportBackupBtn" onclick="exportFullBackup()">⬇ הורדת גיבוי מלא</button>
+        <p class="muted" style="margin:16px 0 8px">טעינת גיבוי קודם <b>מעדכנת/מחליפה</b> פריטים קיימים עם אותו מזהה, ומוסיפה פריטים חדשים מהקובץ. היא <b>לא</b> מוחקת פריטים שנוצרו אחרי הגיבוי ולא נמצאים בקובץ. פעולה זו לא הפיכה - ודאו שזה הקובץ הנכון לפני שממשיכים.</p>
+        <label class="btn" style="cursor:pointer">
+          📤 טעינת גיבוי
+          <input type="file" id="backupImportFileInput" accept=".json" style="display:none" onchange="handleBackupImportFile(this)">
+        </label>
+        <p class="muted" id="backupImportStatus" style="margin-top:10px"></p>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
       <button type="button" class="admin-section-header" id="adminSectionHeader_tefilaTypes" aria-expanded="false" onclick="toggleAdminSection('tefilaTypes')">
         <h3>🕍 סוגי תפילה</h3>
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -731,9 +747,33 @@ function showUserEdits(targetUid){
       }).join('');
     }
   }
-  html += `<div class="modal-actions"><button class="btn" onclick="closeModal()">סגירה</button></div>`;
+  html += `<div class="modal-actions">
+    <button class="btn" onclick="closeModal()">סגירה</button>
+    ${(myMinyanim.length || myShiurim.length) ? `<button class="btn danger" onclick="bulkDeleteUserContent('${targetUid}')">🗑️ מחיקת כל הפריטים האלה</button>` : ''}
+  </div>`;
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('overlay').classList.add('show');
+}
+async function bulkDeleteUserContent(targetUid){
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const myMinyanim = data.minyanim.filter(m=>m.updatedByUid===targetUid);
+  const myShiurim = data.shiurim.filter(s=>s.updatedByUid===targetUid);
+  if (!myMinyanim.length && !myShiurim.length) return;
+  const ok = confirm(
+    `למחוק את כל ${myMinyanim.length} המניינים ו-${myShiurim.length} השיעורים שהעדכון האחרון שלהם בוצע על ידי ${u?(u.name||u.email||''):''}?\n\n` +
+    `שימו לב: אין באפליקציה היסטוריית גרסאות, אז זו לא "חזרה אחורה" לגרסה קודמת - זו מחיקה מלאה של הפריטים. פריטים שמישהו אחר ערך אחריו לא יימחקו.\n\nהפעולה לא הפיכה.`
+  );
+  if (!ok) return;
+  try{
+    const batch = db.batch();
+    myMinyanim.forEach(m=>batch.delete(db.collection('minyanim').doc(m.id)));
+    myShiurim.forEach(s=>batch.delete(db.collection('shiurim').doc(s.id)));
+    await batch.commit();
+    closeModal();
+    alert('הפריטים נמחקו בהצלחה.');
+  }catch(e){
+    alert('שגיאה במחיקה: ' + e.message);
+  }
 }
 function jumpToUserInAdmin(targetUid){
   if (!isManager() || !targetUid) return;
@@ -1077,6 +1117,119 @@ function closeAnnouncementPopup(id, frequency){
   if (frequency === 'once'){
     try{ localStorage.setItem('seenAnnouncementId', id); }catch(e){}
   }
+}
+
+// ---------- גיבוי ושחזור מלא ----------
+async function exportFullBackup(){
+  const btn = document.getElementById('exportBackupBtn');
+  const originalText = btn.textContent;
+  btn.textContent = 'מכין גיבוי...';
+  btn.disabled = true;
+  try{
+    const [shulsSnap, minyanimSnap, shiurimSnap, usersSnap, tefilaTypesDoc, topicsDoc, topicDescDoc, announcementDoc] = await Promise.all([
+      db.collection('shuls').get(),
+      db.collection('minyanim').get(),
+      db.collection('shiurim').get(),
+      db.collection('users').get(),
+      db.collection('config').doc('tefilaTypes').get(),
+      db.collection('config').doc('topics').get(),
+      db.collection('config').doc('topicDescriptions').get(),
+      db.collection('config').doc('announcement').get(),
+    ]);
+    const backup = {
+      appName: 'שער השמים',
+      exportedAt: new Date().toISOString(),
+      shuls: shulsSnap.docs.map(d=>({id:d.id, data:d.data()})),
+      minyanim: minyanimSnap.docs.map(d=>({id:d.id, data:d.data()})),
+      shiurim: shiurimSnap.docs.map(d=>({id:d.id, data:d.data()})),
+      users: usersSnap.docs.map(d=>({id:d.id, data:d.data()})),
+      config: {
+        tefilaTypes: tefilaTypesDoc.exists ? tefilaTypesDoc.data() : null,
+        topics: topicsDoc.exists ? topicsDoc.data() : null,
+        topicDescriptions: topicDescDoc.exists ? topicDescDoc.data() : null,
+        announcement: announcementDoc.exists ? announcementDoc.data() : null,
+      }
+    };
+    const json = JSON.stringify(backup, null, 2);
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const dateStr = new Date().toISOString().slice(0,10);
+    a.href = url;
+    a.download = `גיבוי-שער-השמים-${dateStr}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }catch(e){
+    alert('שגיאה בייצוא הגיבוי: ' + e.message);
+  }
+  btn.textContent = originalText;
+  btn.disabled = false;
+}
+async function restoreCollection(name, items, statusEl){
+  if (!items || !items.length) return;
+  const chunks = [];
+  for (let i=0; i<items.length; i+=450) chunks.push(items.slice(i, i+450));
+  let done = 0;
+  for (const chunk of chunks){
+    const batch = db.batch();
+    chunk.forEach(item=>{
+      if (!item || !item.id || !item.data) return;
+      batch.set(db.collection(name).doc(item.id), item.data);
+    });
+    await batch.commit();
+    done += chunk.length;
+    if (statusEl) statusEl.textContent = `טוען ${name}... (${done}/${items.length})`;
+  }
+}
+async function handleBackupImportFile(input){
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('backupImportStatus');
+  try{
+    const text = await file.text();
+    const backup = JSON.parse(text);
+    if (!backup || !Array.isArray(backup.shuls)){
+      alert('הקובץ הזה לא נראה כמו קובץ גיבוי תקין של האפליקציה');
+      input.value = '';
+      return;
+    }
+    const counts = {
+      shuls: (backup.shuls||[]).length,
+      minyanim: (backup.minyanim||[]).length,
+      shiurim: (backup.shiurim||[]).length,
+      users: (backup.users||[]).length,
+    };
+    const exportDate = backup.exportedAt ? new Date(backup.exportedAt).toLocaleString('he-IL') : 'לא ידוע';
+    const ok = confirm(
+      `לטעון את הגיבוי הזה?\n\n` +
+      `תאריך הגיבוי: ${exportDate}\n` +
+      `בתי כנסת: ${counts.shuls} · מניינים: ${counts.minyanim} · שיעורים: ${counts.shiurim} · משתמשים: ${counts.users}\n\n` +
+      `זה יעדכן/יחליף פריטים קיימים עם אותו מזהה ויוסיף פריטים חדשים מהקובץ. זה לא ימחק פריטים שנוצרו אחרי הגיבוי. הפעולה לא הפיכה.`
+    );
+    if (!ok){ input.value = ''; return; }
+    statusEl.textContent = 'מתחיל טעינה...';
+    await restoreCollection('shuls', backup.shuls, statusEl);
+    await restoreCollection('minyanim', backup.minyanim, statusEl);
+    await restoreCollection('shiurim', backup.shiurim, statusEl);
+    await restoreCollection('users', backup.users, statusEl);
+    if (backup.config){
+      const cfg = backup.config;
+      const writes = [];
+      if (cfg.tefilaTypes) writes.push(db.collection('config').doc('tefilaTypes').set(cfg.tefilaTypes));
+      if (cfg.topics) writes.push(db.collection('config').doc('topics').set(cfg.topics));
+      if (cfg.topicDescriptions) writes.push(db.collection('config').doc('topicDescriptions').set(cfg.topicDescriptions));
+      if (cfg.announcement) writes.push(db.collection('config').doc('announcement').set(cfg.announcement));
+      await Promise.all(writes);
+    }
+    statusEl.textContent = '✓ הגיבוי נטען בהצלחה';
+    alert('הגיבוי נטען בהצלחה!');
+  }catch(e){
+    statusEl.textContent = '';
+    alert('שגיאה בטעינת הגיבוי: ' + e.message);
+  }
+  input.value = '';
 }
 
 // ---------- ייצוא לאקסל ----------
