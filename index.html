@@ -348,6 +348,16 @@
             <option value="always">בכל כניסה לאפליקציה</option>
           </select>
         </div>
+        <div class="field">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;margin-bottom:6px">
+            <input type="checkbox" id="annShowInstallBtn">
+            להוסיף לחלונית כפתור "📲 הוספה למסך הבית"
+          </label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400">
+            <input type="checkbox" id="annShowInfoBtn">
+            להוסיף לחלונית כפתור "📖 מדריך למשתמש"
+          </label>
+        </div>
         <button class="btn primary" onclick="saveAnnouncementConfig()">שמירה</button>
       </div>
     </div>
@@ -1019,6 +1029,8 @@ function populateAnnouncementAdmin(){
   document.getElementById('annLinkLabel').value = c.linkLabel || '';
   document.getElementById('annLink').value = c.link || '';
   document.getElementById('annFrequency').value = c.frequency || 'once';
+  document.getElementById('annShowInstallBtn').checked = !!c.showInstallBtn;
+  document.getElementById('annShowInfoBtn').checked = !!c.showInfoBtn;
   ANNOUNCEMENT_IMAGE_DATA = c.image || '';
   const preview = document.getElementById('annImagePreview');
   const removeBtn = document.getElementById('annRemoveImageBtn');
@@ -1083,12 +1095,14 @@ function saveAnnouncementConfig(){
   const linkLabel = document.getElementById('annLinkLabel').value.trim();
   const link = document.getElementById('annLink').value.trim();
   const frequency = document.getElementById('annFrequency').value;
+  const showInstallBtn = document.getElementById('annShowInstallBtn').checked;
+  const showInfoBtn = document.getElementById('annShowInfoBtn').checked;
   if (enabled && !text && !ANNOUNCEMENT_IMAGE_DATA){
     alert('יש להזין לפחות טקסט או תמונה כדי להפעיל את החלונית');
     return;
   }
   db.collection('config').doc('announcement').set({
-    enabled, text, linkLabel, link, frequency,
+    enabled, text, linkLabel, link, frequency, showInstallBtn, showInfoBtn,
     image: ANNOUNCEMENT_IMAGE_DATA,
     id: uid(), // מזהה גרסה חדש - מאפס את "פעם אחת" למי שכבר ראה גרסה קודמת
     updatedAt: new Date().toISOString()
@@ -1103,10 +1117,18 @@ function maybeShowAnnouncement(){
     try{ if (localStorage.getItem('seenAnnouncementId') === id) return; }catch(e){}
   }
   announcementShownThisSession = true;
+  const extraBtns = [];
+  if (ANNOUNCEMENT_CONFIG.showInstallBtn && isMobileDevice()){
+    extraBtns.push(`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`);
+  }
+  if (ANNOUNCEMENT_CONFIG.showInfoBtn){
+    extraBtns.push(`<button type="button" class="btn" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}');openUserGuide()">📖 מדריך למשתמש</button>`);
+  }
   document.getElementById('modalBody').innerHTML = `
     ${ANNOUNCEMENT_CONFIG.image?`<img src="${ANNOUNCEMENT_CONFIG.image}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
     ${ANNOUNCEMENT_CONFIG.text?`<p style="line-height:1.7;margin-bottom:16px;white-space:pre-wrap">${escapeHtml(ANNOUNCEMENT_CONFIG.text)}</p>`:''}
     ${ANNOUNCEMENT_CONFIG.link?`<a href="${escapeHtml(ANNOUNCEMENT_CONFIG.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-bottom:10px">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'לפרטים נוספים')}</a>`:''}
+    ${extraBtns.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${extraBtns.join('')}</div>`:''}
     <div class="modal-actions">
       <button class="btn primary" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}')">סגירה</button>
     </div>`;
@@ -2869,6 +2891,7 @@ function openAboutModal(){
     <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - יש לפנות למחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a></p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn primary" onclick="openUserGuide()">📖 מדריך למשתמש</button>
+      <button type="button" class="btn" onclick="openUsefulInfoModal()">ℹ️ מידע שימושי</button>
       <button type="button" class="btn" onclick="openAccessibilityPanel()">♿ נגישות</button>
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
       ${isMobileDevice()?`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`:''}
@@ -2937,6 +2960,40 @@ function openAccessibilityPanel(){
         <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a><br>
         נתקלתם בבעיית נגישות באתר? נשמח שתפנו אלינו ונטפל בהקדם.
       </p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function openUsefulInfoModal(){
+  const sec = (title, body) => `
+    <div style="margin-bottom:20px">
+      <h4 style="margin:0 0 6px;color:var(--dusk);font-size:15px">${title}</h4>
+      <div style="line-height:1.8;font-size:14px">${body}</div>
+    </div>`;
+  document.getElementById('modalBody').innerHTML = `
+    <h3 style="margin-bottom:6px">מידע שימושי</h3>
+    <p class="muted" style="margin-bottom:14px">מידע נבחר מאתר המועצה, לנוחיותכם. לפרטים המלאים והמעודכנים - תמיד עדיף להיכנס לקישור המקורי.</p>
+    ${sec('🗑️ גניזה', `
+      ביישוב שלושה מיכלי גניזה: ליד בית הכנסת אברהם אוהבי (מעגלי הראי"ה), ליד בתי הכנסת בשכונה א' (מבוא אבני החושן), וליד בית הכנסת סולם יעקב (רמת בית אל).<br>
+      מחירון: שקית קטנה (20×30 ס"מ) - 5 ₪ · שקית בינונית (40×30 ס"מ) - 14 ₪ · דף פרשת שבוע/ספר (57×70 ס"מ) - 2 ₪. ניתן לשלם באשראי דרך אתר התשלומים של המועצה.<br>
+      <a href="https://www.bet-el.muni.il/גניזה/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה ←</a>
+    `)}
+    ${sec('🧵 עירוב', `
+      העירוב בבית אל מבוסס על גדר שעוברת בדיקה תמידית על ידי סייר מחלקת הביטחון. מעל שערי הכניסה והיציאה מהיישוב פרוסה צורת הפתח.<br>
+      <a href="https://www.bet-el.muni.il/עירוב/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה (כולל מפה) ←</a>
+    `)}
+    ${sec('💍 רישום לנישואין', `
+      חשוב: אין להתחיל את תהליך הרישום יותר מ-3 חודשים לפני מועד החתונה (זה תוקף תיק הנישואין ותעודת הרווקות).<br><br>
+      <b>מסמכים שצריך להביא:</b> תעודת זהות עם ספח (של שניכם), תעודת נישואין של ההורים, אישור הדרכת כלות עם תאריך החתונה, שם/ת.ז./טלפון של הרב המסדר, פרטי מקום החתונה ואישור כשרות, ו-2 עדים לרווקות (מגיעים לאחר פתיחת התיק).<br><br>
+      <b>אגרה:</b> 844 ₪ במחיר רגיל, 506 ₪ לזכאי הנחה (חיילים, שירות לאומי, סטודנטים/בני ישיבה עד גיל 30, עולים חדשים בשנתיים הראשונות, נכים ובעלי מוגבלות ראייה - בהצגת אישור מתאים).<br><br>
+      <b>איך נרשמים:</b> קובעים פגישה במחלקת דת לפחות 45 יום לפני החתונה בטלפון <a href="tel:029700518" style="color:var(--dusk)">02-9700518</a>. אפשר (אך לא חובה) למלא פרטים מראש באתר המשרד לשירותי דת - זה לא מחליף את קביעת הפגישה. מומלץ גם לתאם פגישה זוגית עם רב היישוב, הרב אריאל בראלי שליט"א.<br><br>
+      <a href="https://www.bet-el.muni.il/0-1655362326-רישום-לנישואין/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה (כולל קישורי תשלום) ←</a>
+    `)}
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
+      <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
+      ${isMobileDevice()?`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`:''}
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">סגירה</button>
