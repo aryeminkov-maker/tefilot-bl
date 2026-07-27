@@ -540,6 +540,12 @@ function computeMinyanTime(m, date, zmanim){
   const sign = m.offsetSign === 'before' ? -1 : 1;
   return new Date(anchor.getTime() + sign*(m.offsetMinutes||0)*60000);
 }
+function chronoSortValue(m, t){
+  // ערבית שחל בין חצות ל-3 לפנות בוקר מייצג בפועל את סוף היום (אחרי חצות), לא את תחילתו - ממקמים אותו בסוף הרשימה
+  if (!t) return Infinity;
+  if (m.tefila === 'ערבית' && t.getHours() < 3) return t.getTime() + 24*60*60000;
+  return t.getTime();
+}
 function dayKeyOf(date){
   return ['sun','mon','tue','wed','thu','fri','sat'][date.getDay()];
 }
@@ -1838,13 +1844,13 @@ function renderTefilot(){
         if (!a.t && !b.t) return 0;
         if (!a.t) return 1;
         if (!b.t) return -1;
-        return a.t - b.t;
+        return chronoSortValue(a.m, a.t) - chronoSortValue(b.m, b.t);
       });
       if (timeFrom || timeTo){
         minsWithTime = minsWithTime.filter(x => !x.isToday || timeInRange(x.t, timeFrom, timeTo));
       }
       if (nextOnly){
-        minsWithTime = minsWithTime.filter(x=>x.isToday && x.t && timeMinutesIsrael(x.t) >= nowMins).sort((a,b)=>a.t-b.t);
+        minsWithTime = minsWithTime.filter(x=>x.isToday && x.t && timeMinutesIsrael(x.t) >= nowMins).sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
       }
       if ((tefilaF || nextOnly) && !minsWithTime.length) return ''; // אין תוצאות תואמות לבית כנסת זה
       const isExpanded = expandedShulIds.has(shul.id) || !!(tefilaF || nextOnly || timeFrom || shulF);
@@ -1904,7 +1910,7 @@ function renderTefilot(){
       const shul = data.shuls.find(s=>s.id===m.shulId);
       items.push({t, m, shul});
     });
-    items.sort((a,b)=>a.t-b.t);
+    items.sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
     if (nextOnly){
       items = items.filter(it=>timeMinutesIsrael(it.t) >= nowMins);
     }
@@ -2481,7 +2487,7 @@ function renderShulPage(){
     if (!a.t && !b.t) return 0;
     if (!a.t) return 1;
     if (!b.t) return -1;
-    return a.t - b.t;
+    return chronoSortValue(a.m, a.t) - chronoSortValue(b.m, b.t);
   });
   const minyanLines = mins.map(({m,t,isToday})=>{
     const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
