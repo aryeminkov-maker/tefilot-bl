@@ -78,6 +78,11 @@
   .tline-now-line{flex:1;height:2px;background:var(--accent)}
   .tline-now-label{font-size:11px;font-weight:700;color:var(--accent-ink);background:var(--accent);padding:3px 9px;border-radius:20px;white-space:nowrap}
   .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  #nowWidget{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:14px}
+  #nowWidget h4{margin:0 0 8px;font-size:13px;color:var(--ink-soft);font-weight:500}
+  #nowWidget .now-row{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:14px;cursor:pointer}
+  #nowWidget .now-row:not(:last-child){border-bottom:1px dashed var(--border)}
+  #nowWidget .now-empty{font-size:13px;color:var(--ink-soft)}
   .filters-panel{display:none;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px}
   .filters-panel.show{display:block}
   .filters-panel .filters{margin-bottom:8px}
@@ -156,6 +161,16 @@
     .field input,.field select,.field textarea{font-size:16px;padding:10px}
     .badge{font-size:12px;padding:4px 10px}
   }
+  @media print{
+    body *{visibility:hidden}
+    #printArea, #printArea *{visibility:visible}
+    #printArea{display:block !important;position:absolute;top:0;right:0;left:0;padding:20px}
+    #printArea h1{font-size:22px;margin-bottom:4px}
+    #printArea .print-meta{color:#555;font-size:13px;margin-bottom:16px}
+    #printArea table{width:100%;border-collapse:collapse;font-size:14px}
+    #printArea td, #printArea th{border:1px solid #999;padding:6px 8px;text-align:right}
+    #printArea th{background:#eee}
+  }
 </style>
 </head>
 <body>
@@ -203,6 +218,7 @@
   <div id="shul-page" style="display:none"></div>
 
   <div id="tefilot-tab">
+    <div id="nowWidget"></div>
     <div class="row" style="margin:10px 0">
       <div class="sub-toggle" style="margin:0">
         <button class="active" data-view="chrono">לפי שעות</button>
@@ -231,6 +247,8 @@
           <option value="fri">שישי</option>
           <option value="sat">שבת</option>
         </select>
+        <input type="date" id="filterSpecificDate" onchange="onSpecificDateChange()" title="או בחרו תאריך מדויק">
+        <button class="btn ghost" id="clearSpecificDateBtn" type="button" onclick="clearSpecificDate()" style="display:none">✕ תאריך מדויק</button>
       </div>
       <div class="filters">
         <select id="filterTimeMode" onchange="onTimeModeChange()">
@@ -459,6 +477,7 @@
   הזמנים לזריחה / שקיעה / צאת הכוכבים מחושבים אוטומטית לפי קואורדינטות בית אל, ומהווים קירוב — לפני קביעת זמן מניין רגיש יש לוודא מול רב היישוב. תמיכה בלוח שנה עברי מלא (חגים, ראש חודש) מתוכננת לשלב הבא.
 </footer>
 
+<div id="printArea" style="display:none"></div>
 <div class="overlay" id="overlay"><div class="modal" id="modalBody" role="dialog" aria-modal="true"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
@@ -469,6 +488,7 @@
 let data = { shuls: [], minyanim: [], shiurim: [], users: [] };
 let currentView = 'chrono';
 let selectedDayKey = '';
+let selectedSpecificDate = ''; // תאריך מדויק שנבחר (YYYY-MM-DD), או ריק אם מציגים לפי יום בשבוע כללי
 let currentTab = 'tefilot';
 let lastName = '';
 let userLocation = null;
@@ -542,17 +562,31 @@ function computeMinyanTime(m, date, zmanim){
 function chronoSortValue(m, t){
   // ערבית שחל בין חצות ל-3 לפנות בוקר מייצג בפועל את סוף היום (אחרי חצות), לא את תחילתו - ממקמים אותו בסוף הרשימה
   if (!t) return Infinity;
-  if (m.tefila === 'ערבית' && t.getHours() < 3) return t.getTime() + 24*60*60000;
+  if (m.tefila === 'ערבית'){
+    const israelHour = Number(t.toLocaleTimeString('en-GB', {hour:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'}));
+    if (israelHour < 3) return t.getTime() + 24*60*60000;
+  }
   return t.getTime();
 }
 function dayKeyOf(date){
   return ['sun','mon','tue','wed','thu','fri','sat'][date.getDay()];
 }
+function nextDateForDayKey(dayKey){
+  // מחזיר את התאריך הקרוב ביותר (כולל היום) שמתאים ליום השבוע הנבחר, לצורך חישוב זמנים הלכתיים מדויקים
+  const now = new Date();
+  if (!dayKey) return now;
+  const targetIdx = DAY_KEYS.indexOf(dayKey);
+  if (targetIdx === -1) return now;
+  const diff = (targetIdx - now.getDay() + 7) % 7;
+  const d = new Date(now);
+  d.setDate(d.getDate() + diff);
+  return d;
+}
 
 // ---------- Firebase ----------
 const firebaseConfig = {
   apiKey: "AIzaSyA2qVE_N_RJW0iCz276w6fM0tzkYZz-_i0",
-  authDomain: "bet-el-tefilot.firebaseapp.com",
+  authDomain: "auth.tfilot.bet-el.muni.il",
   projectId: "bet-el-tefilot",
   storageBucket: "bet-el-tefilot.firebasestorage.app",
   messagingSenderId: "89211360785",
@@ -591,6 +625,11 @@ function doSignIn(){
     .catch(err=>{
       if (settled) return;
       settled = true; clearTimeout(fallbackTimer);
+      btn.style.opacity = '';
+      // המשתמש ביטל בעצמו את חלון ההתחברות - אין צורך בשום ניסיון נוסף
+      if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')){
+        return;
+      }
       console.warn('התחברות עם popup נכשלה, עוברים לניווט מלא כגיבוי:', err);
       auth.signInWithRedirect(googleProvider).catch(e=>{ btn.style.opacity=''; alert('שגיאת התחברות: '+e.message); });
     });
@@ -1116,28 +1155,29 @@ function saveAnnouncementConfig(){
 function maybeShowAnnouncement(){
   if (!ANNOUNCEMENT_CONFIG || !ANNOUNCEMENT_CONFIG.enabled) return;
   if (announcementShownThisSession) return;
-  if (document.getElementById('overlay').classList.contains('show')) return; // לא לקטוע חלונית אחרת שכבר פתוחה
   const id = ANNOUNCEMENT_CONFIG.id || ANNOUNCEMENT_CONFIG.updatedAt || '';
   if (ANNOUNCEMENT_CONFIG.frequency === 'once'){
     try{ if (localStorage.getItem('seenAnnouncementId') === id) return; }catch(e){}
   }
   announcementShownThisSession = true;
-  const extraBtns = [];
-  if (ANNOUNCEMENT_CONFIG.showInstallBtn && isMobileDevice() && !isRunningStandalone()){
-    extraBtns.push(`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`);
-  }
-  if (ANNOUNCEMENT_CONFIG.showInfoBtn){
-    extraBtns.push(`<button type="button" class="btn" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}');openUserGuide()">📖 מדריך למשתמש</button>`);
-  }
-  document.getElementById('modalBody').innerHTML = `
-    ${ANNOUNCEMENT_CONFIG.image?`<img src="${ANNOUNCEMENT_CONFIG.image}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
-    ${ANNOUNCEMENT_CONFIG.text?`<p style="line-height:1.7;margin-bottom:16px;white-space:pre-wrap">${escapeHtml(ANNOUNCEMENT_CONFIG.text)}</p>`:''}
-    ${ANNOUNCEMENT_CONFIG.link?`<a href="${escapeHtml(ANNOUNCEMENT_CONFIG.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-bottom:10px">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'לפרטים נוספים')}</a>`:''}
-    ${extraBtns.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${extraBtns.join('')}</div>`:''}
-    <div class="modal-actions">
-      <button class="btn primary" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}')">סגירה</button>
-    </div>`;
-  document.getElementById('overlay').classList.add('show');
+  enqueuePopup(()=>{
+    const extraBtns = [];
+    if (ANNOUNCEMENT_CONFIG.showInstallBtn && isMobileDevice() && !isRunningStandalone()){
+      extraBtns.push(`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`);
+    }
+    if (ANNOUNCEMENT_CONFIG.showInfoBtn){
+      extraBtns.push(`<button type="button" class="btn" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}');openUserGuide()">📖 מדריך למשתמש</button>`);
+    }
+    document.getElementById('modalBody').innerHTML = `
+      ${ANNOUNCEMENT_CONFIG.image?`<img src="${ANNOUNCEMENT_CONFIG.image}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
+      ${ANNOUNCEMENT_CONFIG.text?`<p style="line-height:1.7;margin-bottom:16px;white-space:pre-wrap">${escapeHtml(ANNOUNCEMENT_CONFIG.text)}</p>`:''}
+      ${ANNOUNCEMENT_CONFIG.link?`<a href="${escapeHtml(ANNOUNCEMENT_CONFIG.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-bottom:10px">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'לפרטים נוספים')}</a>`:''}
+      ${extraBtns.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${extraBtns.join('')}</div>`:''}
+      <div class="modal-actions">
+        <button class="btn primary" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}')">סגירה</button>
+      </div>`;
+    document.getElementById('overlay').classList.add('show');
+  });
 }
 function closeAnnouncementPopup(id, frequency){
   closeModal();
@@ -1393,6 +1433,17 @@ function cell(row, key){
   }
   return String(v).trim();
 }
+function cellTime(row, key){
+  // כמו cell(), אך מיועדת לעמודות שעה בלבד - מטפלת גם בערכי שעה שאקסל שמר
+  // כמספר שלם+שבר (למשל תא שעוצב כתאריך ושעה יחד), לא רק כשבר בין 0 ל-1.
+  // לא משתמשים בזה בשדות אחרים (כמו טלפון) כדי לא לפרש מספרים גדולים כשעה.
+  let v = getVal(row, key);
+  if (v === undefined || v === null) return '';
+  if (typeof v === 'number' && v >= 0){
+    return excelSerialToTime(v);
+  }
+  return String(v).trim();
+}
 
 function handleImportFile(input){
   const file = input.files[0];
@@ -1452,7 +1503,7 @@ async function runImport(wb){
       let timeType, fixedTime='', anchor='', offsetSign='before', offsetMinutes=0;
       if (timeTypeRaw === 'קבוע'){
         timeType = 'fixed';
-        fixedTime = cell(row, 'שעה');
+        fixedTime = cellTime(row, 'שעה');
         if (!fixedTime){ results.skipped.push(`מניין "${tefila}" ב"${shulName}" - חסרה שעה`); continue; }
       } else if (timeTypeRaw === 'יחסי'){
         timeType = 'relative';
@@ -1489,7 +1540,7 @@ async function runImport(wb){
       const audience = AUDIENCE_LOOKUP[cell(row,'קהל יעד')] || 'all';
       const topics = cell(row,'נושא').split(',').map(x=>x.trim()).filter(Boolean);
       const obj = stamp({
-        title, topics, audience, days, time: cell(row,'שעה'),
+        title, topics, audience, days, time: cellTime(row,'שעה'),
         location, lat, lng, locationShulId,
         teacherName: cell(row,'מעביר השיעור'), contactName: cell(row,'איש קשר'),
         contactPhone: cell(row,'טלפון איש קשר'), notes: cell(row,'הערות')
@@ -1522,7 +1573,13 @@ function attachListeners(){
       urlShulChecked = true;
       const params = new URLSearchParams(window.location.search);
       const shulParam = params.get('shul');
-      if (shulParam && data.shuls.find(s=>s.id===shulParam)) openShulPage(shulParam);
+      if (shulParam && data.shuls.find(s=>s.id===shulParam)){
+        openShulPage(shulParam);
+      } else if (!shulParam){
+        let myShulId = null;
+        try{ myShulId = localStorage.getItem('myShulId'); }catch(e){}
+        if (myShulId && data.shuls.find(s=>s.id===myShulId)) openShulPage(myShulId);
+      }
     }
   }, e=>console.error(e));
   db.collection('minyanim').onSnapshot(snap=>{
@@ -1621,15 +1678,16 @@ function maybeShowPendingMessage(d){
   if (!d.messages || !d.messages.length) return;
   const msg = d.messages[0];
   if (msg.date === lastShownMessageKey) return;
-  if (document.getElementById('overlay').classList.contains('show')) return;
   lastShownMessageKey = msg.date;
-  document.getElementById('modalBody').innerHTML = `
-    <h3>הודעה מ${escapeHtml(msg.from||'מנהל')}</h3>
-    <p style="line-height:1.7;margin-bottom:18px;white-space:pre-wrap">${escapeHtml(msg.text)}</p>
-    <div class="modal-actions">
-      <button class="btn primary" onclick="dismissPendingMessage()">הבנתי</button>
-    </div>`;
-  document.getElementById('overlay').classList.add('show');
+  enqueuePopup(()=>{
+    document.getElementById('modalBody').innerHTML = `
+      <h3>הודעה מ${escapeHtml(msg.from||'מנהל')}</h3>
+      <p style="line-height:1.7;margin-bottom:18px;white-space:pre-wrap">${escapeHtml(msg.text)}</p>
+      <div class="modal-actions">
+        <button class="btn primary" onclick="dismissPendingMessage()">הבנתי</button>
+      </div>`;
+    document.getElementById('overlay').classList.add('show');
+  });
 }
 function dismissPendingMessage(){
   closeModal();
@@ -1667,6 +1725,16 @@ let TOPIC_DESC_IMAGE_DATA = '';
 let a11yFontLevel = 0;
 let announcementShownThisSession = false;
 let topicChipsExpanded = false;
+let popupQueue = [];
+function enqueuePopup(showFn){
+  popupQueue.push(showFn);
+  processPopupQueue();
+}
+function processPopupQueue(){
+  if (document.getElementById('overlay').classList.contains('show')) return;
+  const fn = popupQueue.shift();
+  if (fn) fn();
+}
 let expandedShulIds = new Set();
 function toggleAdminSection(key){
   const body = document.getElementById('adminSection_' + key);
@@ -1753,10 +1821,46 @@ function toggleFiltersPanel(panelId, btnId){
 }
 function onDayFilterChange(){
   selectedDayKey = document.getElementById('filterDay').value;
+  if (selectedSpecificDate){
+    selectedSpecificDate = '';
+    document.getElementById('filterSpecificDate').value = '';
+    document.getElementById('clearSpecificDateBtn').style.display = 'none';
+  }
   if (selectedDayKey){
     currentView = 'chrono';
     document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
+    const timeModeSel = document.getElementById('filterTimeMode');
+    if (timeModeSel.value === 'next'){
+      timeModeSel.value = 'all';
+      onTimeModeChange();
+    }
   }
+  render();
+}
+function onSpecificDateChange(){
+  const val = document.getElementById('filterSpecificDate').value;
+  selectedSpecificDate = val;
+  if (val){
+    const d = new Date(val + 'T00:00:00');
+    selectedDayKey = dayKeyOf(d);
+    document.getElementById('filterDay').value = selectedDayKey;
+    currentView = 'chrono';
+    document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
+    const timeModeSel = document.getElementById('filterTimeMode');
+    if (timeModeSel.value === 'next'){
+      timeModeSel.value = 'all';
+      onTimeModeChange();
+    }
+    document.getElementById('clearSpecificDateBtn').style.display = '';
+  } else {
+    document.getElementById('clearSpecificDateBtn').style.display = 'none';
+  }
+  render();
+}
+function clearSpecificDate(){
+  selectedSpecificDate = '';
+  document.getElementById('filterSpecificDate').value = '';
+  document.getElementById('clearSpecificDateBtn').style.display = 'none';
   render();
 }
 function selectDayLetter(key){
@@ -1764,8 +1868,20 @@ function selectDayLetter(key){
   selectedDayKey = (key === todayKey) ? '' : key;
   const sel = document.getElementById('filterDay');
   if (sel) sel.value = selectedDayKey;
+  if (selectedSpecificDate){
+    selectedSpecificDate = '';
+    document.getElementById('filterSpecificDate').value = '';
+    document.getElementById('clearSpecificDateBtn').style.display = 'none';
+  }
   currentView = 'chrono';
   document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
+  if (selectedDayKey){
+    const timeModeSel = document.getElementById('filterTimeMode');
+    if (timeModeSel.value === 'next'){
+      timeModeSel.value = 'all';
+      onTimeModeChange();
+    }
+  }
   render();
 }
 function renderDayLetterBar(){
@@ -1778,6 +1894,13 @@ function renderDayLetterBar(){
 function onTimeModeChange(){
   const mode = document.getElementById('filterTimeMode').value;
   document.getElementById('filterTimeFrom').style.display = mode === 'from' ? '' : 'none';
+  if (mode === 'next' && (selectedDayKey || selectedSpecificDate)){
+    selectedDayKey = '';
+    document.getElementById('filterDay').value = '';
+    selectedSpecificDate = '';
+    document.getElementById('filterSpecificDate').value = '';
+    document.getElementById('clearSpecificDateBtn').style.display = 'none';
+  }
 }
 function timeInRange(t, fromStr, toStr){
   if (!t) return false;
@@ -1786,10 +1909,45 @@ function timeInRange(t, fromStr, toStr){
   if (toStr){ const [th,tm]=toStr.split(':').map(Number); if (mins > th*60+tm) return false; }
   return true;
 }
+function renderNowWidget(){
+  const el = document.getElementById('nowWidget');
+  if (!el) return;
+  const now = new Date();
+  const zmanim = getZmanim(now);
+  const dk = dayKeyOf(now);
+  const nowMins = timeMinutesIsrael(now);
+  let items = [];
+  data.minyanim.forEach(m=>{
+    if (!(m.days||[]).includes(dk)) return;
+    const t = computeMinyanTime(m, now, zmanim);
+    if (!t) return;
+    if (timeMinutesIsrael(t) < nowMins) return;
+    const shul = data.shuls.find(s=>s.id===m.shulId);
+    items.push({t, m, shul});
+  });
+  items.sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
+  items = items.slice(0,4);
+  if (!items.length){
+    el.innerHTML = `<h4>⏱ עכשיו בבית אל</h4><div class="now-empty">אין עוד מניינים היום ברחבי היישוב</div>`;
+    return;
+  }
+  el.innerHTML = `<h4>⏱ עכשיו בבית אל - הקרובים ביותר</h4>` + items.map(it=>`
+    <div class="now-row" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">
+      <span>${it.m.tefila} · ${escapeHtml(it.shul?it.shul.name:'')}</span>
+      <span class="time">${fmtTime(it.t)}</span>
+    </div>`).join('');
+}
 function renderTefilot(){
+  renderNowWidget();
   renderDayLetterBar();
   const dayLabelEl = document.getElementById('todayLabel');
-  if (selectedDayKey){
+  const specificDateInput = document.getElementById('filterSpecificDate');
+  if (specificDateInput.value !== selectedSpecificDate) specificDateInput.value = selectedSpecificDate;
+  document.getElementById('clearSpecificDateBtn').style.display = selectedSpecificDate ? '' : 'none';
+  if (selectedSpecificDate){
+    const dateObj = new Date(selectedSpecificDate + 'T00:00:00');
+    dayLabelEl.textContent = 'מוצגים מניינים לתאריך ' + dateObj.toLocaleDateString('he-IL') + ' (יום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(selectedDayKey)] + ', זמנים משוערים)';
+  } else if (selectedDayKey){
     dayLabelEl.textContent = 'מוצגים מניינים ליום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(selectedDayKey)] + ' (זמנים משוערים)';
   } else {
     dayLabelEl.textContent = '';
@@ -1815,10 +1973,11 @@ function renderTefilot(){
   proxBtn.textContent = sortByProximity ? '✓ ממוין לפי קרבה' : '📍 מיין לפי קרבה אליי';
 
   const el = document.getElementById('tefilotList');
-  const today = new Date();
+  const now = new Date();
+  const today = selectedSpecificDate ? new Date(selectedSpecificDate + 'T00:00:00') : nextDateForDayKey(selectedDayKey); // תאריך שממנו מחשבים זריחה/שקיעה/צה"כ - היום, התאריך המדויק שנבחר, או המופע הקרוב של היום שנבחר בסינון
   const zmanim = getZmanim(today);
-  const dk = selectedDayKey || dayKeyOf(today);
-  const nowMins = timeMinutesIsrael(new Date());
+  const dk = selectedDayKey || dayKeyOf(now);
+  const nowMins = timeMinutesIsrael(now);
 
   if (currentView === 'byshul'){
     if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל כדי להוסיף.</div>'; return; }
@@ -1878,7 +2037,7 @@ function renderTefilot(){
           <button type="button" class="expand-toggle-btn" aria-expanded="${isExpanded}" aria-label="${isExpanded?'סגירת':'פתיחת'} זמני מניינים - ${escapeHtml(shul.name)}" onclick="toggleShulExpand('${shul.id}')">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .15s;transform:rotate(${isExpanded?'-90deg':'0deg'})"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
-          <h3 style="flex:1;min-width:0;font-size:16px">${escapeHtml(shul.name)}</h3>
+          <h3 style="flex:1;min-width:0;font-size:16px">${isMyShul(shul.id)?'⭐ ':''}${escapeHtml(shul.name)}</h3>
           ${distanceBadge}
         </div>
         <div class="muted" style="font-size:12.5px;margin:2px 0 10px 40px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
@@ -2146,6 +2305,64 @@ function navLinksHtml(shul){
     <button type="button" class="badge" style="cursor:pointer;border:1px solid var(--border);font-family:'Rubik'" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)">📍 ניווט</button>
   </div>`;
 }
+function whatsappShareUrl(text){
+  return 'https://wa.me/?text=' + encodeURIComponent(text);
+}
+function minyanShareText(m, shul){
+  const t = computeMinyanTime(m, new Date(), getZmanim(new Date()));
+  return `${m.tefila}${shul?(' ב'+shul.name):''} - ${daysToLabel(m.days)}, בשעה ${fmtTime(t)}${m.notes?(' ('+m.notes+')'):''}
+
+מתוך אפליקציית תפילות ושיעורי תורה בבית אל: ${window.location.origin + window.location.pathname}${shul?('?shul='+shul.id):''}`;
+}
+function shiurShareText(s){
+  return `${s.title} - ${shiurScheduleLabel(s)}, בשעה ${s.time||''}, ב${s.location||''}
+
+מתוך אפליקציית תפילות ושיעורי תורה בבית אל: ${window.location.origin + window.location.pathname}`;
+}
+function pad2(n){ return String(n).padStart(2,'0'); }
+function icsDateStamp(d){
+  return d.getUTCFullYear() + pad2(d.getUTCMonth()+1) + pad2(d.getUTCDate()) + 'T' + pad2(d.getUTCHours()) + pad2(d.getUTCMinutes()) + pad2(d.getUTCSeconds()) + 'Z';
+}
+const ICS_BYDAY = {sun:'SU', mon:'MO', tue:'TU', wed:'WE', thu:'TH', fri:'FR', sat:'SA'};
+function downloadShiurIcs(shiurId){
+  const s = data.shiurim.find(x=>x.id===shiurId);
+  if (!s) return;
+  let dtStart, rrule = '';
+  if (s.oneTime && s.oneTimeDate){
+    dtStart = fixedTimeAsDate(new Date(s.oneTimeDate+'T00:00:00'), s.time||'20:00');
+  } else if (s.days && s.days.length){
+    dtStart = fixedTimeAsDate(nextDateForDayKey(s.days[0]), s.time||'20:00');
+    const byDays = s.days.map(d=>ICS_BYDAY[d]).filter(Boolean).join(',');
+    rrule = `RRULE:FREQ=WEEKLY;BYDAY=${byDays}`;
+  } else {
+    alert('אין מספיק פרטים על מועד השיעור כדי להוסיף ליומן');
+    return;
+  }
+  const dtEnd = new Date(dtStart.getTime() + 60*60000);
+  const uidVal = 'shiur-' + s.id + '@bet-el-tefilot';
+  const ics = [
+    'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//בית אל//תפילות ושיעורי תורה//HE','CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    'UID:' + uidVal,
+    'DTSTAMP:' + icsDateStamp(new Date()),
+    'DTSTART:' + icsDateStamp(dtStart),
+    'DTEND:' + icsDateStamp(dtEnd),
+    rrule || null,
+    'SUMMARY:' + (s.title||'').replace(/\n/g,' '),
+    'LOCATION:' + (s.location||'').replace(/\n/g,' '),
+    s.teacherName ? ('DESCRIPTION:מעביר השיעור: ' + s.teacherName.replace(/\n/g,' ')) : null,
+    'END:VEVENT','END:VCALENDAR'
+  ].filter(Boolean).join('\r\n');
+  const blob = new Blob([ics], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (s.title||'שיעור').replace(/[\\/:*?"<>|]/g,'') + '.ics';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 2000);
+}
 function openNavPopover(e){
   e.stopPropagation();
   closeNavPopover();
@@ -2190,6 +2407,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   if (m.updatedAt){
     html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(m)}</div>`;
   }
+  html += `<a href="${whatsappShareUrl(minyanShareText(m, shul))}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
   if (links){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
@@ -2221,6 +2439,8 @@ function openShiurMenuPopover(e, shiurId){
   if (s.updatedAt){
     html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(s)}</div>`;
   }
+  html += `<a href="${whatsappShareUrl(shiurShareText(s))}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
+  html += `<a href="#" onclick="closeNavPopover();downloadShiurIcs('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">📅 הוספה ליומן</a>`;
   if (links){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
@@ -2236,6 +2456,7 @@ function openShiurMenuPopover(e, shiurId){
 
 // ---------- טפסים: בית כנסת ----------
 function openShulForm(shulId){
+  if (!requireEditPermission()) return;
   const s = shulId ? data.shuls.find(x=>x.id===shulId) : null;
   document.getElementById('modalBody').innerHTML = `
     <h3>${s?'עריכת בית כנסת':'הוספת בית כנסת'}</h3>
@@ -2372,9 +2593,22 @@ function saveShul(shulId){
   if (viewingShulId === id) renderShulPage();
 }
 function deleteShul(id){
-  if (!confirm('למחוק את בית הכנסת וכל המניינים שלו?')) return;
+  const shul = data.shuls.find(s=>s.id===id);
+  const linkedShiurim = data.shiurim.filter(s=>s.locationShulId===id);
+  const linkedMinyanim = data.minyanim.filter(m=>m.shulId===id);
+  let msg = 'למחוק את בית הכנסת וכל ' + linkedMinyanim.length + ' המניינים שלו?';
+  if (linkedShiurim.length){
+    msg += '\n\nיש ' + linkedShiurim.length + ' שיעורים שמוגדרים במיקום הזה - הם לא יימחקו, אבל יהפכו למיקום טקסט חופשי (בלי קישור לדף בית כנסת).';
+  }
+  if (!confirm(msg)) return;
   db.collection('shuls').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
-  data.minyanim.filter(m=>m.shulId===id).forEach(m=>db.collection('minyanim').doc(m.id).delete());
+  linkedMinyanim.forEach(m=>db.collection('minyanim').doc(m.id).delete());
+  linkedShiurim.forEach(s=>{
+    db.collection('shiurim').doc(s.id).update({
+      locationShulId: null,
+      location: (shul ? shul.name : s.location) + ' (בית הכנסת נמחק מהמערכת)'
+    }).catch(e=>console.error(e));
+  });
 }
 
 // ---------- דף בית כנסת ----------
@@ -2397,16 +2631,28 @@ function openShulPage(shulId){
   renderShulPage();
   maybeShowFirstVisitAnnouncement(shulId);
 }
+function isMyShul(shulId){
+  try{ return localStorage.getItem('myShulId') === shulId; }catch(e){ return false; }
+}
+function toggleMyShul(shulId){
+  try{
+    if (isMyShul(shulId)){
+      localStorage.removeItem('myShulId');
+    } else {
+      localStorage.setItem('myShulId', shulId);
+    }
+  }catch(e){}
+  renderShulPage();
+}
 function maybeShowFirstVisitAnnouncement(shulId){
   let alreadyVisited = true;
   try{ alreadyVisited = localStorage.getItem('visitedShul_' + shulId) === '1'; }catch(e){}
   try{ localStorage.setItem('visitedShul_' + shulId, '1'); }catch(e){}
   if (alreadyVisited) return;
-  if (document.getElementById('overlay').classList.contains('show')) return; // לא לקטוע חלונית אחרת שכבר פתוחה
   const shul = data.shuls.find(s=>s.id===shulId);
   if (!shul || !shul.announcements || !shul.announcements.length) return;
   const latest = shul.announcements.slice().sort((a,b)=> new Date(b.date)-new Date(a.date))[0];
-  setTimeout(()=>{
+  enqueuePopup(()=>{
     document.getElementById('modalBody').innerHTML = `
       <h3>הודעה מהגבאים - ${escapeHtml(shul.name)}</h3>
       <div style="white-space:pre-wrap;line-height:1.7;margin-bottom:10px">${escapeHtml(latest.text)}</div>
@@ -2415,7 +2661,7 @@ function maybeShowFirstVisitAnnouncement(shulId){
         <button class="btn primary" onclick="closeModal()">סגירה</button>
       </div>`;
     document.getElementById('overlay').classList.add('show');
-  }, 50);
+  });
 }
 function closeShulPage(){
   viewingShulId = null;
@@ -2567,7 +2813,9 @@ function renderShulPage(){
       ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">${shul.rabbiNames.length > 1 ? 'רבני בית הכנסת' : 'רב בית הכנסת'}: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
       ${shul.gabaiNames && shul.gabaiNames.length ? `<div class="muted" style="margin-top:2px">${shul.gabaiNames.length > 1 ? 'גבאים' : 'גבאי'}: ${shul.gabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
       <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap">
+        <button class="icon-btn" onclick="toggleMyShul('${shul.id}')" aria-label="${isMyShul(shul.id)?'הסרה מבית הכנסת שלי':'סימון כבית הכנסת שלי'}" title="${isMyShul(shul.id)?'זהו בית הכנסת שלי - לחצו להסרה':'סמנו כבית הכנסת שלי, כדי שהאפליקציה תיפתח ישר אליו בכניסה הבאה'}">${isMyShul(shul.id)?'⭐':'☆'}</button>
         <button class="icon-btn" onclick="shareShulLink('${shul.id}')" aria-label="שיתוף" title="שיתוף">🔗</button>
+        <button class="icon-btn" onclick="printShulSchedule('${shul.id}')" aria-label="גרסת הדפסה" title="גרסת הדפסה">🖨️</button>
         ${editable?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>`:''}
       </div>
       <div style="display:flex;justify-content:center;margin-top:4px">${navLinksHtml(shul)}</div>
@@ -2599,6 +2847,26 @@ function renderShulPage(){
     </div>
     ${editorsHtml}
   `;
+}
+function printShulSchedule(shulId){
+  const shul = data.shuls.find(s=>s.id===shulId);
+  if (!shul) return;
+  const today = new Date();
+  const zmanim = getZmanim(today);
+  const mins = data.minyanim.filter(m=>m.shulId===shulId).map(m=>({
+    m, t: computeMinyanTime(m, today, zmanim)
+  })).sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
+  const rows = mins.map(({m,t})=>`
+    <tr><td>${escapeHtml(m.tefila)}</td><td>${escapeHtml(daysToLabel(m.days))}</td><td>${fmtTime(t)}</td><td>${escapeHtml(m.notes||'')}</td></tr>
+  `).join('') || '<tr><td colspan="4">אין מניינים רשומים</td></tr>';
+  document.getElementById('printArea').innerHTML = `
+    <h1>${escapeHtml(shul.name)}</h1>
+    <div class="print-meta">${escapeHtml(shul.address||'')}${shul.nusach?' · נוסח '+escapeHtml(shul.nusach):''} · הודפס בתאריך ${today.toLocaleDateString('he-IL')}</div>
+    <table>
+      <thead><tr><th>תפילה</th><th>ימים</th><th>שעה (זמן משוער ליום ההדפסה)</th><th>הערות</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  window.print();
 }
 function addAnnouncement(shulId){
   const ta = document.getElementById('newAnnouncementText_'+shulId);
@@ -2714,6 +2982,19 @@ function onTefilaChange(isEdit){
   const def = TEFILA_DEFAULT_TIME[tefila];
   if (def) document.getElementById('f_fixedTime').value = def;
 }
+function isDuplicateMinyan(candidate, excludeId){
+  return data.minyanim.some(m=>{
+    if (m.id === excludeId) return false;
+    if (m.shulId !== candidate.shulId) return false;
+    if (m.tefila !== candidate.tefila) return false;
+    const overlapDays = (m.days||[]).some(d=>candidate.days.includes(d));
+    if (!overlapDays) return false;
+    if (candidate.timeType === 'fixed'){
+      return m.timeType === 'fixed' && m.fixedTime === candidate.fixedTime;
+    }
+    return m.timeType === 'relative' && m.anchor === candidate.anchor && m.offsetSign === candidate.offsetSign && Number(m.offsetMinutes||0) === Number(candidate.offsetMinutes||0);
+  });
+}
 function saveMinyan(shulId, minyanId){
   if (!shulId){
     const sel = document.getElementById('f_shulId');
@@ -2723,7 +3004,7 @@ function saveMinyan(shulId, minyanId){
   const days = [...document.querySelectorAll('#f_days .daychip.active')].map(d=>d.dataset.day);
   if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
   const id = minyanId || uid();
-  const obj = stamp({
+  const candidate = {
     shulId,
     tefila: document.getElementById('f_tefila').value,
     days,
@@ -2733,9 +3014,15 @@ function saveMinyan(shulId, minyanId){
     offsetSign: document.getElementById('f_offsetSign').value,
     offsetMinutes: Number(document.getElementById('f_offsetMinutes').value)||0,
     notes: document.getElementById('f_notes').value.trim()
-  });
+  };
+  if (isDuplicateMinyan(candidate, id)){
+    const proceed = confirm('כבר קיים בבית הכנסת הזה מניין דומה - אותה תפילה, עם ימים חופפים ואותו זמן בדיוק. לשמור בכל זאת?');
+    if (!proceed) return;
+  }
+  const obj = stamp(candidate);
   db.collection('minyanim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   closeModal();
+
 }
 function deleteMinyan(id){
   if (!confirm('למחוק את המניין?')) return;
@@ -2872,7 +3159,10 @@ function deleteShiur(id){
   db.collection('shiurim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
 }
 
-function closeModal(){ document.getElementById('overlay').classList.remove('show'); }
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+  setTimeout(processPopupQueue, 50);
+}
 
 // ---------- אודות / שיתוף / התקנה ----------
 if ('serviceWorker' in navigator){
