@@ -3368,7 +3368,7 @@ function switchGuideTab(tab){
   document.getElementById('guideTabBtn_guide').classList.toggle('active', tab==='guide');
 }
 function openUserGuide(initialTab){
-  const activeTab = initialTab === 'guide' ? 'guide' : 'whatsnew';
+  const activeTab = initialTab === 'whatsnew' ? 'whatsnew' : 'guide';
   const sec = (title, body) => `
     <div style="margin-bottom:18px">
       <h4 style="margin:0 0 6px;color:var(--dusk);font-size:15px">${title}</h4>
@@ -3408,11 +3408,11 @@ function openUserGuide(initialTab){
   document.getElementById('modalBody').innerHTML = `
     <h3 style="margin-bottom:14px">מדריך למשתמש</h3>
     <div class="sub-toggle" style="margin:0 0 16px">
-      <button type="button" id="guideTabBtn_whatsnew" class="${activeTab==='whatsnew'?'active':''}" onclick="switchGuideTab('whatsnew')">מה חדש</button>
       <button type="button" id="guideTabBtn_guide" class="${activeTab==='guide'?'active':''}" onclick="switchGuideTab('guide')">מדריך שימוש</button>
+      <button type="button" id="guideTabBtn_whatsnew" class="${activeTab==='whatsnew'?'active':''}" onclick="switchGuideTab('whatsnew')">מה חדש</button>
     </div>
-    <div id="guideTabContent_whatsnew" style="display:${activeTab==='whatsnew'?'':'none'}">${whatsNewHtml()}</div>
     <div id="guideTabContent_guide" style="display:${activeTab==='guide'?'':'none'}">${guideHtml}</div>
+    <div id="guideTabContent_whatsnew" style="display:${activeTab==='whatsnew'?'':'none'}">${whatsNewHtml()}</div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">סגירה</button>
     </div>`;
