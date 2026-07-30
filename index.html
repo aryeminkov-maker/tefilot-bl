@@ -186,6 +186,11 @@
     #printArea .print-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 2px}
     #printArea .print-footer{margin-top:24px;font-size:10.5px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:8px}
   }
+  .cookie-bar{position:fixed;right:0;left:0;bottom:0;z-index:9999;background:var(--ink);color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;box-shadow:0 -2px 12px rgba(0,0,0,.2)}
+  .cookie-bar-text{font-size:13.5px;line-height:1.6;max-width:640px}
+  .cookie-bar-text a{color:#fff;text-decoration:underline}
+  .cookie-bar .btn.primary{white-space:nowrap;flex-shrink:0}
+  @media print{ .cookie-bar{display:none !important} }
 </style>
 </head>
 <body>
@@ -493,6 +498,10 @@
 </footer>
 
 <div id="printArea" style="display:none"></div>
+<div id="cookieConsentBar" class="cookie-bar" style="display:none">
+  <span class="cookie-bar-text">האתר משתמש בעוגיות (Cookies) לצורך ניתוח סטטיסטי אנונימי ושיפור השירות. <a href="#" onclick="openPrivacyModal();return false">מדיניות פרטיות</a></span>
+  <button type="button" class="btn primary" onclick="acceptCookieConsent()">הבנתי, אישור</button>
+</div>
 <div class="overlay" id="overlay"><div class="modal" id="modalBody" role="dialog" aria-modal="true"></div></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
@@ -636,6 +645,7 @@ function doSignIn(){
       if (settled) return;
       settled = true; clearTimeout(fallbackTimer);
       btn.style.opacity = '';
+      trackEvent('login', { method: 'Google' });
     })
     .catch(err=>{
       if (settled) return;
@@ -650,10 +660,57 @@ function doSignIn(){
     });
 }
 
+// ---------- אנליטיקס (Google Analytics) - נטען רק לאחר אישור עוגיות ----------
+// חשוב: להחליף את הערך הבא במזהה המדידה (Measurement ID) שקיבלתם מ-Google Analytics (בפורמט G-XXXXXXXXXX)
+const GA_MEASUREMENT_ID = 'G-6GL3BFEYEC';
+let analyticsLoaded = false;
+function loadAnalytics(){
+  if (analyticsLoaded) return;
+  if (!GA_MEASUREMENT_ID || GA_MEASUREMENT_ID.indexOf('XXXX') !== -1) return; // עדיין לא הוגדר מזהה אמיתי
+  analyticsLoaded = true;
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + GA_MEASUREMENT_ID;
+  document.head.appendChild(s);
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){ window.dataLayer.push(arguments); }
+  window.gtag = gtag;
+  gtag('js', new Date());
+  gtag('config', GA_MEASUREMENT_ID, { anonymize_ip: true });
+}
+function acceptCookieConsent(){
+  try{ localStorage.setItem('cookieConsent', 'accepted'); }catch(e){}
+  const bar = document.getElementById('cookieConsentBar');
+  if (bar) bar.style.display = 'none';
+  loadAnalytics();
+}
+function checkCookieConsent(){
+  let consent = null;
+  try{ consent = localStorage.getItem('cookieConsent'); }catch(e){}
+  if (consent === 'accepted'){
+    loadAnalytics();
+  } else {
+    const bar = document.getElementById('cookieConsentBar');
+    if (bar) bar.style.display = 'flex';
+  }
+}
+// שולח אירוע מותאם אישית ל-Google Analytics (לא עושה כלום אם עדיין לא נטען/לא אושר)
+function trackEvent(name, params){
+  if (typeof window.gtag === 'function') window.gtag('event', name, params || {});
+}
+// שולח "צפיית עמוד וירטואלית" - שימושי לאתר עמוד-יחיד כמו זה, כדי שדפים/מסכים שונים
+// (לשוניות, דפי בתי כנסת) יופיעו כ"עמודים" נפרדים בדוחות הרגילים של GA4 ("Pages and screens")
+function trackPageView(title, path){
+  if (typeof window.gtag !== 'function') return;
+  const location = window.location.origin + (path || window.location.pathname + window.location.search);
+  window.gtag('event', 'page_view', { page_title: title, page_location: location });
+}
+
 // הצפייה פתוחה לכולם - מאזינים לנתונים כבר בטעינת הדף, בלי קשר להתחברות
 attachListeners();
 initA11yPrefs();
 updateMyShulHeaderBtn();
+checkCookieConsent();
 
 auth.getRedirectResult().then(result=>{
   if (result && result.user){
@@ -2311,6 +2368,7 @@ const ICS_BYDAY = {sun:'SU', mon:'MO', tue:'TU', wed:'WE', thu:'TH', fri:'FR', s
 function downloadShiurIcs(shiurId){
   const s = data.shiurim.find(x=>x.id===shiurId);
   if (!s) return;
+  trackEvent('add_to_calendar', { shiur_id: shiurId, shiur_title: s.title });
   let dtStart, rrule = '';
   if (s.oneTime && s.oneTimeDate){
     dtStart = fixedTimeAsDate(new Date(s.oneTimeDate+'T00:00:00'), s.time||'20:00');
@@ -2391,7 +2449,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   if (m.updatedAt){
     html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(m)}</div>`;
   }
-  html += `<a href="${whatsappShareUrl(minyanShareText(m, shul))}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
+  html += `<a href="${whatsappShareUrl(minyanShareText(m, shul))}" target="_blank" rel="noopener" onclick="trackEvent('share_whatsapp',{type:'minyan'})" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
   if (links){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
@@ -2423,7 +2481,7 @@ function openShiurMenuPopover(e, shiurId){
   if (s.updatedAt){
     html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(s)}</div>`;
   }
-  html += `<a href="${whatsappShareUrl(shiurShareText(s))}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
+  html += `<a href="${whatsappShareUrl(shiurShareText(s))}" target="_blank" rel="noopener" onclick="trackEvent('share_whatsapp',{type:'shiur'})" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
   html += `<a href="#" onclick="closeNavPopover();downloadShiurIcs('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">📅 הוספה ליומן</a>`;
   if (links){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
@@ -2614,6 +2672,8 @@ function openShulPage(shulId){
   }catch(e){}
   renderShulPage();
   maybeShowFirstVisitAnnouncement(shulId);
+  const shulForTracking = data.shuls.find(s=>s.id===shulId);
+  trackPageView('בית כנסת - ' + (shulForTracking ? shulForTracking.name : shulId), '/?shul=' + shulId);
 }
 function isMyShul(shulId){
   try{ return localStorage.getItem('myShulId') === shulId; }catch(e){ return false; }
@@ -2881,6 +2941,7 @@ function renderShulPage(){
 function printShulSchedule(shulId){
   const shul = data.shuls.find(s=>s.id===shulId);
   if (!shul) return;
+  trackEvent('print_schedule', { shul_id: shulId, shul_name: shul.name });
   const today = new Date();
   const zmanim = getZmanim(today);
   const mins = data.minyanim.filter(m=>m.shulId===shulId).map(m=>({
@@ -3071,14 +3132,17 @@ function saveMinyan(shulId, minyanId){
     const proceed = confirm('כבר קיים בבית הכנסת הזה מניין דומה - אותה תפילה, עם ימים חופפים ואותו זמן בדיוק. לשמור בכל זאת?');
     if (!proceed) return;
   }
+  const isNew = !minyanId;
   const obj = stamp(candidate);
   db.collection('minyanim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  trackEvent(isNew ? 'add_minyan' : 'edit_minyan', { tefila: candidate.tefila, shul_id: shulId });
   closeModal();
 
 }
 function deleteMinyan(id){
   if (!confirm('למחוק את המניין?')) return;
   db.collection('minyanim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
+  trackEvent('delete_minyan', { minyan_id: id });
 }
 
 // ---------- טפסים: שיעור ----------
@@ -3204,11 +3268,13 @@ function saveShiur(shiurId){
     notes: document.getElementById('f_shiurNotes').value.trim()
   });
   db.collection('shiurim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
+  trackEvent(shiurId ? 'edit_shiur' : 'add_shiur', { title });
   closeModal();
 }
 function deleteShiur(id){
   if (!confirm('למחוק את השיעור?')) return;
   db.collection('shiurim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
+  trackEvent('delete_shiur', { shiur_id: id });
 }
 
 function closeModal(){
@@ -3243,9 +3309,38 @@ function openAboutModal(){
       <button type="button" class="btn primary" onclick="openUserGuide()">📖 מדריך למשתמש</button>
       <button type="button" class="btn" onclick="openUsefulInfoModal()">ℹ️ מידע שימושי</button>
       <button type="button" class="btn" onclick="openAccessibilityPanel()">♿ נגישות</button>
+      <button type="button" class="btn" onclick="openPrivacyModal()">🔒 מדיניות פרטיות</button>
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
       ${(isMobileDevice()&&!isRunningStandalone())?`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`:''}
     </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function openPrivacyModal(){
+  const sec = (title, body) => `
+    <div style="margin-bottom:18px">
+      <h4 style="margin:0 0 6px;color:var(--dusk);font-size:15px">${title}</h4>
+      <div style="line-height:1.8;font-size:14px">${body}</div>
+    </div>`;
+  document.getElementById('modalBody').innerHTML = `
+    <h3 style="margin-bottom:14px">מדיניות פרטיות</h3>
+    ${sec('אילו נתונים נאספים', `
+      כשמתחברים עם חשבון Google כדי להוסיף או לערוך פרטים, נשמרים השם וכתובת הדוא"ל של החשבון, לצורך זיהוי מי עדכן כל פריט וניהול הרשאות.<br>
+      פרטי מניינים, שיעורים, בתי כנסת והודעות שמוזנים לאתר נשמרים במאגר הנתונים (Firebase, שירות של Google) ומוצגים לכלל הגולשים.<br>
+      אם משתמשים באפשרות "מיין לפי קרבה אליי", המיקום מעובד בדפדפן שלכם בלבד ואינו נשלח או נשמר בשום שרת.
+    `)}
+    ${sec('עוגיות (Cookies) ואנליטיקס', `
+      לאחר אישור בחלונית העוגיות, האתר טוען את Google Analytics לצורך איסוף נתוני שימוש כלליים ואנונימיים (כמות כניסות, דפים נצפים וכדו') - זאת כדי להבין איך לשפר את הכלי. הנתונים הללו אינם כוללים מידע מזהה אישית, וכתובת ה-IP מטושטשת (anonymize_ip).<br>
+      ניתן להמשיך להשתמש באתר גם בלי לאשר - האישור משפיע רק על איסוף נתוני השימוש האנונימיים, לא על התפקוד של האתר עצמו.
+    `)}
+    ${sec('שיתוף עם צדדים שלישיים', `
+      הנתונים אינם נמכרים ואינם משותפים עם גורמים חיצוניים, מלבד ספקי התשתית הנדרשים להפעלת האתר עצמו (Google/Firebase לאחסון ואימות, GitHub Pages לאירוח).
+    `)}
+    ${sec('זכויותיכם', `
+      ניתן לפנות בכל עת בבקשה לעיין, לתקן או למחוק מידע אישי שנשמר עליכם, דרך מחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a>.
+    `)}
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">סגירה</button>
     </div>`;
@@ -3451,7 +3546,9 @@ function addToHomeScreen(){
   }
   if (deferredInstallPrompt){
     deferredInstallPrompt.prompt();
-    deferredInstallPrompt.userChoice.finally(()=>{ deferredInstallPrompt = null; });
+    deferredInstallPrompt.userChoice.then(choice=>{
+      trackEvent('pwa_install_prompt_result', { outcome: choice.outcome });
+    }).finally(()=>{ deferredInstallPrompt = null; });
     return;
   }
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
@@ -3477,6 +3574,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.getElementById('tefilot-tab').style.display = currentTab==='tefilot' ? '' : 'none';
     document.getElementById('shiurim-tab').style.display = currentTab==='shiurim' ? '' : 'none';
     document.getElementById('admin-tab').style.display = currentTab==='admin' ? '' : 'none';
+    const tabLabels = {tefilot:'תפילות', shiurim:'שיעורי תורה', admin:'ניהול'};
+    trackPageView(tabLabels[currentTab] || currentTab, '/?tab=' + currentTab);
     render();
   });
 });
