@@ -221,6 +221,7 @@
       <span id="userInfo" style="display:none;align-items:center;gap:8px">
         <img id="userPhoto" alt="תמונת הפרופיל שלך" style="width:26px;height:26px;border-radius:50%">
         <span id="userNameLabel"></span>
+        <button type="button" class="row-icon-btn" id="myMessagesBtn" style="display:none;font-size:16px" onclick="openMyMessagesModal()" aria-label="יש לכם תשובה מהמנהל" title="יש לכם תשובה מהמנהל">✉️</button>
         <span class="badge" id="userRoleBadge"></span>
         <button class="btn ghost" id="signOutBtn" style="color:var(--ink)">התנתקות</button>
       </span>
@@ -333,6 +334,16 @@
 
   <div id="admin-tab" style="display:none">
     <div class="card admin-section">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_messages" aria-expanded="false" onclick="toggleAdminSection('messages')">
+        <h3>💬 הודעות מתושבים <span class="badge" id="adminMessagesBadge" style="display:none"></span></h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_messages" style="display:none">
+        <p class="muted" style="margin-bottom:12px">הודעות ודיווחים ששלחו תושבים (למשל על מניין שהתבטל) - דרך כפתור "שליחת הודעה למנהל" שמופיע ברחבי האפליקציה. ניתן להשיב, והתשובה תוצג לתושב באייקון ✉️ ליד השם שלו.</p>
+        <div id="adminMessagesList"></div>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
       <button type="button" class="admin-section-header" id="adminSectionHeader_users" aria-expanded="false" onclick="toggleAdminSection('users')">
         <h3>👥 משתמשים והרשאות</h3>
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -534,7 +545,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-let data = { shuls: [], minyanim: [], shiurim: [], users: [] };
+let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [] };
 let currentView = 'chrono';
 let selectedDayKey = '';
 let selectedSpecificDate = ''; // תאריך מדויק שנבחר (YYYY-MM-DD), או ריק אם מציגים לפי יום בשבוע כללי
@@ -757,6 +768,9 @@ auth.onAuthStateChanged(async user=>{
     document.getElementById('userInfo').style.display = 'none';
     document.getElementById('adminTabBtn').style.display = 'none';
     if (unsubUsers){ unsubUsers(); unsubUsers = null; }
+    if (unsubSupportMessages){ unsubSupportMessages(); unsubSupportMessages = null; }
+    if (unsubMyMessages){ unsubMyMessages(); unsubMyMessages = null; }
+    document.getElementById('myMessagesBtn').style.display = 'none';
     if (currentTab === 'admin'){
       currentTab = 'tefilot';
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
@@ -772,11 +786,12 @@ auth.onAuthStateChanged(async user=>{
   document.getElementById('userInfo').style.display = 'flex';
   document.getElementById('userPhoto').src = user.photoURL || '';
   document.getElementById('userNameLabel').textContent = user.displayName || user.email;
+  attachMyMessagesListener(user.uid);
 
   const userRef = db.collection('users').doc(user.uid);
   const snap = await userRef.get();
   if (!snap.exists){
-    await userRef.set({ role:'resident', name:user.displayName||'', email:user.email||'' });
+    await userRef.set({ role:'resident', name:user.displayName||'', email:user.email||'', createdAt: new Date().toISOString() });
   }
   unsubUserDoc = userRef.onSnapshot(doc=>{
     const d = doc.data();
@@ -796,6 +811,7 @@ auth.onAuthStateChanged(async user=>{
       document.getElementById('admin-tab').style.display = 'none';
     }
     attachUsersListenerIfManager();
+    attachSupportMessagesListenerIfManager();
     if (d) maybeShowPendingMessage(d);
     render();
   });
@@ -814,6 +830,140 @@ function attachUsersListenerIfManager(){
     if (currentTab === 'admin') renderUsers();
   }, e=>console.error(e));
 }
+// ---------- הודעות תושבים למנהל (דיווחים כמו מניין שהתבטל) ----------
+let unsubSupportMessages;
+let unsubMyMessages;
+
+function attachSupportMessagesListenerIfManager(){
+  if (!isManager()){
+    if (unsubSupportMessages){ unsubSupportMessages(); unsubSupportMessages = null; }
+    data.supportMessages = [];
+    return;
+  }
+  if (unsubSupportMessages) return;
+  unsubSupportMessages = db.collection('supportMessages').orderBy('createdAt', 'desc').onSnapshot(snap=>{
+    data.supportMessages = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    updateAdminMessagesBadge();
+    if (currentTab === 'admin') renderAdminMessages();
+  }, e=>console.error(e));
+}
+function attachMyMessagesListener(uid){
+  if (unsubMyMessages){ unsubMyMessages(); unsubMyMessages = null; }
+  unsubMyMessages = db.collection('supportMessages').where('fromUid', '==', uid).onSnapshot(snap=>{
+    myMessages = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    updateMyMessagesBtn();
+  }, e=>console.error(e));
+}
+let myMessages = [];
+function updateMyMessagesBtn(){
+  const btn = document.getElementById('myMessagesBtn');
+  if (!btn) return;
+  const hasUnseenReply = myMessages.some(m=> m.reply && !m.replySeenByUser);
+  btn.style.display = hasUnseenReply ? '' : 'none';
+}
+function updateAdminMessagesBadge(){
+  const badge = document.getElementById('adminMessagesBadge');
+  if (!badge) return;
+  const openCount = data.supportMessages.filter(m=>!m.reply).length;
+  if (openCount > 0){
+    badge.textContent = openCount;
+    badge.style.display = '';
+  } else {
+    badge.style.display = 'none';
+  }
+}
+
+// פותח את טופס שליחת הודעה למנהל. contextLabel הוא תיאור חופשי של מה שהתושב מדווח עליו (למשל "מנחה - בית הכנסת המרכזי")
+function openSendAdminMessageForm(contextLabel){
+  if (!requireEditPermission()) return;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>שליחת הודעה למנהל</h3>
+    ${contextLabel?`<p class="muted" style="margin-bottom:10px">לגבי: ${escapeHtml(contextLabel)}</p>`:''}
+    <p class="muted" style="margin-bottom:10px">לדוגמה: מניין שהתבטל, טעות בפרטים, או כל דבר אחר שכדאי שנדע עליו.</p>
+    <textarea id="f_adminMessageText" rows="4" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="submitAdminMessage('${escapeHtml(contextLabel||'')}')">שליחה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function submitAdminMessage(contextLabel){
+  const text = document.getElementById('f_adminMessageText').value.trim();
+  if (!text){ alert('יש לכתוב הודעה'); return; }
+  db.collection('supportMessages').add({
+    fromUid: currentUser.uid,
+    fromName: currentUserName || currentUser.displayName || currentUser.email,
+    fromEmail: currentUser.email || '',
+    text,
+    contextLabel: contextLabel || '',
+    createdAt: new Date().toISOString(),
+    reply: null,
+    replySeenByUser: true
+  }).then(()=>{ alert('ההודעה נשלחה למנהל, תודה!'); closeModal(); trackEvent('send_admin_message', {}); })
+    .catch(e=>alert('שגיאה בשליחה: '+e.message));
+}
+function renderAdminMessages(){
+  const el = document.getElementById('adminMessagesList');
+  if (!el) return;
+  if (!data.supportMessages.length){ el.innerHTML = '<div class="empty">אין הודעות מתושבים</div>'; return; }
+  el.innerHTML = data.supportMessages.map(m=>{
+    const dateStr = new Date(m.createdAt).toLocaleString('he-IL');
+    return `<div class="card" style="${m.reply?'':'border-color:var(--accent)'}">
+      <div class="row">
+        <div>
+          <div style="font-weight:500">${escapeHtml(m.fromName||'')}${m.fromEmail?' · '+escapeHtml(m.fromEmail):''}</div>
+          <div class="muted" style="font-size:12px">${dateStr}${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}</div>
+        </div>
+        ${m.reply?'<span class="badge">נענה</span>':'<span class="badge" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">ממתין</span>'}
+      </div>
+      <p style="margin:10px 0;white-space:pre-wrap;line-height:1.6">${escapeHtml(m.text)}</p>
+      ${m.reply ? `
+        <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;margin-top:8px">
+          <div class="muted" style="font-size:11.5px;margin-bottom:4px">התשובה שנשלחה:</div>
+          <div style="white-space:pre-wrap">${escapeHtml(m.reply.text)}</div>
+        </div>
+      ` : `
+        <div style="margin-top:8px">
+          <textarea id="reply_${m.id}" rows="2" placeholder="כתבו תשובה..." style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+          <button class="btn primary" style="margin-top:8px" onclick="sendAdminReply('${m.id}')">שליחת תשובה</button>
+        </div>
+      `}
+    </div>`;
+  }).join('');
+}
+function sendAdminReply(messageId){
+  const textarea = document.getElementById('reply_'+messageId);
+  const text = textarea.value.trim();
+  if (!text){ alert('יש לכתוב תשובה'); return; }
+  db.collection('supportMessages').doc(messageId).update({
+    reply: { text, repliedBy: currentUserName || currentUser.displayName || currentUser.email, repliedAt: new Date().toISOString() },
+    replySeenByUser: false
+  }).catch(e=>alert('שגיאה בשליחת התשובה: '+e.message));
+}
+function openMyMessagesModal(){
+  const withReply = myMessages.filter(m=>m.reply).sort((a,b)=> new Date(b.reply.repliedAt) - new Date(a.reply.repliedAt));
+  let html = `<h3>תשובות מהמנהל</h3>`;
+  if (!withReply.length){
+    html += `<div class="empty">אין עדיין תשובות</div>`;
+  } else {
+    html += withReply.map(m=>`
+      <div class="card">
+        <div class="muted" style="font-size:12px;margin-bottom:6px">ההודעה שלכם${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}:</div>
+        <p style="margin:0 0 10px;white-space:pre-wrap;color:var(--ink-soft)">${escapeHtml(m.text)}</p>
+        <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px">
+          <div class="muted" style="font-size:11.5px;margin-bottom:4px">תשובה מ${escapeHtml(m.reply.repliedBy||'מנהל')} · ${new Date(m.reply.repliedAt).toLocaleDateString('he-IL')}</div>
+          <div style="white-space:pre-wrap">${escapeHtml(m.reply.text)}</div>
+        </div>
+      </div>`).join('');
+  }
+  html += `<div class="modal-actions"><button class="btn primary" onclick="closeModal()">סגירה</button></div>`;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('overlay').classList.add('show');
+  // מסמנים את כל התשובות כנצפו
+  myMessages.filter(m=>m.reply && !m.replySeenByUser).forEach(m=>{
+    db.collection('supportMessages').doc(m.id).update({ replySeenByUser: true }).catch(()=>{});
+  });
+}
 function renderUsers(){
   const el = document.getElementById('usersList');
   if (!data.users.length){ el.innerHTML = '<div class="empty">אין עדיין משתמשים רשומים</div>'; return; }
@@ -823,13 +973,22 @@ function renderUsers(){
     if (roleF && u.role !== roleF) return false;
     if (searchF && !((u.name||'')+' '+(u.email||'')).toLowerCase().includes(searchF)) return false;
     return true;
+  }).sort((a,b)=>{
+    // מהחדש לישן; משתמשים ותיקים בלי תאריך הצטרפות רשום (מלפני התכונה הזו) מוצגים בסוף
+    if (!a.createdAt && !b.createdAt) return 0;
+    if (!a.createdAt) return 1;
+    if (!b.createdAt) return -1;
+    return new Date(b.createdAt) - new Date(a.createdAt);
   });
   if (!filtered.length){ el.innerHTML = '<div class="empty">לא נמצאו משתמשים תואמים</div>'; return; }
   const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל'};
-  el.innerHTML = filtered.map(u=>`
+  el.innerHTML = filtered.map(u=>{
+    const userMsgs = data.supportMessages.filter(m=>m.fromUid===u.id);
+    const unrepliedCount = userMsgs.filter(m=>!m.reply).length;
+    return `
     <div class="card">
       <div class="row">
-        <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.role==='gabai'?(u.assignedShulIds&&u.assignedShulIds.length?` · גבאי ${u.assignedShulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}`:' · גבאי ללא שיוך'):''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}</div>
+        <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.createdAt?' · הצטרפ/ה ב-'+new Date(u.createdAt).toLocaleDateString('he-IL'):''}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.role==='gabai'?(u.assignedShulIds&&u.assignedShulIds.length?` · גבאי ${u.assignedShulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}`:' · גבאי ללא שיוך'):''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}</div>
         <select onchange="changeUserRole('${u.id}', this.value)">
           <option value="resident" ${u.role==='resident'?'selected':''}>תושב</option>
           <option value="gabai" ${u.role==='gabai'?'selected':''}>גבאי</option>
@@ -847,9 +1006,51 @@ function renderUsers(){
         <button class="btn" onclick="showUserEdits('${u.id}')">📋 הצגת עריכות</button>
         ${u.role==='gabai'?`<button class="btn" onclick="openGabaiShulAssignModal('${u.id}')">🏠 עדכון שיוך בתי כנסת</button>`:''}
         <button class="btn" onclick="openSendMessageForm('${u.id}')">✉️ שליחת הודעה</button>
+        <button class="btn" onclick="openUserConversationModal('${u.id}')">💬 היסטוריית פניות${userMsgs.length?` (${userMsgs.length}${unrepliedCount?', '+unrepliedCount+' ממתינות':''})`:''}</button>
         <button class="btn ${u.blocked?'':'danger'}" onclick="toggleUserBlocked('${u.id}')">${u.blocked?'ביטול חסימה':'חסימה מעריכה'}</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+function openUserConversationModal(targetUid){
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const userMsgs = data.supportMessages.filter(m=>m.fromUid===targetUid).sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+  let html = `<h3>היסטוריית פניות - ${escapeHtml(u?(u.name||u.email||''):'')}</h3>`;
+  if (!userMsgs.length){
+    html += `<div class="empty">אין פניות מהמשתמש הזה</div>`;
+  } else {
+    html += userMsgs.map(m=>{
+      const dateStr = new Date(m.createdAt).toLocaleString('he-IL');
+      return `<div class="card">
+        <div class="muted" style="font-size:12px;margin-bottom:6px">${dateStr}${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}</div>
+        <p style="margin:0 0 10px;white-space:pre-wrap">${escapeHtml(m.text)}</p>
+        ${m.reply ? `
+          <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px">
+            <div class="muted" style="font-size:11.5px;margin-bottom:4px">התשובה שנשלחה · ${new Date(m.reply.repliedAt).toLocaleDateString('he-IL')}</div>
+            <div style="white-space:pre-wrap">${escapeHtml(m.reply.text)}</div>
+          </div>
+        ` : `
+          <div>
+            <textarea id="convReply_${m.id}" rows="2" placeholder="כתבו תשובה..." style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+            <button class="btn primary" style="margin-top:8px" onclick="sendAdminReplyFromConversation('${m.id}','${targetUid}')">שליחת תשובה</button>
+          </div>
+        `}
+      </div>`;
+    }).join('');
+  }
+  html += `<div class="modal-actions"><button class="btn" onclick="closeModal()">סגירה</button></div>`;
+  document.getElementById('modalBody').innerHTML = html;
+  document.getElementById('overlay').classList.add('show');
+}
+function sendAdminReplyFromConversation(messageId, targetUid){
+  const textarea = document.getElementById('convReply_'+messageId);
+  const text = textarea.value.trim();
+  if (!text){ alert('יש לכתוב תשובה'); return; }
+  db.collection('supportMessages').doc(messageId).update({
+    reply: { text, repliedBy: currentUserName || currentUser.displayName || currentUser.email, repliedAt: new Date().toISOString() },
+    replySeenByUser: false
+  }).then(()=> openUserConversationModal(targetUid))
+    .catch(e=>alert('שגיאה בשליחת התשובה: '+e.message));
 }
 function openSendMessageForm(targetUid){
   document.getElementById('modalBody').innerHTML = `
@@ -1993,7 +2194,7 @@ function render(){
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot') renderTefilot();
   else if (currentTab === 'shiurim') renderShiurim();
-  else if (currentTab === 'admin'){ renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); }
+  else if (currentTab === 'admin'){ renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); }
 }
 function timeMinutesIsrael(t){
   const s = t.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'});
@@ -2608,6 +2809,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
   }
+  html += `<a href="#" onclick="closeNavPopover();openSendAdminMessageForm('${escapeHtml(m.tefila+' - '+(shul?shul.name:''))}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">✉️ דיווח למנהל (למשל מניין שבוטל)</a>`;
   html += `<a href="#" onclick="closeNavPopover();openMinyanForm('${shulId}','${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none${canDeleteInShul(shulId)?';border-bottom:1px solid var(--border)':''}">✏️ עריכה</a>`;
   if (canDeleteInShul(shulId)){
     html += `<a href="#" onclick="closeNavPopover();deleteMinyan('${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--danger);text-decoration:none">🗑️ מחיקה</a>`;
@@ -2641,6 +2843,7 @@ function openShiurMenuPopover(e, shiurId){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
   }
+  html += `<a href="#" onclick="closeNavPopover();openSendAdminMessageForm('${escapeHtml(s.title)}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">✉️ דיווח למנהל</a>`;
   html += `<a href="#" onclick="closeNavPopover();openShiurForm('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none${canDeleteShiur(s)?';border-bottom:1px solid var(--border)':''}">✏️ עריכה</a>`;
   if (canDeleteShiur(s)){
     html += `<a href="#" onclick="closeNavPopover();deleteShiur('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--danger);text-decoration:none">🗑️ מחיקה</a>`;
@@ -3084,6 +3287,7 @@ function renderShulPage(){
         <button class="icon-btn" onclick="toggleMyShul('${shul.id}')" aria-label="${isMyShul(shul.id)?'הסרה מבית הכנסת שלי':'סימון כבית הכנסת שלי'}" title="${isMyShul(shul.id)?'זהו בית הכנסת שלי - לחצו להסרה':'סמנו כבית הכנסת שלי, לגישה מהירה דרך סמל הכוכב למעלה'}">${isMyShul(shul.id)?'⭐':'☆'}</button>
         <button class="icon-btn" onclick="shareShulLink('${shul.id}')" aria-label="שיתוף" title="שיתוף">🔗</button>
         <button class="icon-btn" onclick="printShulSchedule('${shul.id}')" aria-label="גרסת הדפסה" title="גרסת הדפסה">🖨️</button>
+        <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(shul.name)}')" aria-label="שליחת הודעה למנהל" title="שליחת הודעה למנהל">✉️</button>
         ${editable?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>`:''}
       </div>
       <div style="display:flex;justify-content:center;margin-top:4px">${navLinksHtml(shul)}</div>
@@ -3499,6 +3703,7 @@ function openAboutModal(){
     <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - יש לפנות למחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a></p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn primary" onclick="openUserGuide()">📖 מדריך למשתמש</button>
+      <button type="button" class="btn" onclick="openSendAdminMessageForm('')">✉️ שליחת הודעה למנהל</button>
       <button type="button" class="btn" onclick="openUsefulInfoModal()">ℹ️ מידע שימושי</button>
       <button type="button" class="btn" onclick="openAccessibilityPanel()">♿ נגישות</button>
       <button type="button" class="btn" onclick="openPrivacyModal()">🔒 מדיניות פרטיות</button>
@@ -3639,6 +3844,14 @@ function openUsefulInfoModal(){
 }
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
+  {
+    version: '1.2',
+    date: '30.7.2026',
+    items: [
+      '✉️ שליחת הודעה למנהל - כפתור חדש שמופיע ליד מניינים, שיעורים ובדפי בית כנסת (וגם באופן כללי תחת "אודות"), לדיווח על דברים כמו מניין שהתבטל. דורש התחברות עם חשבון Google.',
+      '📩 המנהל יכול להשיב להודעה - התשובה מופיעה למי ששלח באמצעות סמל ✉️ שמופיע ליד השם שלו בראש העמוד.'
+    ]
+  },
   {
     version: '1.1',
     date: '30.7.2026',
