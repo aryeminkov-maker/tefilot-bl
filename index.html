@@ -3493,7 +3493,7 @@ const MAIL_ICON_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="non
 const GOOGLE_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-4px"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>';
 function openAboutModal(){
   document.getElementById('modalBody').innerHTML = `
-    <h3>אודות</h3>
+    <h3>אודות <span class="muted" style="font-weight:400;font-size:14px">· גרסה ${escapeHtml(CURRENT_APP_VERSION)}</span></h3>
     <p style="line-height:1.7;margin-bottom:14px">הכלי פותח על ידי המחלקה לשירותי דת, מועצה מקומית בית אל.</p>
     <p style="line-height:1.7;margin-bottom:14px">זמני התפילות, השיעורים וכדו' מתעדכנים על ידי התושבים. נתקלתם במידע לא מדויק - היכנסו לפרטי המניין או השיעור ועדכנו את הפרטים!</p>
     <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - יש לפנות למחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a></p>
@@ -3640,6 +3640,17 @@ function openUsefulInfoModal(){
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
   {
+    version: '1.1',
+    date: '30.7.2026',
+    items: [
+      '🏠 לחיצה על הכותרת או על הלוגו בראש העמוד מחזירה ישר לדף הבית (תפילות לפי שעות), מכל מקום באפליקציה.',
+      '🍪 חלונית עוגיות ומדיניות פרטיות חדשה, זמינה תחת "אודות".',
+      '📖 שיעורי תורה: כברירת מחדל מוצגים שיעורי היום בלבד (אפשר לעבור בקלות ל"כל הימים"), עם מיון כרונולוגי כברירת מחדל ואפשרויות מיון חדשות - לפי נושא ולפי תדירות.',
+      '🖼️ אפשרות להוסיף תמונה קטנה לשיעור תורה (למשל תמונת מעביר השיעור).'
+    ]
+  },
+  {
+    version: '1.0',
     date: '29.7.2026',
     items: [
       '⭐ בית הכנסת שלי: כפתור כוכב חדש בראש העמוד לגישה מהירה לבית הכנסת שלכם. ניתן לסמן בית כנסת אחד בלבד בכל פעם - האפליקציה תשאל לפני החלפה.',
@@ -3647,18 +3658,22 @@ const WHATS_NEW = [
       '📅 בורר תאריך מדויק בסינון התפילות - אפשר לבחור תאריך עתידי ספציפי ולראות זמנים מחושבים בדיוק אליו, לא רק "היום".',
       '⚠️ אזהרה אוטומטית בעת הוספת מניין שכבר קיים (אותה תפילה, ימים חופפים ואותו זמן) לאותו בית כנסת.',
       '💬 שיתוף מהיר בוואטסאפ, ו-📅 הוספה ליומן האישי, עבור מניינים ושיעורים.',
-      '🏠 לחיצה על הכותרת או על הלוגו בראש העמוד מחזירה ישר לדף הבית (תפילות לפי שעות), מכל מקום באפליקציה.',
-      '🍪 חלונית עוגיות ומדיניות פרטיות חדשה, זמינה תחת "אודות".',
-      '📖 שיעורי תורה: כברירת מחדל מוצגים שיעורי היום בלבד (אפשר לעבור בקלות ל"כל הימים"), עם מיון כרונולוגי כברירת מחדל ואפשרויות מיון חדשות - לפי נושא ולפי תדירות.',
-      '🖼️ אפשרות להוסיף תמונה קטנה לשיעור תורה (למשל תמונת מעביר השיעור).',
       'שיפורי דיוק בחישובי זמנים הלכתיים, ותיקוני באגים שונים.'
     ]
   }
 ];
+const CURRENT_APP_VERSION = WHATS_NEW[0].version;
+(function applyVersionToAboutBtn(){
+  const btn = document.getElementById('aboutBtn');
+  if (btn){
+    btn.title = 'אודות · גרסה ' + CURRENT_APP_VERSION;
+    btn.setAttribute('aria-label', 'אודות, גרסה ' + CURRENT_APP_VERSION);
+  }
+})();
 function whatsNewHtml(){
   return WHATS_NEW.map(entry => `
     <div style="margin-bottom:18px">
-      <h4 style="margin:0 0 8px;color:var(--dusk);font-size:14px">${escapeHtml(entry.date)}</h4>
+      <h4 style="margin:0 0 8px;color:var(--dusk);font-size:14px">גרסה ${escapeHtml(entry.version)} <span style="font-weight:400;color:var(--ink-soft);font-size:12.5px">· ${escapeHtml(entry.date)}</span></h4>
       <ul style="margin:0;padding-right:20px;line-height:1.9;font-size:14px">
         ${entry.items.map(it=>`<li>${it}</li>`).join('')}
       </ul>
