@@ -44,6 +44,9 @@
   .demo-banner{background:var(--accent);color:var(--accent-ink);font-size:12.5px;padding:8px 16px;text-align:center}
   .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;padding:0;cursor:pointer;font-size:17px;line-height:1;flex-shrink:0}
   .row-icon-btn{background:transparent;border:none;cursor:pointer;font-size:14px;padding:3px 5px;opacity:.7;line-height:1}
+  .notif-badge{position:absolute;top:-4px;left:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--surface);pointer-events:none}
+  .shiur-recording-btn{width:64px;flex-shrink:0;display:flex;align-items:center;justify-content:center;text-decoration:none;border-right:1px solid var(--border);border-top-left-radius:9px;border-bottom-left-radius:9px;transition:filter .15s}
+  .shiur-recording-btn:hover{filter:brightness(.95)}
   .row-icon-btn:hover{opacity:1}
   .google-icon-svg{width:20px;height:20px}
   .info-popover{display:none;position:absolute;top:calc(100% + 8px);right:0;width:230px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6;z-index:30}
@@ -177,7 +180,9 @@
     #printArea h1{font-size:24px;margin:0 0 4px;color:var(--ink)}
     #printArea .print-subtitle{font-size:13px;color:var(--ink-soft)}
     #printArea .print-hr{border:none;border-top:2px solid var(--accent);margin:14px 0 18px}
-    #printArea h2{font-size:16px;margin:20px 0 8px;color:var(--dusk);border-bottom:1px solid var(--border);padding-bottom:5px}
+    #printArea h2{font-size:16px;margin:20px 0 8px;color:var(--dusk);border-bottom:1px solid var(--border);padding-bottom:5px;break-after:avoid}
+    #printArea h4{break-after:avoid}
+    #printArea tr{break-inside:avoid}
     #printArea .print-note{font-size:11.5px;color:var(--ink-soft);margin:-4px 0 8px}
     #printArea table{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:4px}
     #printArea td, #printArea th{border:1px solid #ccc;padding:7px 9px;text-align:right}
@@ -221,7 +226,10 @@
       <span id="userInfo" style="display:none;align-items:center;gap:8px">
         <img id="userPhoto" alt="תמונת הפרופיל שלך" style="width:26px;height:26px;border-radius:50%">
         <span id="userNameLabel"></span>
-        <button type="button" class="row-icon-btn" id="myMessagesBtn" style="display:none;font-size:16px" onclick="openMyMessagesModal()" aria-label="יש לכם תשובה מהמנהל" title="יש לכם תשובה מהמנהל">✉️</button>
+        <span style="position:relative;display:inline-flex">
+          <button type="button" class="row-icon-btn" id="myMessagesBtn" style="display:none;font-size:16px" onclick="onMessagesBtnClick()" aria-label="הודעות" title="הודעות">✉️</button>
+          <span id="myMessagesBadge" class="notif-badge" style="display:none"></span>
+        </span>
         <span class="badge" id="userRoleBadge"></span>
         <button class="btn ghost" id="signOutBtn" style="color:var(--ink)">התנתקות</button>
       </span>
@@ -340,7 +348,7 @@
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div class="admin-section-body" id="adminSection_messages" style="display:none">
-        <p class="muted" style="margin-bottom:12px">הודעות ודיווחים ששלחו תושבים (למשל על מניין שהתבטל) - דרך כפתור "שליחת הודעה למנהל" שמופיע ברחבי האפליקציה. ניתן להשיב, והתשובה תוצג לתושב באייקון ✉️ ליד השם שלו.</p>
+        <p class="muted" style="margin-bottom:12px">הודעות ודיווחים ששלחו תושבים (למשל על מניין שהתבטל) - דרך כפתור "שליחת הודעה למנהל" שמופיע ברחבי האפליקציה. אפשר לנהל התכתבות מלאה - התשובה (וכל הודעת המשך) תוצג לתושב, עם הקפצת חלונית בכניסה הבאה שלו לאפליקציה.</p>
         <div id="adminMessagesList"></div>
       </div>
     </div>
@@ -397,6 +405,10 @@
           </select>
         </div>
         <div id="usersList"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <p class="muted" style="margin-bottom:8px">אם שינית ידנית פרטי גבאים בעבר, או שיש גבאים משויכים שלא מוצגים בדף בית הכנסת שלהם - אפשר לרענן את התאמת התצוגה בכל בתי הכנסת (חד פעמי, לא מוחק שום דבר):</p>
+          <button class="btn" onclick="resyncAllShulGabaim()">🔄 רענון רשימת גבאים בכל בתי הכנסת</button>
+        </div>
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
@@ -811,6 +823,8 @@ auth.onAuthStateChanged(async user=>{
     if (unsubSupportMessages){ unsubSupportMessages(); unsubSupportMessages = null; }
     if (unsubMyMessages){ unsubMyMessages(); unsubMyMessages = null; }
     document.getElementById('myMessagesBtn').style.display = 'none';
+    const myMsgBadgeEl = document.getElementById('myMessagesBadge');
+    if (myMsgBadgeEl) myMsgBadgeEl.style.display = 'none';
     if (currentTab === 'admin'){
       currentTab = 'tefilot';
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
@@ -895,22 +909,147 @@ function attachMyMessagesListener(uid){
   }, e=>console.error(e));
 }
 let myMessages = [];
+// ---------- מבנה נתונים משותף: הודעות תושב<->מנהל כהתכתבות (thread) ----------
+// לתאימות לאחור עם הודעות ישנות שנוצרו לפני שהיה שדה thread (רק text + reply בודד)
+function getMessageThread(m){
+  if (m.thread && Array.isArray(m.thread) && m.thread.length) return m.thread;
+  const thread = [{ sender:'resident', text:m.text, at:m.createdAt, by:m.fromName }];
+  if (m.reply) thread.push({ sender:'manager', text:m.reply.text, at:m.reply.repliedAt, by:m.reply.repliedBy });
+  return thread;
+}
+function isUnreadForManager(m){
+  if (typeof m.unreadByManager === 'boolean') return m.unreadByManager;
+  return !m.reply; // תאימות לאחור: הודעה ישנה שעדיין לא נענתה נחשבת "חדשה" למנהל
+}
+function isUnreadForUser(m){
+  if (typeof m.unreadByUser === 'boolean') return m.unreadByUser;
+  return !!(m.reply && !m.replySeenByUser);
+}
+// מוסיף הודעה להתכתבות (מצד תושב או מנהל) ומעדכן את דגלי "לא נקרא" בהתאם
+function appendToMessageThread(m, sender, text){
+  const by = currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || (sender==='resident' ? (lastName||'תושב אנונימי') : 'מנהל');
+  const at = new Date().toISOString();
+  const thread = getMessageThread(m).concat([{ sender, text, at, by }]);
+  const update = { thread };
+  if (sender === 'manager'){
+    update.unreadByUser = true;
+    update.unreadByManager = false;
+    update.reply = { text, repliedBy: by, repliedAt: at }; // תאימות לאחור
+    update.replySeenByUser = false;
+  } else {
+    update.unreadByManager = true;
+    update.unreadByUser = false;
+    update.replySeenByUser = true; // תאימות לאחור
+  }
+  return db.collection('supportMessages').doc(m.id).update(update);
+}
+function messageThreadHtml(m, showFromLabel){
+  const thread = getMessageThread(m);
+  return thread.map(t=>`
+    <div style="margin:6px 0;padding:8px 10px;border-radius:8px;max-width:88%;${t.sender==='manager'?'background:var(--surface-2);margin-right:auto':'border:1px solid var(--border);margin-left:auto'}">
+      <div class="muted" style="font-size:10.5px;margin-bottom:3px">${t.sender==='manager'?escapeHtml(t.by||'מנהל'):escapeHtml(showFromLabel?(m.fromName||'תושב'):'את/ה')} · ${new Date(t.at).toLocaleString('he-IL')}</div>
+      <div style="white-space:pre-wrap">${escapeHtml(t.text)}</div>
+    </div>`).join('');
+}
 function updateMyMessagesBtn(){
-  const btn = document.getElementById('myMessagesBtn');
-  if (!btn) return;
-  const hasUnseenReply = myMessages.some(m=> m.reply && !m.replySeenByUser);
-  btn.style.display = hasUnseenReply ? '' : 'none';
+  maybeShowNewReplyPopups();
+  updateMessagesHeaderIndicator();
 }
 function updateAdminMessagesBadge(){
+  updateMessagesHeaderIndicator();
   const badge = document.getElementById('adminMessagesBadge');
   if (!badge) return;
-  const openCount = data.supportMessages.filter(m=>!m.reply).length;
+  const openCount = data.supportMessages.filter(isUnreadForManager).length;
   if (openCount > 0){
     badge.textContent = openCount;
     badge.style.display = '';
   } else {
     badge.style.display = 'none';
   }
+}
+// מציג/מסתיר את אייקון המעטפה בראש העמוד ואת התגית האדומה עליו, לפי תפקיד המשתמש
+function updateMessagesHeaderIndicator(){
+  const btn = document.getElementById('myMessagesBtn');
+  const badgeEl = document.getElementById('myMessagesBadge');
+  if (!btn || !badgeEl) return;
+  if (isManager()){
+    const unreadCount = data.supportMessages.filter(isUnreadForManager).length;
+    btn.style.display = data.supportMessages.length ? '' : 'none';
+    const label = unreadCount ? `${unreadCount} הודעות חדשות מתושבים` : 'הודעות מתושבים';
+    btn.title = label; btn.setAttribute('aria-label', label);
+    if (unreadCount){ badgeEl.textContent = unreadCount>99?'99+':unreadCount; badgeEl.style.display=''; } else badgeEl.style.display='none';
+  } else {
+    const unreadCount = myMessages.filter(isUnreadForUser).length;
+    btn.style.display = myMessages.length ? '' : 'none';
+    const label = unreadCount ? 'יש לכם תשובה חדשה מהמנהל' : 'ההתכתבויות שלכם עם המנהל';
+    btn.title = label; btn.setAttribute('aria-label', label);
+    if (unreadCount){ badgeEl.textContent = unreadCount>99?'99+':unreadCount; badgeEl.style.display=''; } else badgeEl.style.display='none';
+  }
+}
+// לחיצה על אייקון המעטפה בראש העמוד - לתושב/גבאי פותח את ההתכתבויות שלו, למנהל קופץ לסקשן ההודעות בניהול
+function onMessagesBtnClick(){
+  if (isManager()){
+    const adminBtn = document.getElementById('adminTabBtn');
+    if (adminBtn) adminBtn.click();
+    setTimeout(()=>{
+      const body = document.getElementById('adminSection_messages');
+      if (body && body.style.display === 'none') toggleAdminSection('messages');
+      markAdminMessagesRead();
+      const header = document.getElementById('adminSectionHeader_messages');
+      if (header) header.scrollIntoView({behavior:'smooth', block:'start'});
+    }, 50);
+  } else {
+    openMyMessagesModal();
+  }
+}
+function markAdminMessagesRead(){
+  if (!isManager()) return;
+  data.supportMessages.filter(isUnreadForManager).forEach(m=>{
+    db.collection('supportMessages').doc(m.id).update({ unreadByManager:false }).catch(()=>{});
+  });
+}
+// הקפצת חלונית "מנהל השיב לפניה שלך" בכניסה לאפליקציה (ובכל פעם שמגיעה תשובה חדשה בזמן שהאפליקציה פתוחה)
+let shownReplyPopupKeys = new Set();
+function maybeShowNewReplyPopups(){
+  if (isManager()) return;
+  myMessages.forEach(m=>{
+    if (!isUnreadForUser(m)) return;
+    const thread = getMessageThread(m);
+    const lastManagerMsg = [...thread].reverse().find(t=>t.sender==='manager');
+    if (!lastManagerMsg) return;
+    const key = m.id + '|' + lastManagerMsg.at;
+    if (shownReplyPopupKeys.has(key)) return;
+    shownReplyPopupKeys.add(key);
+    enqueuePopup(()=>{
+      document.getElementById('modalBody').innerHTML = `
+        <h3>מנהל השיב לפניה שלך:</h3>
+        ${m.contextLabel?`<p class="muted" style="margin-bottom:6px">בנוגע ל: ${escapeHtml(m.contextLabel)}</p>`:''}
+        <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;margin-bottom:14px">
+          <div class="muted" style="font-size:11.5px;margin-bottom:4px">${escapeHtml(lastManagerMsg.by||'מנהל')} · ${new Date(lastManagerMsg.at).toLocaleString('he-IL')}</div>
+          <div style="white-space:pre-wrap">${escapeHtml(lastManagerMsg.text)}</div>
+        </div>
+        <div class="field"><label for="quickFollowupText_${m.id}">הודעת המשך (אופציונלי)</label>
+          <textarea id="quickFollowupText_${m.id}" rows="2" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" onclick="dismissReplyPopup('${m.id}')">סגירה</button>
+          <button class="btn primary" onclick="sendQuickFollowupAndClose('${m.id}')">שליחת הודעת המשך</button>
+        </div>`;
+      document.getElementById('overlay').classList.add('show');
+    });
+  });
+}
+function dismissReplyPopup(messageId){
+  closeModal();
+  db.collection('supportMessages').doc(messageId).update({ unreadByUser:false, replySeenByUser:true }).catch(()=>{});
+}
+function sendQuickFollowupAndClose(messageId){
+  const ta = document.getElementById('quickFollowupText_'+messageId);
+  const text = ta ? ta.value.trim() : '';
+  if (!text){ dismissReplyPopup(messageId); return; }
+  const m = myMessages.find(x=>x.id===messageId);
+  if (!m){ dismissReplyPopup(messageId); return; }
+  appendToMessageThread(m, 'resident', text).then(()=>closeModal()).catch(e=>alert('שגיאה בשליחה: '+e.message));
 }
 
 // פותח את טופס שליחת הודעה למנהל. contextLabel הוא תיאור חופשי של מה שהתושב מדווח עליו (למשל "מנחה - בית הכנסת המרכזי")
@@ -930,13 +1069,18 @@ function openSendAdminMessageForm(contextLabel){
 function submitAdminMessage(contextLabel){
   const text = document.getElementById('f_adminMessageText').value.trim();
   if (!text){ alert('יש לכתוב הודעה'); return; }
+  const now = new Date().toISOString();
+  const by = currentUserName || currentUser.displayName || currentUser.email;
   db.collection('supportMessages').add({
     fromUid: currentUser.uid,
-    fromName: currentUserName || currentUser.displayName || currentUser.email,
+    fromName: by,
     fromEmail: currentUser.email || '',
     text,
     contextLabel: contextLabel || '',
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    thread: [{ sender:'resident', text, at: now, by }],
+    unreadByManager: true,
+    unreadByUser: false,
     reply: null,
     replySeenByUser: true
   }).then(()=>{ alert('ההודעה נשלחה למנהל, תודה!'); closeModal(); trackEvent('send_admin_message', {}); })
@@ -947,62 +1091,63 @@ function renderAdminMessages(){
   if (!el) return;
   if (!data.supportMessages.length){ el.innerHTML = '<div class="empty">אין הודעות מתושבים</div>'; return; }
   el.innerHTML = data.supportMessages.map(m=>{
-    const dateStr = new Date(m.createdAt).toLocaleString('he-IL');
-    return `<div class="card" style="${m.reply?'':'border-color:var(--accent)'}">
+    const unread = isUnreadForManager(m);
+    return `<div class="card" style="${unread?'border-color:var(--accent)':''}">
       <div class="row">
         <div>
           <div style="font-weight:500">${escapeHtml(m.fromName||'')}${m.fromEmail?' · '+escapeHtml(m.fromEmail):''}</div>
-          <div class="muted" style="font-size:12px">${dateStr}${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}</div>
+          <div class="muted" style="font-size:12px">${new Date(m.createdAt).toLocaleString('he-IL')}${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}</div>
         </div>
-        ${m.reply?'<span class="badge">נענה</span>':'<span class="badge" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">ממתין</span>'}
+        ${unread?'<span class="badge" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">חדש</span>':'<span class="badge">נענה</span>'}
       </div>
-      <p style="margin:10px 0;white-space:pre-wrap;line-height:1.6">${escapeHtml(m.text)}</p>
-      ${m.reply ? `
-        <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px;margin-top:8px">
-          <div class="muted" style="font-size:11.5px;margin-bottom:4px">התשובה שנשלחה:</div>
-          <div style="white-space:pre-wrap">${escapeHtml(m.reply.text)}</div>
-        </div>
-      ` : `
-        <div style="margin-top:8px">
-          <textarea id="reply_${m.id}" rows="2" placeholder="כתבו תשובה..." style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
-          <button class="btn primary" style="margin-top:8px" onclick="sendAdminReply('${m.id}')">שליחת תשובה</button>
-        </div>
-      `}
+      <div style="margin-top:10px">${messageThreadHtml(m, true)}</div>
+      <div style="margin-top:8px">
+        <textarea id="reply_${m.id}" rows="2" placeholder="כתבו הודעה..." style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+        <button class="btn primary" style="margin-top:8px" onclick="sendAdminReply('${m.id}')">שליחת הודעה</button>
+      </div>
     </div>`;
   }).join('');
 }
 function sendAdminReply(messageId){
+  if (!isManager()) return;
   const textarea = document.getElementById('reply_'+messageId);
   const text = textarea.value.trim();
   if (!text){ alert('יש לכתוב תשובה'); return; }
-  db.collection('supportMessages').doc(messageId).update({
-    reply: { text, repliedBy: currentUserName || currentUser.displayName || currentUser.email, repliedAt: new Date().toISOString() },
-    replySeenByUser: false
-  }).catch(e=>alert('שגיאה בשליחת התשובה: '+e.message));
+  const m = data.supportMessages.find(x=>x.id===messageId);
+  if (!m) return;
+  appendToMessageThread(m, 'manager', text).catch(e=>alert('שגיאה בשליחת התשובה: '+e.message));
 }
 function openMyMessagesModal(){
-  const withReply = myMessages.filter(m=>m.reply).sort((a,b)=> new Date(b.reply.repliedAt) - new Date(a.reply.repliedAt));
-  let html = `<h3>תשובות מהמנהל</h3>`;
-  if (!withReply.length){
-    html += `<div class="empty">אין עדיין תשובות</div>`;
+  const sorted = [...myMessages].sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+  let html = `<h3>ההתכתבויות שלך עם המנהל</h3>`;
+  if (!sorted.length){
+    html += `<div class="empty">עדיין לא שלחת הודעה למנהל</div>`;
   } else {
-    html += withReply.map(m=>`
-      <div class="card">
-        <div class="muted" style="font-size:12px;margin-bottom:6px">ההודעה שלכם${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}:</div>
-        <p style="margin:0 0 10px;white-space:pre-wrap;color:var(--ink-soft)">${escapeHtml(m.text)}</p>
-        <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px">
-          <div class="muted" style="font-size:11.5px;margin-bottom:4px">תשובה מ${escapeHtml(m.reply.repliedBy||'מנהל')} · ${new Date(m.reply.repliedAt).toLocaleDateString('he-IL')}</div>
-          <div style="white-space:pre-wrap">${escapeHtml(m.reply.text)}</div>
+    html += sorted.map(m=>`
+      <div class="card" style="margin-bottom:14px">
+        <div class="muted" style="font-size:12px;margin-bottom:8px">${m.contextLabel?escapeHtml(m.contextLabel):'פנייה כללית'} · ${new Date(m.createdAt).toLocaleDateString('he-IL')}</div>
+        ${messageThreadHtml(m, false)}
+        <div style="margin-top:8px">
+          <textarea id="followup_${m.id}" rows="2" placeholder="כתבו הודעת המשך..." style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+          <button class="btn" style="margin-top:6px" onclick="sendUserFollowup('${m.id}')">שליחת הודעה</button>
         </div>
       </div>`).join('');
   }
   html += `<div class="modal-actions"><button class="btn primary" onclick="closeModal()">סגירה</button></div>`;
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('overlay').classList.add('show');
-  // מסמנים את כל התשובות כנצפו
-  myMessages.filter(m=>m.reply && !m.replySeenByUser).forEach(m=>{
-    db.collection('supportMessages').doc(m.id).update({ replySeenByUser: true }).catch(()=>{});
+  // מסמנים את כל התשובות כנצפו - האייקון עצמו נשאר, רק התגית האדומה מתבטלת
+  myMessages.filter(isUnreadForUser).forEach(m=>{
+    db.collection('supportMessages').doc(m.id).update({ unreadByUser:false, replySeenByUser:true }).catch(()=>{});
   });
+}
+function sendUserFollowup(messageId){
+  const textarea = document.getElementById('followup_'+messageId);
+  const text = textarea.value.trim();
+  if (!text){ alert('יש לכתוב הודעה'); return; }
+  const m = myMessages.find(x=>x.id===messageId);
+  if (!m) return;
+  appendToMessageThread(m, 'resident', text).then(()=>{ openMyMessagesModal(); }).catch(e=>alert('שגיאה בשליחה: '+e.message));
 }
 function renderUsers(){
   const el = document.getElementById('usersList');
@@ -1024,7 +1169,7 @@ function renderUsers(){
   const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל'};
   el.innerHTML = filtered.map(u=>{
     const userMsgs = data.supportMessages.filter(m=>m.fromUid===u.id);
-    const unrepliedCount = userMsgs.filter(m=>!m.reply).length;
+    const unrepliedCount = userMsgs.filter(isUnreadForManager).length;
     return `
     <div class="card">
       <div class="row">
@@ -1053,43 +1198,40 @@ function renderUsers(){
   }).join('');
 }
 function openUserConversationModal(targetUid){
+  if (!isManager()) return;
   const u = (data.users||[]).find(x=>x.id===targetUid);
   const userMsgs = data.supportMessages.filter(m=>m.fromUid===targetUid).sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
   let html = `<h3>היסטוריית פניות - ${escapeHtml(u?(u.name||u.email||''):'')}</h3>`;
   if (!userMsgs.length){
     html += `<div class="empty">אין פניות מהמשתמש הזה</div>`;
   } else {
-    html += userMsgs.map(m=>{
-      const dateStr = new Date(m.createdAt).toLocaleString('he-IL');
-      return `<div class="card">
-        <div class="muted" style="font-size:12px;margin-bottom:6px">${dateStr}${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}</div>
-        <p style="margin:0 0 10px;white-space:pre-wrap">${escapeHtml(m.text)}</p>
-        ${m.reply ? `
-          <div style="background:var(--surface-2);border-radius:8px;padding:10px 12px">
-            <div class="muted" style="font-size:11.5px;margin-bottom:4px">התשובה שנשלחה · ${new Date(m.reply.repliedAt).toLocaleDateString('he-IL')}</div>
-            <div style="white-space:pre-wrap">${escapeHtml(m.reply.text)}</div>
-          </div>
-        ` : `
-          <div>
-            <textarea id="convReply_${m.id}" rows="2" placeholder="כתבו תשובה..." style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
-            <button class="btn primary" style="margin-top:8px" onclick="sendAdminReplyFromConversation('${m.id}','${targetUid}')">שליחת תשובה</button>
-          </div>
-        `}
-      </div>`;
-    }).join('');
+    html += userMsgs.map(m=>`
+      <div class="card">
+        <div class="muted" style="font-size:12px;margin-bottom:6px">${new Date(m.createdAt).toLocaleString('he-IL')}${m.contextLabel?' · '+escapeHtml(m.contextLabel):''}</div>
+        ${messageThreadHtml(m, true)}
+        <div style="margin-top:8px">
+          <textarea id="convReply_${m.id}" rows="2" placeholder="כתבו הודעה..." style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+          <button class="btn primary" style="margin-top:8px" onclick="sendAdminReplyFromConversation('${m.id}','${targetUid}')">שליחת הודעה</button>
+        </div>
+      </div>`).join('');
   }
   html += `<div class="modal-actions"><button class="btn" onclick="closeModal()">סגירה</button></div>`;
   document.getElementById('modalBody').innerHTML = html;
   document.getElementById('overlay').classList.add('show');
+  // צפייה כאן מסמנת גם את הפניות מהמשתמש הזה כנקראו על ידי המנהל
+  data.supportMessages.filter(m=>m.fromUid===targetUid && isUnreadForManager(m)).forEach(m=>{
+    db.collection('supportMessages').doc(m.id).update({ unreadByManager:false }).catch(()=>{});
+  });
 }
 function sendAdminReplyFromConversation(messageId, targetUid){
+  if (!isManager()) return;
   const textarea = document.getElementById('convReply_'+messageId);
   const text = textarea.value.trim();
   if (!text){ alert('יש לכתוב תשובה'); return; }
-  db.collection('supportMessages').doc(messageId).update({
-    reply: { text, repliedBy: currentUserName || currentUser.displayName || currentUser.email, repliedAt: new Date().toISOString() },
-    replySeenByUser: false
-  }).then(()=> openUserConversationModal(targetUid))
+  const m = data.supportMessages.find(x=>x.id===messageId);
+  if (!m) return;
+  appendToMessageThread(m, 'manager', text)
+    .then(()=> openUserConversationModal(targetUid))
     .catch(e=>alert('שגיאה בשליחת התשובה: '+e.message));
 }
 function openSendMessageForm(targetUid){
@@ -1104,6 +1246,7 @@ function openSendMessageForm(targetUid){
   document.getElementById('overlay').classList.add('show');
 }
 function sendUserMessage(targetUid){
+  if (!isManager()) return;
   const text = document.getElementById('f_messageText').value.trim();
   if (!text){ alert('יש לכתוב הודעה'); return; }
   const message = { text, date: new Date().toISOString(), from: currentUserName || (currentUser&&currentUser.displayName) || 'מנהל' };
@@ -1112,6 +1255,7 @@ function sendUserMessage(targetUid){
   }).then(()=>{ alert('ההודעה נשלחה'); closeModal(); }).catch(e=>alert('שגיאה בשליחה: '+e.message));
 }
 function toggleUserBlocked(targetUid){
+  if (!isManager()) return;
   const u = (data.users||[]).find(x=>x.id===targetUid);
   const newBlocked = !(u && u.blocked);
   if (newBlocked && !confirm('לחסום את המשתמש מעריכה? הוא עדיין יוכל לצפות, אבל לא להוסיף או לערוך.')) return;
@@ -1193,13 +1337,33 @@ function updatedByLineHtml(obj){
   return `<p class="muted" style="margin-bottom:12px">עודכן ע"י ${nameHtml} · ${dateStr}</p>`;
 }
 function changeUserRole(targetUid, newRole){
+  if (!isManager()) return;
   if (newRole === 'gabai'){
     openGabaiShulAssignModal(targetUid);
     return;
   }
-  db.collection('users').doc(targetUid).update({ role: newRole, assignedShulIds: [] }).catch(e=>alert('שגיאה בעדכון הרשאה: '+e.message));
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const prevIds = (u && Array.isArray(u.assignedShulIds)) ? u.assignedShulIds : [];
+  const batch = db.batch();
+  batch.update(db.collection('users').doc(targetUid), { role: newRole, assignedShulIds: [] });
+  prevIds.forEach(shulId=>{
+    batch.update(db.collection('shuls').doc(shulId), { assignedGabaim: gabaimListForShul(shulId, targetUid, false) });
+  });
+  batch.commit().catch(e=>alert('שגיאה בעדכון הרשאה: '+e.message));
+}
+// מחשב את רשימת {uid,name} של הגבאים המשויכים לבית כנסת נתון, לשמירה על שדה shul.assignedGabaim מסונכרן
+// excludeUid/includeExcluded משמשים כדי לשקף שינוי שעדיין לא נשמר ל-data.users (לפני שההאזנה מתעדכנת)
+function gabaimListForShul(shulId, excludeUid, includeExcluded){
+  const others = (data.users||[]).filter(x=> x.id!==excludeUid && x.role==='gabai' && Array.isArray(x.assignedShulIds) && x.assignedShulIds.includes(shulId))
+    .map(x=>({ uid:x.id, name: x.name || x.email || '' }));
+  if (includeExcluded){
+    const u = (data.users||[]).find(x=>x.id===excludeUid);
+    others.push({ uid: excludeUid, name: (u && (u.name || u.email)) || '' });
+  }
+  return others;
 }
 function openGabaiShulAssignModal(targetUid){
+  if (!isManager()) return;
   const u = (data.users||[]).find(x=>x.id===targetUid);
   const currentIds = (u && Array.isArray(u.assignedShulIds)) ? u.assignedShulIds : [];
   const shulsSorted = [...data.shuls].sort((a,b)=>a.name.localeCompare(b.name,'he'));
@@ -1227,16 +1391,44 @@ function onGabaiShulChipClick(el){
   if (!anyActive) document.querySelector('#gabaiShulChips .daychip[data-shul=""]').classList.add('active');
 }
 function confirmGabaiAssign(targetUid){
+  if (!isManager()) return;
   const shulIds = [...document.querySelectorAll('#gabaiShulChips .daychip.active')].map(c=>c.dataset.shul).filter(Boolean);
-  db.collection('users').doc(targetUid).update({
-    role: 'gabai',
-    assignedShulIds: shulIds
-  }).then(()=>closeModal()).catch(e=>alert('שגיאה: '+e.message));
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const prevIds = (u && Array.isArray(u.assignedShulIds)) ? u.assignedShulIds : [];
+  const affectedShulIds = Array.from(new Set([...prevIds, ...shulIds]));
+  const batch = db.batch();
+  batch.update(db.collection('users').doc(targetUid), { role: 'gabai', assignedShulIds: shulIds });
+  affectedShulIds.forEach(shulId=>{
+    batch.update(db.collection('shuls').doc(shulId), { assignedGabaim: gabaimListForShul(shulId, targetUid, shulIds.includes(shulId)) });
+  });
+  batch.commit().then(()=>closeModal()).catch(e=>alert('שגיאה: '+e.message));
+}
+// כלי חד-פעמי לרענון: מחשב מחדש את שדה assignedGabaim לכל בתי הכנסת, לפי ההרשאות הנוכחיות ב-users (שימושי לגבאים שהוקצו לפני שהתכונה הזו קיימת)
+function resyncAllShulGabaim(){
+  if (!isManager()) return;
+  if (!confirm('לרענן את רשימת הגבאים המוצגת בדפי בתי הכנסת, לפי ההרשאות הנוכחיות? הפעולה לא מוחקת שום דבר, רק מעדכנת את התצוגה.')) return;
+  const batch = db.batch();
+  data.shuls.forEach(shul=>{
+    batch.update(db.collection('shuls').doc(shul.id), { assignedGabaim: gabaimListForShul(shul.id, null, false) });
+  });
+  batch.commit().then(()=>alert('הרשימה עודכנה בכל בתי הכנסת')).catch(e=>alert('שגיאה: '+e.message));
 }
 function changeUserName(targetUid){
+  if (!isManager()) return;
   const val = document.getElementById('name_'+targetUid).value.trim();
   if (!val){ alert('יש להזין שם'); return; }
-  db.collection('users').doc(targetUid).update({ name: val }).catch(e=>alert('שגיאה בעדכון שם: '+e.message));
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  const batch = db.batch();
+  batch.update(db.collection('users').doc(targetUid), { name: val });
+  if (u && u.role==='gabai' && Array.isArray(u.assignedShulIds)){
+    u.assignedShulIds.forEach(shulId=>{
+      const shul = data.shuls.find(s=>s.id===shulId);
+      const currentList = (shul && Array.isArray(shul.assignedGabaim)) ? shul.assignedGabaim : [];
+      const updatedList = currentList.filter(g=>g.uid!==targetUid).concat([{ uid: targetUid, name: val }]);
+      batch.update(db.collection('shuls').doc(shulId), { assignedGabaim: updatedList });
+    });
+  }
+  batch.commit().catch(e=>alert('שגיאה בעדכון שם: '+e.message));
 }
 
 // ---------- ניהול סוגי תפילה ----------
@@ -1267,6 +1459,7 @@ function renderTefilaTypesAdmin(){
   el.innerHTML = html;
 }
 function addTefilaType(){
+  if (!isManager()) return;
   const input = document.getElementById('newTefilaType');
   const val = input.value.trim();
   if (!val){ alert('יש להזין שם לסוג התפילה'); return; }
@@ -1276,6 +1469,7 @@ function addTefilaType(){
   }, { merge: true }).then(()=>{ input.value = ''; }).catch(e=>alert('שגיאה בהוספה: '+e.message));
 }
 function removeTefilaType(val){
+  if (!isManager()) return;
   if (!confirm(`להסיר את "${val}" מרשימת סוגי התפילה? (מניינים קיימים מהסוג הזה לא יימחקו, אבל לא יהיה אפשר לבחור אותו מחדש)`)) return;
   db.collection('config').doc('tefilaTypes').update({
     types: firebase.firestore.FieldValue.arrayRemove(val)
@@ -1292,6 +1486,7 @@ function renderTopicsAdmin(){
   el.innerHTML = html;
 }
 function addTopic(){
+  if (!isManager()) return;
   const input = document.getElementById('newTopic');
   const val = input.value.trim();
   if (!val){ alert('יש להזין שם לנושא'); return; }
@@ -1301,6 +1496,7 @@ function addTopic(){
   }, { merge: true }).then(()=>{ input.value = ''; }).catch(e=>alert('שגיאה בהוספה: '+e.message));
 }
 function removeTopic(val){
+  if (!isManager()) return;
   if (!confirm(`להסיר את "${val}" מרשימת נושאי השיעורים? (שיעורים קיימים עם הנושא הזה לא יימחקו, אבל לא יהיה אפשר לבחור אותו מחדש)`)) return;
   db.collection('config').doc('topics').update({
     types: firebase.firestore.FieldValue.arrayRemove(val)
@@ -1439,11 +1635,13 @@ function removeShiurImage(){
   document.getElementById('shiurImageStatus').textContent = '';
 }
 function saveTopicDescription(){
+  if (!isManager()) return;
   const topic = document.getElementById('topicDescSelect').value;
   const text = document.getElementById('topicDescText').value.trim();
   const link = document.getElementById('topicDescLink').value.trim();
   const linkLabel = document.getElementById('topicDescLinkLabel').value.trim();
   if (!topic) return;
+  if (link && !/^https?:\/\//i.test(link)){ alert('קישור צריך להתחיל ב-http:// או https://'); return; }
   const updated = { ...TOPIC_DESCRIPTIONS };
   if (text || TOPIC_DESC_IMAGE_DATA || link){
     updated[topic] = { text, image: TOPIC_DESC_IMAGE_DATA, link, linkLabel };
@@ -1535,6 +1733,7 @@ function removeAnnouncementImage(){
   document.getElementById('annImageStatus').textContent = '';
 }
 function saveAnnouncementConfig(){
+  if (!isManager()) return;
   const enabled = document.getElementById('annEnabled').checked;
   const text = document.getElementById('annText').value.trim();
   const linkLabel = document.getElementById('annLinkLabel').value.trim();
@@ -1549,6 +1748,7 @@ function saveAnnouncementConfig(){
     alert('יש להזין לפחות טקסט או תמונה כדי להפעיל את החלונית');
     return;
   }
+  if (link && !/^https?:\/\//i.test(link)){ alert('קישור צריך להתחיל ב-http:// או https://'); return; }
   db.collection('config').doc('announcement').set({
     enabled, text, linkLabel, link, frequency, triggerMode, triggerMinutes, triggerPages, showInstallBtn, showInfoBtn,
     image: ANNOUNCEMENT_IMAGE_DATA,
@@ -1618,6 +1818,7 @@ function closeAnnouncementPopup(id, frequency){
 
 // ---------- גיבוי ושחזור מלא ----------
 async function exportFullBackup(){
+  if (!isManager()) return;
   const btn = document.getElementById('exportBackupBtn');
   const originalText = btn.textContent;
   btn.textContent = 'מכין גיבוי...';
@@ -1665,6 +1866,7 @@ async function exportFullBackup(){
   btn.disabled = false;
 }
 async function restoreCollection(name, items, statusEl){
+  if (!isManager()) return;
   if (!items || !items.length) return;
   const chunks = [];
   for (let i=0; i<items.length; i+=450) chunks.push(items.slice(i, i+450));
@@ -1681,6 +1883,7 @@ async function restoreCollection(name, items, statusEl){
   }
 }
 async function handleBackupImportFile(input){
+  if (!isManager()){ input.value=''; return; }
   const file = input.files[0];
   if (!file) return;
   const statusEl = document.getElementById('backupImportStatus');
@@ -1743,41 +1946,47 @@ function minyanTimeDescription(m){
   return `${m.offsetMinutes||0} דקות ${OFFSET_SIGN_LABEL[m.offsetSign]||''} ${ANCHOR_LABEL[m.anchor]||''}`;
 }
 function exportToExcel(){
+  if (!isManager()) return;
   if (typeof XLSX === 'undefined'){ alert('ספריית האקסל עדיין נטענת, נסו שוב בעוד רגע'); return; }
 
+  // מונע הזרקת נוסחאות באקסל (CSV/Formula Injection): אם ערך שהוזן על ידי תושב מתחיל
+  // ב-= + - @ או בתו טאב/CR, אקסל עלול לפרש אותו כנוסחה כשפותחים את הקובץ. מוסיפים גרש מוביל שמנטרל את זה.
+  const xs = v => { const s = (v==null?'':String(v)); return /^[=+\-@\t\r]/.test(s) ? ("'" + s) : s; };
+
   const shulsSheet = data.shuls.map(s=>({
-    'שם בית הכנסת': s.name || '',
-    'כתובת': s.address || '',
-    'נוסח': s.nusach || '',
-    'עודכן ע"י': s.updatedBy || '',
+    'שם בית הכנסת': xs(s.name),
+    'כתובת': xs(s.address),
+    'נוסח': xs(s.nusach),
+    'עודכן ע"י': xs(s.updatedBy),
     'עודכן בתאריך': fmtDateHe(s.updatedAt)
   }));
 
   const minyanimSheet = data.minyanim.map(m=>{
     const shul = data.shuls.find(s=>s.id===m.shulId);
     return {
-      'בית כנסת': shul ? shul.name : '',
-      'תפילה': m.tefila || '',
+      'בית כנסת': xs(shul ? shul.name : ''),
+      'תפילה': xs(m.tefila),
       'ימים': daysToLabel(m.days),
       'זמן': minyanTimeDescription(m),
-      'הערות': m.notes || '',
-      'עודכן ע"י': m.updatedBy || '',
+      'הערות': xs(m.notes),
+      'עודכן ע"י': xs(m.updatedBy),
       'עודכן בתאריך': fmtDateHe(m.updatedAt)
     };
   });
 
   const shiurimSheet = data.shiurim.map(s=>({
-    'כותרת': s.title || '',
-    'נושא': getShiurTopics(s).join(', '),
+    'כותרת': xs(s.title),
+    'נושא': xs(getShiurTopics(s).join(', ')),
     'קהל יעד': AUDIENCE_LABEL[s.audience||'all'],
     'ימים': shiurScheduleLabel(s),
-    'שעה': s.time || '',
-    'מיקום': s.location || '',
-    'מעביר השיעור': s.teacherName || '',
-    'איש קשר': s.contactName || '',
-    'טלפון איש קשר': s.contactPhone || '',
-    'הערות': s.notes || '',
-    'עודכן ע"י': s.updatedBy || '',
+    'שעה': xs(s.time),
+    'מיקום': xs(s.location),
+    'מעביר השיעור': xs(s.teacherName),
+    'קישור להקלטה': xs(s.recordingLink),
+    'איש קשר': xs(s.contactName),
+    'טלפון איש קשר': xs(s.contactPhone),
+    'הערות': xs(s.notes),
+    'עודכן ע"י': xs(s.updatedBy),
     'עודכן בתאריך': fmtDateHe(s.updatedAt)
   }));
 
@@ -1876,6 +2085,7 @@ function cellTime(row, key){
 }
 
 function handleImportFile(input){
+  if (!isManager()){ input.value=''; return; }
   const file = input.files[0];
   if (!file) return;
   if (typeof XLSX === 'undefined'){ alert('ספריית האקסל עדיין נטענת, נסו שוב בעוד רגע'); input.value=''; return; }
@@ -1899,6 +2109,7 @@ function findSheet(wb, name){
   return match ? wb.Sheets[match] : null;
 }
 async function runImport(wb){
+  if (!isManager()) return;
   const results = { shuls:0, minyanim:0, shiurim:0, skipped:[] };
   const nameToId = {};
   data.shuls.forEach(s=>{ nameToId[s.name] = s.id; });
@@ -2156,6 +2367,52 @@ const EDIT_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="non
 const INFO_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
 const NAV_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
 const DELETE_ICON_SVG = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
+// אייקונים לקישורי הקלטות שיעורים, לפי פלטפורמה - ה-viewBox קבוע (0 0 24 24) והגודל בפועל מגיע מבחוץ, כדי לאפשר גם אייקון קטן וגם כפתור גדול
+const RECORDING_PLATFORMS = {
+  youtube: {
+    inner: '<rect x="1" y="4.5" width="22" height="15" rx="4.5" fill="#FF0000"/><path d="M10 8.6l6.5 3.4-6.5 3.4z" fill="#fff"/>',
+    label: 'צפייה בהקלטה ביוטיוב', tint: 'rgba(255,0,0,.08)'
+  },
+  spotify: {
+    inner: '<circle cx="12" cy="12" r="11" fill="#1DB954"/><path d="M6.3 9.7c3.6-1 8-.7 11 1.1" stroke="#fff" stroke-width="1.7" fill="none" stroke-linecap="round"/><path d="M6.6 12.9c3-.8 6.9-.6 9.5.9" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round"/><path d="M7 15.9c2.5-.6 5.6-.5 7.7.7" stroke="#fff" stroke-width="1.3" fill="none" stroke-linecap="round"/>',
+    label: 'האזנה להקלטה בספוטיפיי', tint: 'rgba(29,185,84,.08)'
+  },
+  drive: {
+    inner: '<path d="M8.6 2.6 1.3 15.1l3.5 6 7.3-12.6z" fill="#00AC47"/><path d="M15.4 2.6l7.3 12.5-3.5 6-7.3-12.6z" fill="#FFBA00"/><path d="M4.8 21.1h14.4l3.5-6H1.3z" fill="#0066DA"/>',
+    label: 'צפייה בהקלטה בגוגל דרייב', tint: 'rgba(0,102,218,.08)'
+  },
+  generic: {
+    inner: '<path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1.5 1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1.5-1.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    label: 'צפייה/האזנה בהקלטה', tint: 'var(--surface-2)'
+  }
+};
+function recordingPlatformKey(url){
+  const u = (url||'').toLowerCase();
+  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'youtube';
+  if (u.includes('spotify.com')) return 'spotify';
+  if (u.includes('drive.google.com') || u.includes('docs.google.com')) return 'drive';
+  return 'generic';
+}
+function recordingPlatformInfo(url){
+  if (!url) return null;
+  return RECORDING_PLATFORMS[recordingPlatformKey(url)];
+}
+function recordingIconSvg(url, size){
+  const p = recordingPlatformInfo(url);
+  return `<svg viewBox="0 0 24 24" width="${size}" height="${size}" style="vertical-align:-${Math.round(size*0.2)}px">${p.inner}</svg>`;
+}
+// כפתור גדול (עמודת אייקון בצד הפנוי של כרטיס שיעור) - מוצג רק כשיש קישור להקלטה
+function shiurRecordingBigButtonHtml(s){
+  if (!s || !s.recordingLink) return '';
+  const p = recordingPlatformInfo(s.recordingLink);
+  return `<a href="${escapeHtml(s.recordingLink)}" target="_blank" rel="noopener" class="shiur-recording-btn" style="background:${p.tint}" onclick="event.stopPropagation();trackEvent('open_shiur_recording',{shiur_id:'${s.id}'})" title="${p.label}" aria-label="${p.label}">${recordingIconSvg(s.recordingLink, 28)}</a>`;
+}
+// אייקון קטן מוטבע בשורה (לדף בית הכנסת, שם אין מקום לכפתור גדול)
+function shiurRecordingLinkHtml(s){
+  if (!s || !s.recordingLink) return '';
+  const p = recordingPlatformInfo(s.recordingLink);
+  return `<a href="${escapeHtml(s.recordingLink)}" target="_blank" rel="noopener" class="row-icon-btn" style="display:inline-flex;align-items:center" onclick="event.stopPropagation();trackEvent('open_shiur_recording',{shiur_id:'${s.id}'})" title="${p.label}" aria-label="${p.label}">${recordingIconSvg(s.recordingLink, 15)}</a>`;
+}
 const TEFILA_BASE = ['שחרית','מנחה','ערבית','ותיקין'];
 const TOPIC_BASE = ['הלכה','גמרא','דף יומי','תנ"ך','אמונה','פרשת שבוע','שונות'];
 const TEFILA_COLORS = {'שחרית':'#C6873C', 'מנחה':'#2F5D62', 'ערבית':'#5B4B8A', 'ותיקין':'#B5473A'};
@@ -2202,26 +2459,47 @@ function renderActivityLog(){
   if (!el) return;
   const entries = [];
   data.shuls.forEach(s=>{
-    if (s.updatedAt) entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '🏠', label: 'בית כנסת', name: s.name });
+    if (s.updatedAt) entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '🏠', label: 'בית כנסת', name: s.name, type:'shul', id:s.id, shulId:s.id });
   });
   data.minyanim.forEach(m=>{
     if (!m.updatedAt) return;
     const shul = data.shuls.find(s=>s.id===m.shulId);
-    entries.push({ time: m.updatedAt, by: m.updatedBy, icon: '🕍', label: 'מניין', name: `${m.tefila}${shul?' · '+shul.name:''}` });
+    entries.push({ time: m.updatedAt, by: m.updatedBy, icon: '🕍', label: 'מניין', name: `${m.tefila}${shul?' · '+shul.name:''}`, type:'minyan', id:m.id, shulId:m.shulId||'' });
   });
   data.shiurim.forEach(s=>{
     if (!s.updatedAt) return;
     const shul = data.shuls.find(x=>x.id===s.locationShulId);
-    entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '📖', label: 'שיעור', name: `${s.title}${shul?' · '+shul.name:''}` });
+    entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '📖', label: 'שיעור', name: `${s.title}${shul?' · '+shul.name:''}`, type:'shiur', id:s.id, shulId:s.locationShulId||'' });
   });
   entries.sort((a,b)=> new Date(b.time) - new Date(a.time));
   const top = entries.slice(0, 100);
   if (!top.length){ el.innerHTML = '<div class="empty">אין עדיין עדכונים</div>'; return; }
-  el.innerHTML = top.map(e=>`
-    <div style="padding:9px 0;border-bottom:1px solid var(--border)">
-      <div>${e.icon} <b>${escapeHtml(e.label)}</b> · ${escapeHtml(e.name)}</div>
+  el.innerHTML = top.map(e=>{
+    const isLinkable = (e.type==='shul' && data.shuls.some(x=>x.id===e.id))
+      || (e.type==='minyan' && e.shulId && data.shuls.some(x=>x.id===e.shulId))
+      || (e.type==='shiur' && ((e.shulId && data.shuls.some(x=>x.id===e.shulId)) || data.shiurim.some(x=>x.id===e.id)));
+    const baseStyle = 'padding:9px 0;border-bottom:1px solid var(--border)';
+    const attrs = isLinkable ? `onclick="goToActivityLogItem('${e.type}','${e.id}','${e.shulId}')" role="button" tabindex="0" style="${baseStyle};cursor:pointer"` : `style="${baseStyle}"`;
+    return `
+    <div ${attrs}>
+      <div>${e.icon} <b>${escapeHtml(e.label)}</b> · ${escapeHtml(e.name)}${isLinkable?' <span class="muted" style="font-size:11px">↗ מעבר לתוכן</span>':''}</div>
       <div class="muted" style="font-size:12px;margin-top:2px">${escapeHtml(e.by||'לא ידוע')} · ${new Date(e.time).toLocaleString('he-IL')}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+// מעבר ישיר מיומן העדכונים בניהול לתוכן שנערך (דף בית הכנסת, או טופס עריכת השיעור אם אין לו בית כנסת מקושר)
+function goToActivityLogItem(type, id, shulId){
+  if (type === 'shul'){
+    if (!data.shuls.some(s=>s.id===id)){ alert('בית הכנסת נמחק בינתיים'); return; }
+    openShulPage(id);
+  } else if (type === 'minyan'){
+    if (!shulId || !data.shuls.some(s=>s.id===shulId)){ alert('בית הכנסת של המניין נמחק בינתיים'); return; }
+    openShulPage(shulId);
+  } else if (type === 'shiur'){
+    if (shulId && data.shuls.some(s=>s.id===shulId)){ openShulPage(shulId); }
+    else if (data.shiurim.some(s=>s.id===id)){ openShiurForm(id); }
+    else { alert('השיעור נמחק בינתיים'); }
+  }
 }
 function onEditLockDurationModeChange(){
   const mode = document.getElementById('editLockDurationMode').value;
@@ -2250,6 +2528,7 @@ function populateEditLockAdmin(){
   }
 }
 function saveEditLockConfig(){
+  if (!isManager()) return;
   const enabled = document.getElementById('editLockEnabled').checked;
   const mode = document.getElementById('editLockDurationMode').value;
   const untilLocal = document.getElementById('editLockUntil').value;
@@ -2692,7 +2971,8 @@ function renderShiurim(){
     if (topics.length) secondaryBits.push(escapeHtml(topics.join(', ')));
     if (s.teacherName) secondaryBits.push(escapeHtml(s.teacherName));
     return `
-    <div class="card">
+    <div class="card" style="${s.recordingLink?'display:flex;align-items:stretch;padding:0':''}">
+      <div style="${s.recordingLink?'flex:1;min-width:0;padding:16px':''}">
       <div class="ml-top">
         <span style="display:flex;align-items:center;gap:8px;min-width:0">
           ${s.image?`<img src="${escapeHtml(s.image)}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;flex-shrink:0">`:''}
@@ -2709,6 +2989,8 @@ function renderShiurim(){
         ${distanceBadge}
       </div>
       ${(s.contactName || s.notes) ? `<div class="muted" style="margin-top:3px;font-size:12px">${s.contactName?`איש קשר: ${escapeHtml(s.contactName)}${s.contactPhone?' · '+escapeHtml(s.contactPhone):''}`:''}${s.notes?(s.contactName?' · ':'')+escapeHtml(s.notes):''}</div>` : ''}
+      </div>
+      ${shiurRecordingBigButtonHtml(s)}
     </div>`;
   }).join('');
 }
@@ -2965,6 +3247,10 @@ function openShiurMenuPopover(e, shiurId){
   if (s.updatedAt){
     html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(s)}</div>`;
   }
+  if (s.recordingLink){
+    const info = recordingPlatformInfo(s.recordingLink);
+    html += `<a href="${escapeHtml(s.recordingLink)}" target="_blank" rel="noopener" onclick="trackEvent('open_shiur_recording',{shiur_id:'${shiurId}'})" style="display:flex;align-items:center;gap:6px;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">${recordingIconSvg(s.recordingLink, 16)} ${escapeHtml(info.label)}</a>`;
+  }
   html += `<a href="${whatsappShareUrl(shiurShareText(s))}" target="_blank" rel="noopener" onclick="trackEvent('share_whatsapp',{type:'shiur'})" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
   html += `<a href="#" onclick="closeNavPopover();downloadShiurIcs('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">📅 הוספה ליומן</a>`;
   if (links){
@@ -2984,6 +3270,7 @@ function openShiurMenuPopover(e, shiurId){
 // ---------- טפסים: בית כנסת ----------
 function openShulForm(shulId){
   if (!requireEditPermission()) return;
+  if (shulId ? !canManageShul(shulId) : !isManager()) return;
   const s = shulId ? data.shuls.find(x=>x.id===shulId) : null;
   document.getElementById('modalBody').innerHTML = `
     <h3>${s?'עריכת בית כנסת':'הוספת בית כנסת'}</h3>
@@ -3030,7 +3317,7 @@ function openShulForm(shulId){
     <div class="field optional"><label for="f_description">תיאור / מידע נוסף</label><textarea id="f_description" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${s?escapeHtml(s.description||''):''}</textarea></div>
     <div class="field optional"><label for="f_donationLink">קישור לתרומה</label><input id="f_donationLink" value="${s?escapeHtml(s.donationLink||''):''}" placeholder="https://..."></div>
     <div class="field optional"><label for="f_rabbiNames">שם/שמות הרב</label><input id="f_rabbiNames" value="${s&&s.rabbiNames?escapeHtml(s.rabbiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
-    <div class="field optional"><label for="f_gabaiNames">שמות הגבאים</label><input id="f_gabaiNames" value="${s&&s.gabaiNames?escapeHtml(s.gabaiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
+    <div class="field optional"><label for="f_gabaiNames">שמות גבאים נוספים (שלא מוגדרים כ"גבאי" במערכת ההרשאות)</label><input id="f_gabaiNames" value="${s&&s.gabaiNames?escapeHtml(s.gabaiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveShul('${shulId||''}')">שמירה</button>
@@ -3097,10 +3384,13 @@ function captureGpsInto(latId, lngId, statusId){
   );
 }
 function saveShul(shulId){
+  if (shulId ? !canManageShul(shulId) : !isManager()) return;
   const name = document.getElementById('f_name').value.trim();
   if (!name){ alert('יש להזין שם בית כנסת'); return; }
   const lat = document.getElementById('f_lat').value;
   const lng = document.getElementById('f_lng').value;
+  const donationLink = document.getElementById('f_donationLink').value.trim();
+  if (donationLink && !/^https?:\/\//i.test(donationLink)){ alert('קישור לתרומה צריך להתחיל ב-http:// או https://'); return; }
   const parseNames = s => s.split(',').map(x=>x.trim()).filter(Boolean);
   const obj = stamp({
     name,
@@ -3110,7 +3400,7 @@ function saveShul(shulId){
     lng: lng ? Number(lng) : null,
     photo: document.getElementById('f_photo').value.trim(),
     description: document.getElementById('f_description').value.trim(),
-    donationLink: document.getElementById('f_donationLink').value.trim(),
+    donationLink,
     rabbiNames: parseNames(document.getElementById('f_rabbiNames').value),
     gabaiNames: parseNames(document.getElementById('f_gabaiNames').value)
   });
@@ -3120,6 +3410,7 @@ function saveShul(shulId){
   if (viewingShulId === id) renderShulPage();
 }
 function deleteShul(id){
+  if (!isManager()) return;
   const shul = data.shuls.find(s=>s.id===id);
   const linkedShiurim = data.shiurim.filter(s=>s.locationShulId===id);
   const linkedMinyanim = data.minyanim.filter(m=>m.shulId===id);
@@ -3364,6 +3655,7 @@ function renderShulPage(){
         <span class="muted">
           <span style="display:inline-flex;align-items:center;gap:1px">
             <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
+            ${shiurRecordingLinkHtml(s)}
           </span>
           ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}
         </span>
@@ -3403,6 +3695,11 @@ function renderShulPage(){
       </div>`;
   }
 
+  // מיזוג שמות גבאים: גם מה שהוזן ידנית בפרטי בית הכנסת, וגם מי שקיבל הרשאת גבאי לבית כנסת זה דרך ממשק הניהול (משתמשים והרשאות)
+  const manualGabaiNames = shul.gabaiNames || [];
+  const adminGabaiNames = (shul.assignedGabaim || []).map(g=>g.name).filter(Boolean);
+  const allGabaiNames = Array.from(new Set([...manualGabaiNames, ...adminGabaiNames].map(n=>n.trim()).filter(Boolean)));
+
   el.innerHTML = `
     <button class="btn ghost" onclick="closeShulPage()">→ חזרה</button>
     <div style="text-align:center;margin-top:8px">
@@ -3410,7 +3707,7 @@ function renderShulPage(){
       <h2 style="margin:0;font-size:30px">${escapeHtml(shul.name)}</h2>
       <div class="muted" style="margin-top:6px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
       ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">${shul.rabbiNames.length > 1 ? 'רבני בית הכנסת' : 'רב בית הכנסת'}: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
-      ${shul.gabaiNames && shul.gabaiNames.length ? `<div class="muted" style="margin-top:2px">${shul.gabaiNames.length > 1 ? 'גבאים' : 'גבאי'}: ${shul.gabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
+      ${allGabaiNames.length ? `<div class="muted" style="margin-top:2px">${allGabaiNames.length > 1 ? 'גבאים' : 'גבאי'}: ${allGabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
       <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="icon-btn" onclick="toggleMyShul('${shul.id}')" aria-label="${isMyShul(shul.id)?'הסרה מבית הכנסת שלי':'סימון כבית הכנסת שלי'}" title="${isMyShul(shul.id)?'זהו בית הכנסת שלי - לחצו להסרה':'סמנו כבית הכנסת שלי, לגישה מהירה דרך סמל הכוכב למעלה'}">${isMyShul(shul.id)?'⭐':'☆'}</button>
         <button class="icon-btn" onclick="shareShulLink('${shul.id}')" aria-label="שיתוף" title="שיתוף">🔗</button>
@@ -3494,7 +3791,7 @@ function printShulSchedule(shulId){
 function openPrintGeneralModal(){
   document.getElementById('modalBody').innerHTML = `
     <h3>🖨️ הדפסת זמני תפילות - כלל היישוב</h3>
-    <p class="muted" style="margin-bottom:14px">מדפיס טבלה לכל בתי הכנסת ביישוב, לפי הבחירה שלכם.</p>
+    <p class="muted" style="margin-bottom:14px">מדפיס טבלה כרונולוגית (לפי שעות) לכל בתי הכנסת ביישוב יחד, לפי הבחירה שלכם.</p>
     <div class="field"><label for="printGeneralDayMode">טווח להדפסה</label>
       <select id="printGeneralDayMode" onchange="onPrintGeneralDayModeChange()">
         <option value="today">יום מסוים - היום</option>
@@ -3530,58 +3827,93 @@ function onPrintGeneralDayModeChange(){
 function doPrintGeneral(){
   const mode = document.getElementById('printGeneralDayMode').value;
   const includeShiurim = document.getElementById('printGeneralIncludeShiurim').checked;
-  let dayFilter = null; // null = כל השבוע, ללא סינון לפי יום
-  let refDate = new Date();
-  let rangeLabel = 'כל השבוע';
-  if (mode === 'today'){
-    dayFilter = dayKeyOf(new Date());
-    rangeLabel = 'יום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(dayFilter)] + ' (' + new Date().toLocaleDateString('he-IL') + ')';
-  } else if (mode === 'day'){
-    dayFilter = document.getElementById('printGeneralDaySelect').value;
-    refDate = nextDateForDayKey(dayFilter);
-    rangeLabel = 'יום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(dayFilter)];
-  }
   closeModal();
   trackEvent('print_general_schedule', { mode, include_shiurim: includeShiurim });
-  const zmanim = getZmanim(refDate);
-  const shulsSorted = [...data.shuls].sort((a,b)=>a.name.localeCompare(b.name,'he'));
-  const sections = shulsSorted.map(shul=>{
-    let mins = data.minyanim.filter(m=>m.shulId===shul.id);
-    if (dayFilter) mins = mins.filter(m=>(m.days||[]).includes(dayFilter));
-    const minsWithTime = mins.map(m=>({ m, t: computeMinyanTime(m, refDate, zmanim) }))
-      .sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
-    const minyanRows = minsWithTime.map(({m,t})=>`
-      <tr><td>${escapeHtml(m.tefila)}</td>${dayFilter?'':`<td>${escapeHtml(daysToLabel(m.days))}</td>`}<td>${fmtTime(t)}</td><td>${escapeHtml(m.notes||'')}</td></tr>
+
+  // בונה בלוק כרונולוגי (תפילות ואופציונלית שיעורים) ליום שבוע נתון
+  function buildDayBlock(dayKey, refDate, showDayHeading){
+    const zmanim = getZmanim(refDate);
+    const minsWithTime = data.minyanim.filter(m=>(m.days||[]).includes(dayKey)).map(m=>{
+      const shul = data.shuls.find(s=>s.id===m.shulId);
+      return { m, shul, t: computeMinyanTime(m, refDate, zmanim) };
+    }).sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
+    const minyanRows = minsWithTime.map(({m,shul,t})=>`
+      <tr><td>${fmtTime(t)}</td><td>${escapeHtml(m.tefila)}</td><td>${escapeHtml(shul?shul.name:'')}</td><td>${escapeHtml(m.notes||'')}</td></tr>
     `).join('');
     const minyanTable = minsWithTime.length ? `
       <table>
-        <thead><tr><th>תפילה</th>${dayFilter?'':'<th>ימים</th>'}<th>שעה</th><th>הערות</th></tr></thead>
+        <thead><tr><th>שעה</th><th>תפילה</th><th>בית כנסת</th><th>הערות</th></tr></thead>
         <tbody>${minyanRows}</tbody>
-      </table>` : `<div class="print-empty">אין מניינים${dayFilter?' ליום זה':''}</div>`;
+      </table>` : `<div class="print-empty">אין מניינים ליום זה</div>`;
 
-    let shiurTable = '';
+    let shiurBlock = '';
     if (includeShiurim){
-      let shiurim = data.shiurim.filter(s=>s.locationShulId===shul.id && !isShiurExpired(s));
-      if (dayFilter) shiurim = shiurim.filter(s=> !s.oneTime && (s.days||[]).includes(dayFilter));
-      const shiurRows = shiurim.map(s=>{
-        const topics = getShiurTopics(s);
-        return `<tr><td>${escapeHtml(s.title)}</td><td>${escapeHtml(topics.join(', '))}</td>${dayFilter?'':`<td>${escapeHtml(shiurScheduleLabel(s))}</td>`}<td>${escapeHtml(s.time||'')}</td></tr>`;
-      }).join('');
-      shiurTable = shiurim.length ? `
-        <h4 style="margin:10px 0 6px;font-size:13.5px;color:var(--ink-soft)">שיעורי תורה</h4>
+      const shiurRows = data.shiurim.filter(s=>!s.oneTime && (s.days||[]).includes(dayKey) && !isShiurExpired(s))
+        .map(s=>({ s, shul: data.shuls.find(x=>x.id===s.locationShulId) }))
+        .sort((a,b)=> (a.s.time||'').localeCompare(b.s.time||''))
+        .map(({s,shul})=>{
+          const topics = getShiurTopics(s);
+          return `<tr><td>${escapeHtml(s.time||'')}</td><td>${escapeHtml(s.title)}</td><td>${escapeHtml(topics.join(', '))}</td><td>${escapeHtml(shul?shul.name:(s.location||''))}</td></tr>`;
+        }).join('');
+      shiurBlock = shiurRows ? `
+        <h4 style="margin:12px 0 6px;font-size:13.5px;color:var(--ink-soft)">שיעורי תורה</h4>
         <table>
-          <thead><tr><th>כותרת</th><th>נושא</th>${dayFilter?'':'<th>ימים</th>'}<th>שעה</th></tr></thead>
+          <thead><tr><th>שעה</th><th>כותרת</th><th>נושא</th><th>מיקום</th></tr></thead>
           <tbody>${shiurRows}</tbody>
         </table>` : '';
     }
-    if (!minsWithTime.length && !shiurTable) return '';
     return `
-      <div style="break-inside:avoid;margin-bottom:16px">
-        <h2>${escapeHtml(shul.name)}</h2>
+      <div style="margin-bottom:20px">
+        ${showDayHeading?`<h2>יום ${escapeHtml(DAYS_HE_FULL[DAY_KEYS.indexOf(dayKey)])}</h2>`:''}
         ${minyanTable}
-        ${shiurTable}
+        ${shiurBlock}
       </div>`;
-  }).filter(Boolean).join('');
+  }
+
+  // בונה טבלת שיעורים חד-פעמיים בטווח תאריכים נתון (הם לא חוזרים על עצמם בכל שבוע, אז לא מוצגים בבלוק היומי הרגיל)
+  function buildOneTimeShiurimBlock(fromDate, toDate, heading){
+    if (!includeShiurim) return '';
+    const rows = data.shiurim.filter(s=>{
+      if (!s.oneTime || !s.oneTimeDate || isShiurExpired(s)) return false;
+      const d = new Date(s.oneTimeDate + 'T00:00:00');
+      return d >= fromDate && d <= toDate;
+    }).sort((a,b)=> new Date(a.oneTimeDate) - new Date(b.oneTimeDate) || (a.time||'').localeCompare(b.time||''))
+      .map(s=>{
+        const shul = data.shuls.find(x=>x.id===s.locationShulId);
+        const topics = getShiurTopics(s);
+        return `<tr><td>${new Date(s.oneTimeDate+'T00:00:00').toLocaleDateString('he-IL')}</td><td>${escapeHtml(s.time||'')}</td><td>${escapeHtml(s.title)}</td><td>${escapeHtml(topics.join(', '))}</td><td>${escapeHtml(shul?shul.name:(s.location||''))}</td></tr>`;
+      }).join('');
+    if (!rows) return '';
+    return `
+      <div style="margin-bottom:20px">
+        <h2>${escapeHtml(heading)}</h2>
+        <table>
+          <thead><tr><th>תאריך</th><th>שעה</th><th>כותרת</th><th>נושא</th><th>מיקום</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  let bodyHtml = '';
+  let rangeLabel = '';
+  let refDateForNote = new Date();
+
+  if (mode === 'week'){
+    rangeLabel = 'כל השבוע';
+    bodyHtml = DAY_KEYS.map(dk => buildDayBlock(dk, nextDateForDayKey(dk), true)).join('');
+    const now = new Date(); now.setHours(0,0,0,0);
+    const weekAhead = new Date(now.getTime() + 7*24*60*60000);
+    bodyHtml += buildOneTimeShiurimBlock(now, weekAhead, 'שיעורים חד פעמיים בשבוע הקרוב');
+  } else {
+    const dayKey = mode === 'today' ? dayKeyOf(new Date()) : document.getElementById('printGeneralDaySelect').value;
+    const refDate = mode === 'today' ? new Date() : nextDateForDayKey(dayKey);
+    refDateForNote = refDate;
+    rangeLabel = 'יום ' + DAYS_HE_FULL[DAY_KEYS.indexOf(dayKey)] + (mode==='today' ? ' (' + new Date().toLocaleDateString('he-IL') + ')' : '');
+    bodyHtml = buildDayBlock(dayKey, refDate, false);
+    const dayStart = new Date(refDate); dayStart.setHours(0,0,0,0);
+    const dayEnd = new Date(refDate); dayEnd.setHours(23,59,59,999);
+    bodyHtml += buildOneTimeShiurimBlock(dayStart, dayEnd, 'שיעורים חד פעמיים ליום זה');
+  }
 
   document.getElementById('printArea').innerHTML = `
     <div class="print-header">
@@ -3589,12 +3921,13 @@ function doPrintGeneral(){
       <div class="print-subtitle">${escapeHtml(rangeLabel)}</div>
     </div>
     <hr class="print-hr">
-    <div class="print-note">הזמנים משוערים ומחושבים ליום ${refDate.toLocaleDateString('he-IL')}</div>
-    ${sections || '<div class="print-empty">אין נתונים להצגה</div>'}
+    <div class="print-note">הזמנים משוערים ומחושבים לפי ${refDateForNote.toLocaleDateString('he-IL')}, מסודרים לפי סדר כרונולוגי</div>
+    ${bodyHtml || '<div class="print-empty">אין נתונים להצגה</div>'}
     <div class="print-footer">תפילות ושיעורי תורה בבית אל · הודפס בתאריך ${new Date().toLocaleDateString('he-IL')}</div>`;
   window.print();
 }
 function addAnnouncement(shulId){
+  if (!canManageShul(shulId)) return;
   const ta = document.getElementById('newAnnouncementText_'+shulId);
   const text = ta.value.trim();
   if (!text) return;
@@ -3608,6 +3941,7 @@ function addAnnouncement(shulId){
   }).then(()=>{ ta.value=''; }).catch(e=>alert('שגיאה בפרסום: '+e.message));
 }
 function removeAnnouncement(shulId, index){
+  if (!canManageShul(shulId)) return;
   const shul = data.shuls.find(s=>s.id===shulId);
   if (!shul || !shul.announcements) return;
   const sorted = shul.announcements.slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
@@ -3618,6 +3952,7 @@ function removeAnnouncement(shulId, index){
   }).catch(e=>alert('שגיאה במחיקה: '+e.message));
 }
 function addShulEditorFromSelect(shulId){
+  if (!isManager()) return;
   const sel = document.getElementById('newEditorSelect_'+shulId);
   const uidToAdd = sel.value;
   if (!uidToAdd) return;
@@ -3626,6 +3961,7 @@ function addShulEditorFromSelect(shulId){
   }).catch(e=>alert('שגיאה: '+e.message));
 }
 function removeShulEditor(shulId, uidToRemove){
+  if (!isManager()) return;
   db.collection('shuls').doc(shulId).update({
     editorUids: firebase.firestore.FieldValue.arrayRemove(uidToRemove)
   }).catch(e=>alert('שגיאה: '+e.message));
@@ -3753,6 +4089,8 @@ function saveMinyan(shulId, minyanId){
 
 }
 function deleteMinyan(id){
+  const m = data.minyanim.find(x=>x.id===id);
+  if (!m || !canDeleteInShul(m.shulId)) return;
   if (!confirm('למחוק את המניין?')) return;
   db.collection('minyanim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
   trackEvent('delete_minyan', { minyan_id: id });
@@ -3821,6 +4159,9 @@ function openShiurForm(shiurId){
       <div id="shiurImagePreview">${s&&s.image?`<img src="${escapeHtml(s.image)}" alt="תצוגה מקדימה של תמונת השיעור" style="width:64px;height:64px;object-fit:cover;border-radius:50%;display:block;margin-bottom:6px">`:''}</div>
       ${s&&s.image?`<button type="button" class="btn ghost" id="shiurImageRemoveBtn" style="color:var(--danger)" onclick="removeShiurImage()">✕ הסרת תמונה</button>`:''}
     </div>
+    ${isManager()?`
+    <div class="field optional"><label for="f_recordingLink">קישור להקלטת השיעור (יוטיוב, ספוטיפיי או קישור אחר)</label><input id="f_recordingLink" type="url" placeholder="https://..." value="${s?escapeHtml(s.recordingLink||''):''}"></div>
+    `:''}
     <div class="inline2">
       <div class="field optional"><label for="f_contactName">איש קשר לפרטים</label><input id="f_contactName" value="${s?escapeHtml(s.contactName||''):''}"></div>
       <div class="field optional"><label for="f_contactPhone">טלפון איש קשר</label><input id="f_contactPhone" value="${s?escapeHtml(s.contactPhone||''):''}"></div>
@@ -3875,6 +4216,12 @@ function saveShiur(shiurId){
     if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
   }
   const topics = [...document.querySelectorAll('#f_topics .daychip.active')].map(d=>d.dataset.topic);
+  const recordingLinkEl = document.getElementById('f_recordingLink');
+  let recordingLink;
+  if (recordingLinkEl){
+    recordingLink = recordingLinkEl.value.trim();
+    if (recordingLink && !/^https?:\/\//i.test(recordingLink)){ alert('קישור להקלטה צריך להתחיל ב-http:// או https://'); return; }
+  }
   const id = shiurId || uid();
   const obj = stamp({
     title,
@@ -3894,11 +4241,14 @@ function saveShiur(shiurId){
     contactPhone: document.getElementById('f_contactPhone').value.trim(),
     notes: document.getElementById('f_shiurNotes').value.trim()
   });
+  if (recordingLinkEl) obj.recordingLink = recordingLink;
   db.collection('shiurim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   trackEvent(shiurId ? 'edit_shiur' : 'add_shiur', { title });
   closeModal();
 }
 function deleteShiur(id){
+  const s = data.shiurim.find(x=>x.id===id);
+  if (!s || !canDeleteShiur(s)) return;
   if (!confirm('למחוק את השיעור?')) return;
   db.collection('shiurim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
   trackEvent('delete_shiur', { shiur_id: id });
@@ -3931,10 +4281,9 @@ function openAboutModal(){
     <h3>אודות <span class="muted" style="font-weight:400;font-size:14px">· גרסה ${escapeHtml(CURRENT_APP_VERSION)}</span></h3>
     <p style="line-height:1.7;margin-bottom:14px">הכלי פותח על ידי המחלקה לשירותי דת, מועצה מקומית בית אל.</p>
     <p style="line-height:1.7;margin-bottom:14px">זמני התפילות, השיעורים וכדו' מתעדכנים על ידי התושבים. נתקלתם במידע לא מדויק - היכנסו לפרטי המניין או השיעור ועדכנו את הפרטים!</p>
-    <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - יש לפנות למחלקת דת <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:none;font-weight:500">${MAIL_ICON_SVG} m.dat@bet-el.muni.il</a></p>
+    <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - ניתן לפנות ב<a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:underline;font-weight:500">מייל</a>, או <a href="#" onclick="openSendAdminMessageForm('');return false" style="color:var(--dusk);text-decoration:underline;font-weight:500">דרך האפליקציה</a>.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn primary" onclick="openUserGuide()">📖 מדריך למשתמש</button>
-      <button type="button" class="btn" onclick="openSendAdminMessageForm('')">✉️ שליחת הודעה למנהל</button>
       <button type="button" class="btn" onclick="openUsefulInfoModal()">ℹ️ מידע שימושי</button>
       <button type="button" class="btn" onclick="openAccessibilityPanel()">♿ נגישות</button>
       <button type="button" class="btn" onclick="openPrivacyModal()">🔒 מדיניות פרטיות</button>
@@ -4076,13 +4425,25 @@ function openUsefulInfoModal(){
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
   {
+    version: '1.4',
+    date: '2.8.2026',
+    items: [
+      '💬 ההודעות למנהל הפכו להתכתבות מלאה: אפשר לשלוח הודעות המשך (גם תושב וגם מנהל), ורואים את כל ההיסטוריה במקום אחד.',
+      '🔴 תגית מספרית אדומה על אייקון המעטפה בראש העמוד, שמראה כמה הודעות חדשות מחכות (למנהל - פניות חדשות מתושבים; לתושב - תשובות חדשות). האייקון עצמו נשאר גם אחרי שקוראים, רק התגית מתבטלת.',
+      '📩 חלונית קופצת בכניסה לאפליקציה כשיש תשובה חדשה מהמנהל, עם אפשרות לשלוח הודעת המשך ישירות מהחלונית.',
+      '🖨️ תיקון בהדפסה הכללית מדף הבית: הטבלה מסודרת עכשיו כרונולוגית (לפי שעות) לכל בתי הכנסת יחד, במקום מחולקת לפי בית כנסת - וגם תוקנה תקלה שגרמה לעמוד הראשון להיראות כמעט ריק.',
+      '🧑‍💼 בדף בית כנסת: גבאים שקיבלו הרשאה דרך "משתמשים והרשאות" בניהול מוצגים עכשיו ליד שם הרב, גם אם לא הוזנו ידנית בפרטי בית הכנסת.'
+    ]
+  },
+  {
     version: '1.3',
     date: '2.8.2026',
     items: [
       '🖨️ הדפסה כללית: כפתור הדפסה חדש בדף הבית (לפי שעות) שמדפיס את כל בתי הכנסת ביישוב יחד - עם אפשרות לבחור יום מסוים או כל השבוע, ולכלול או לא לכלול שיעורי תורה.',
       '📋 בניהול: יומן עדכונים אחרונים - תצוגה כרונולוגית של 100 העדכונים האחרונים בבתי כנסת, מניינים ושיעורים, כולל מי עדכן ומתי.',
       '🔒 בניהול: אפשרות לנעול זמנית הוספה ועריכה של תוכן (לתושבים וגבאים) - לזמן מוגדר או ללא הגבלת זמן, עם סיבה אופציונלית שתוצג למי שינסה לערוך.',
-      '📩 בתחתית כל עמוד נוסף קרדיט למחלקה לשירותי דת של המועצה המקומית, עם קישור ליצירת קשר במייל.'
+      '📩 בתחתית כל עמוד נוסף קרדיט למחלקה לשירותי דת של המועצה המקומית, עם קישור ליצירת קשר במייל.',
+      '🎥 מנהלים יכולים כעת להוסיף לשיעור קישור להקלטה (יוטיוב, ספוטיפיי או כל קישור אחר) - מוצג עם אייקון ייעודי לפלטפורמה ליד השיעור.'
     ]
   },
   {
