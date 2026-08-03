@@ -375,6 +375,22 @@
 
   <div id="admin-tab" style="display:none">
     <div class="card admin-section">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_dashboard" aria-expanded="false" onclick="toggleAdminSection('dashboard')">
+        <h3>📊 דשבורד</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_dashboard" style="display:none">
+        <p class="muted" style="margin-bottom:12px">סקירת פעילות עדכון תוכן באפליקציה. מבוסס על נתונים שכבר טעונים אצלכם ממילא - לא דורש קריאות נוספות מהמסד.</p>
+        <div id="dashboardRangeButtons" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
+        <div id="dashboardStats"></div>
+        <p class="muted" style="margin-top:6px;font-size:11.5px">"עריכות" סופר פריטים קיימים שעודכנו בטווח (לא כולל פריטים חדשים, וגם לא סופר כפול עריכות חוזרות לאותו פריט). פריטים ישנים שנוצרו לפני התכונה הזו ייספרו כ"עריכה" בכל פעם שהם מתעדכנים, כי אין להם תאריך יצירה שמור.</p>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <p class="muted" style="margin-bottom:8px">מספר גולשים וצפיות בעמודים נמדדים ב-Google Analytics (לא נשמרים באפליקציה עצמה, כדי לא להעמיס כתיבות נוספות על מכסת השימוש היומית ב-Firestore).</p>
+          <a href="https://analytics.google.com/" target="_blank" rel="noopener" class="btn">📈 פתיחת Google Analytics</a>
+        </div>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
       <button type="button" class="admin-section-header" id="adminSectionHeader_messages" aria-expanded="false" onclick="toggleAdminSection('messages')">
         <h3>💬 הודעות מתושבים <span class="badge" id="adminMessagesBadge" style="display:none"></span></h3>
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -2957,6 +2973,53 @@ function toggleAdminSection(key){
   const chevron = header.querySelector('.chevron');
   if (chevron) chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(-90deg)';
 }
+// ---------- דשבורד ניהול: סקירת פעילות תוכן, מבוסס נתונים שכבר טעונים (בלי קריאות נוספות) ----------
+let dashboardRange = '24h';
+function setDashboardRange(range){
+  dashboardRange = range;
+  renderDashboard();
+}
+function dashboardRangeStartDate(){
+  const now = new Date();
+  if (dashboardRange === '24h') return new Date(now.getTime() - 24*60*60000);
+  if (dashboardRange === 'week') return new Date(now.getTime() - 7*24*60*60000);
+  if (dashboardRange === 'month') return new Date(now.getTime() - 30*24*60*60000);
+  return null; // 'all' - כל הזמנים
+}
+function renderDashboard(){
+  const btnsEl = document.getElementById('dashboardRangeButtons');
+  const statsEl = document.getElementById('dashboardStats');
+  if (!btnsEl || !statsEl) return; // הסקשן לא בתצוגה כרגע
+
+  const ranges = [{key:'24h', label:'24 שעות'}, {key:'week', label:'שבוע'}, {key:'month', label:'חודש'}, {key:'all', label:'מאז ומתמיד'}];
+  btnsEl.innerHTML = ranges.map(r=>`<button type="button" class="btn ${dashboardRange===r.key?'primary':''}" onclick="setDashboardRange('${r.key}')">${r.label}</button>`).join('');
+
+  const start = dashboardRangeStartDate();
+  const inRange = ts => { if (!ts) return false; return !start || new Date(ts) >= start; };
+  function itemStats(arr){
+    const isNewItem = x => x.createdAt && inRange(x.createdAt);
+    const newCount = arr.filter(isNewItem).length;
+    const editedCount = arr.filter(x=> inRange(x.updatedAt) && !isNewItem(x)).length;
+    return { newCount, editedCount };
+  }
+  const shulsStats = itemStats(data.shuls);
+  const minyanimStats = itemStats(data.minyanim);
+  const shiurimStats = itemStats(data.shiurim);
+  const totalEdited = shulsStats.editedCount + minyanimStats.editedCount + shiurimStats.editedCount;
+
+  const card = (num, label) => `
+    <div class="card" style="flex:1;min-width:120px;text-align:center;padding:14px;margin-bottom:0">
+      <div style="font-size:28px;font-weight:700;color:var(--dusk)">${num}</div>
+      <div class="muted" style="font-size:12px;margin-top:4px">${label}</div>
+    </div>`;
+  statsEl.innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      ${card(minyanimStats.newCount, 'מניינים חדשים')}
+      ${card(shiurimStats.newCount, 'שיעורים חדשים')}
+      ${card(shulsStats.newCount, 'בתי כנסת חדשים')}
+      ${card(totalEdited, 'עריכות לתוכן קיים')}
+    </div>`;
+}
 function renderActivityLog(){
   const el = document.getElementById('activityLogList');
   if (!el) return;
@@ -3146,7 +3209,7 @@ function render(){
   if (currentTab === 'tefilot') renderTefilot();
   else if (currentTab === 'shiurim') renderShiurim();
   else if (currentTab === 'info') renderInfoTab();
-  else if (currentTab === 'admin'){ renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); renderRabbanimAdmin(); }
+  else if (currentTab === 'admin'){ renderDashboard(); renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); renderRabbanimAdmin(); }
 }
 // הפוטר התחתון (זמנים משוערים + קרדיט) מוצג רק בדפי תפילות ובית כנסת - לא בשיעורים ולא במידע שימושי
 function updateFooterVisibility(){
@@ -3968,7 +4031,7 @@ function saveShul(shulId){
   const donationLink = document.getElementById('f_donationLink').value.trim();
   if (donationLink && !/^https?:\/\//i.test(donationLink)){ alert('קישור לתרומה צריך להתחיל ב-http:// או https://'); return; }
   const parseNames = s => s.split(',').map(x=>x.trim()).filter(Boolean);
-  const obj = stamp({
+  const shulCandidate = {
     name,
     address: document.getElementById('f_address').value.trim(),
     nusach: document.getElementById('f_nusach').value.trim(),
@@ -3979,7 +4042,9 @@ function saveShul(shulId){
     donationLink,
     rabbiNames: parseNames(document.getElementById('f_rabbiNames').value),
     gabaiNames: parseNames(document.getElementById('f_gabaiNames').value)
-  });
+  };
+  if (!shulId) shulCandidate.createdAt = new Date().toISOString();
+  const obj = stamp(shulCandidate);
   const id = shulId || uid();
   db.collection('shuls').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   closeModal();
@@ -4742,6 +4807,7 @@ function saveMinyan(shulId, minyanId){
     if (!proceed) return;
   }
   const isNew = !minyanId;
+  if (isNew) candidate.createdAt = new Date().toISOString();
   const obj = stamp(candidate);
   db.collection('minyanim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   trackEvent(isNew ? 'add_minyan' : 'edit_minyan', { tefila: candidate.tefila, shul_id: shulId });
@@ -4906,7 +4972,8 @@ function saveShiur(shiurId){
   const tempNoteUntil = document.getElementById('f_shiurTempNoteUntil').value;
   if (tempNote && !tempNoteUntil){ alert('יש לקבוע עד מתי ההערה הזמנית תוצג'); return; }
   const id = shiurId || uid();
-  const obj = stamp({
+  const isNewShiur = !shiurId;
+  const shiurCandidate = {
     title,
     topics,
     audience: document.getElementById('f_audience').value,
@@ -4925,7 +4992,9 @@ function saveShiur(shiurId){
     notes: document.getElementById('f_shiurNotes').value.trim(),
     tempNote: tempNote,
     tempNoteUntil: tempNote ? tempNoteUntil : null
-  });
+  };
+  if (isNewShiur) shiurCandidate.createdAt = new Date().toISOString();
+  const obj = stamp(shiurCandidate);
   if (recordingLinkEl) obj.recordingLink = recordingLink;
   db.collection('shiurim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   trackEvent(shiurId ? 'edit_shiur' : 'add_shiur', { title });
@@ -5221,17 +5290,15 @@ const WHATS_NEW = [
     date: '3.8.2026',
     items: [
       '⏰ בהוספת מניין: אם השעה שהוזנה חורגת בהרבה מהטווח הרגיל לאותה תפילה (למשל שחרית ב-14:00), מוצגת התראה לפני השמירה - כדי לתפוס טעויות הקלדה.',
-      '⭐ אפשר לעקוב אחרי שיעור ספציפי (דורש התחברות עם גוגל) - אם הוא מבוטל או שהזמן שלו משתנה, מקבלים על כך התראה בכניסה הבאה לאפליקציה.',
-      '💬 בפרטי רב: אם הוזן טלפון, אפשר לסמן בניהול שיוצג גם כפתור וואטסאפ שפותח שיחת הודעות ישירה למספר שלו.'
+      '⭐ אפשר לעקוב אחרי שיעור ספציפי (דורש התחברות עם גוגל) - אם הוא מבוטל או שהזמן שלו משתנה, מקבלים על כך התראה בכניסה הבאה לאפליקציה.'
     ]
   },
   {
     version: '1.5',
     date: '3.8.2026',
     items: [
-      '📇 לשונית חדשה "מידע שימושי" בסרגל התחתון: למעלה מוצגת רשימת רבני הישוב (ניתנת לניהול מלא בפאנל הניהול), ומתחת מידע שימושי נוסף. רב שמוגדר כ"רב קהילה" של בית כנסת מקבל קישור הדדי - שמו מופיע כקישור בדף בית הכנסת, ושם בית הכנסת מופיע כקישור בכרטיס שלו.',
-      '📇 בפרטי רב: אפשר להוסיף גם אימייל (בנוסף/במקום טלפון - מספיק אחד מהשניים), ו"הערה ליצירת קשר" (למשל "בהודעות בלבד" או "בשעות הערב") שמוצגת ליד פרטי הקשר.',
-      '⭐ בפרטי רב אפשר לסמן "רב היישוב" - הוא מוצג תמיד למעלה ברשימת "רבנים בישוב", והשאר מתחת לכפתור "רבנים נוספים".',
+      '📇 לשונית חדשה "מידע שימושי" בסרגל התחתון: למעלה מוצגת רשימת רבני הישוב, ומתחת מידע שימושי נוסף. רב שמוגדר כ"רב קהילה" של בית כנסת מקבל קישור הדדי - שמו מופיע כקישור בדף בית הכנסת, ושם בית הכנסת מופיע כקישור בכרטיס שלו.',
+      '⭐ רב היישוב מוצג תמיד למעלה ברשימת "רבנים בישוב", ושאר הרבנים מתחת לכפתור "רבנים נוספים".',
       '📋 "מידע שימושי" עוצב מחדש כרשימת נושאים לחיצה (מקוואות נשים/גברים, גניזה, עירוב, מפת בית העלמין, הכנת מודעת אבל, רישום לנישואין) - לוחצים על כותרת והפרטים נפתחים.',
       '🦶 הפוטר התחתון (הערת דיוק זמנים + קרדיט) מוצג עכשיו רק בדפי תפילות ובית כנסת - לא בשיעורי תורה ולא במידע שימושי.'
     ]
@@ -5246,10 +5313,7 @@ const WHATS_NEW = [
       '🖨️ תיקון בהדפסה הכללית מדף הבית: הטבלה מסודרת עכשיו כרונולוגית (לפי שעות) לכל בתי הכנסת יחד, במקום מחולקת לפי בית כנסת - וגם תוקנה תקלה שגרמה לעמוד הראשון להיראות כמעט ריק.',
       '🎥 בטופס עריכת שיעור: מי שאינו מנהל יכול עכשיו להציע קישור להקלטת השיעור - הבקשה נשלחת אוטומטית למנהל, והקישור יופיע בפועל רק לאחר אישורו.',
       '🐛 תוקן באג בתפריטי המידע (ⓘ) של מניינים ושיעורים - כשלוחצים על פריט קרוב לתחתית המסך, התפריט נפתח עכשיו כלפי מעלה במקום להיחתך מתחת לסרגל הניווט התחתון.',
-      '👑 הגנה על הרשאת "מנהל": אי אפשר יותר להסיר הרשאת מנהל אם נשאר מנהל יחיד ביישוב. כשיש כמה מנהלים, רק ה"מנהל הראשי" (מסומן ⭐) יכול להסיר הרשאה ממנהלים אחרים - ואם הוא רוצה להסיר את שלו, עליו לבחור קודם מי יהיה המנהל הראשי החדש.',
       '📌 אפשר להוסיף למניין או לשיעור "הערה זמנית" (למשל "לא מתקיים בבין הזמנים") עם תאריך תפוגה - היא מוצגת בבליטות בכתום עד התאריך שנקבע, ואז נעלמת אוטומטית. מופיעה בכל מקום שהמניין/השיעור מוצג, כולל הדפסה וייצוא לאקסל.',
-      '💾 גיבוי ושחזור: הגיבוי המלא כולל עכשיו גם הודעות תושבים והגדרות שנוספו לאחרונה (נעילת עריכה, מנהל ראשי) שהיו חסרות קודם. בטעינת גיבוי אפשר עכשיו לבחור בין מיזוג (משלים, לא מוחק) לבין שחזור מלא (דורס ומחליף הכל בדיוק לפי הגיבוי).',
-      '🚫 בניהול: אפשרות לחסום את כל האפליקציה זמנית (למשל לצורך תחזוקה) - כל מי שנכנס רואה מסך "האפליקציה אינה זמינה", חוץ ממנהלים שיכולים להתחבר עם גוגל מאותו מסך ולהמשיך לעבוד כרגיל.',
       '🕐 בזמן יחסי למניין (הנץ/שקיעה/צאת הכוכבים) נוספה אפשרות "בדיוק", לצד "לפני" ו"אחרי" - שימושי למשל לערבית בדיוק בשקיעה.'
     ]
   },
@@ -5258,10 +5322,7 @@ const WHATS_NEW = [
     date: '2.8.2026',
     items: [
       '🖨️ הדפסה כללית: כפתור הדפסה חדש בדף הבית (לפי שעות) שמדפיס את כל בתי הכנסת ביישוב יחד - עם אפשרות לבחור יום מסוים או כל השבוע, ולכלול או לא לכלול שיעורי תורה.',
-      '📋 בניהול: יומן עדכונים אחרונים - תצוגה כרונולוגית של 100 העדכונים האחרונים בבתי כנסת, מניינים ושיעורים, כולל מי עדכן ומתי.',
-      '🔒 בניהול: אפשרות לנעול זמנית הוספה ועריכה של תוכן (לתושבים וגבאים) - לזמן מוגדר או ללא הגבלת זמן, עם סיבה אופציונלית שתוצג למי שינסה לערוך.',
-      '📩 בתחתית כל עמוד נוסף קרדיט למחלקה לשירותי דת של המועצה המקומית, עם קישור ליצירת קשר במייל.',
-      '🎥 מנהלים יכולים כעת להוסיף לשיעור קישור להקלטה (יוטיוב, ספוטיפיי או כל קישור אחר) - מוצג עם אייקון ייעודי לפלטפורמה ליד השיעור.'
+      '📩 בתחתית כל עמוד נוסף קרדיט למחלקה לשירותי דת של המועצה המקומית, עם קישור ליצירת קשר במייל.'
     ]
   },
   {
