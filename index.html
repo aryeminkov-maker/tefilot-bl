@@ -45,8 +45,9 @@
   .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;padding:0;cursor:pointer;font-size:17px;line-height:1;flex-shrink:0}
   .row-icon-btn{background:transparent;border:none;cursor:pointer;font-size:14px;padding:3px 5px;opacity:.7;line-height:1}
   .notif-badge{position:absolute;top:-4px;left:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--surface);pointer-events:none}
-  .shiur-recording-btn{width:64px;flex-shrink:0;display:flex;align-items:center;justify-content:center;text-decoration:none;border-right:1px solid var(--border);border-top-left-radius:9px;border-bottom-left-radius:9px;transition:filter .15s}
+  .shiur-recording-btn{width:64px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-decoration:none;border-right:1px solid var(--border);border-top-left-radius:9px;border-bottom-left-radius:9px;transition:filter .15s;padding:6px 4px;text-align:center}
   .shiur-recording-btn:hover{filter:brightness(.95)}
+  .shiur-recording-btn .rec-caption{font-size:9px;line-height:1.25;color:var(--ink-soft);font-weight:500}
   .row-icon-btn:hover{opacity:1}
   .google-icon-svg{width:20px;height:20px}
   .info-popover{display:none;position:absolute;top:calc(100% + 8px);right:0;width:230px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6;z-index:30}
@@ -406,7 +407,7 @@
         </div>
         <div id="usersList"></div>
         <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
-          <p class="muted" style="margin-bottom:8px">אם שינית ידנית פרטי גבאים בעבר, או שיש גבאים משויכים שלא מוצגים בדף בית הכנסת שלהם - אפשר לרענן את התאמת התצוגה בכל בתי הכנסת (חד פעמי, לא מוחק שום דבר):</p>
+          <p class="muted" style="margin-bottom:8px">אם יש גבאים משויכים שלא מופיעים בדף בית הכנסת שלהם (בחלק המנהל בלבד, בתחתית העמוד) - אפשר לרענן את התאמת התצוגה בכל בתי הכנסת (חד פעמי, לא מוחק שום דבר):</p>
           <button class="btn" onclick="resyncAllShulGabaim()">🔄 רענון רשימת גבאים בכל בתי הכנסת</button>
         </div>
       </div>
@@ -1084,6 +1085,33 @@ function submitAdminMessage(contextLabel){
     reply: null,
     replySeenByUser: true
   }).then(()=>{ alert('ההודעה נשלחה למנהל, תודה!'); closeModal(); trackEvent('send_admin_message', {}); })
+    .catch(e=>alert('שגיאה בשליחה: '+e.message));
+}
+// שולח בקשה למנהל להוסיף קישור להקלטת שיעור (השדה עצמו ניתן לעריכה רק על ידי מנהל בפועל - ר' firestore.rules)
+function requestRecordingLink(shiurId){
+  if (!requireEditPermission()) return;
+  const input = document.getElementById('f_recordingLinkRequest');
+  const link = input.value.trim();
+  if (!link){ alert('יש להזין קישור'); return; }
+  if (!/^https?:\/\//i.test(link)){ alert('קישור צריך להתחיל ב-http:// או https://'); return; }
+  const shiur = data.shiurim.find(x=>x.id===shiurId);
+  const title = shiur ? shiur.title : '';
+  const text = `בקשה להוספת קישור להקלטה לשיעור "${title}":\n${link}`;
+  const now = new Date().toISOString();
+  const by = currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '';
+  db.collection('supportMessages').add({
+    fromUid: currentUser.uid,
+    fromName: by,
+    fromEmail: currentUser.email || '',
+    text,
+    contextLabel: `קישור להקלטה - ${title}`,
+    createdAt: now,
+    thread: [{ sender:'resident', text, at: now, by }],
+    unreadByManager: true,
+    unreadByUser: false,
+    reply: null,
+    replySeenByUser: true
+  }).then(()=>{ alert('הבקשה נשלחה למנהל, תודה! הקישור יופיע בשיעור רק אחרי אישור.'); input.value=''; trackEvent('request_recording_link', { shiur_id: shiurId }); })
     .catch(e=>alert('שגיאה בשליחה: '+e.message));
 }
 function renderAdminMessages(){
@@ -2405,7 +2433,7 @@ function recordingIconSvg(url, size){
 function shiurRecordingBigButtonHtml(s){
   if (!s || !s.recordingLink) return '';
   const p = recordingPlatformInfo(s.recordingLink);
-  return `<a href="${escapeHtml(s.recordingLink)}" target="_blank" rel="noopener" class="shiur-recording-btn" style="background:${p.tint}" onclick="event.stopPropagation();trackEvent('open_shiur_recording',{shiur_id:'${s.id}'})" title="${p.label}" aria-label="${p.label}">${recordingIconSvg(s.recordingLink, 28)}</a>`;
+  return `<a href="${escapeHtml(s.recordingLink)}" target="_blank" rel="noopener" class="shiur-recording-btn" style="background:${p.tint}" onclick="event.stopPropagation();trackEvent('open_shiur_recording',{shiur_id:'${s.id}'})" title="${p.label}" aria-label="${p.label}"><span class="rec-caption">להקלטות השיעורים:</span>${recordingIconSvg(s.recordingLink, 26)}</a>`;
 }
 // אייקון קטן מוטבע בשורה (לדף בית הכנסת, שם אין מקום לכפתור גדול)
 function shiurRecordingLinkHtml(s){
@@ -3693,12 +3721,14 @@ function renderShulPage(){
           <button class="btn primary" onclick="addShulEditorFromSelect('${shul.id}')">+ הוספה</button>
         </div>
       </div>`;
+    const assignedGabaimRows = (shul.assignedGabaim || []).map(g=>`<div class="row" style="padding:4px 0"><span>${escapeHtml(g.name||'')}</span></div>`).join('') || '<div class="muted">אין גבאים עם הרשאת מערכת לבית כנסת זה</div>';
+    editorsHtml += `
+      <div class="card" style="margin-top:14px">
+        <h3 style="margin-bottom:8px">גבאים עם הרשאת מערכת לבית כנסת זה</h3>
+        <p class="muted" style="margin-bottom:10px">משתמשים שהוגדרו כ"גבאי" ושויכו לבית הכנסת הזה דרך "👥 משתמשים והרשאות" בניהול. לשינוי - יש לערוך שם, לא כאן.</p>
+        ${assignedGabaimRows}
+      </div>`;
   }
-
-  // מיזוג שמות גבאים: גם מה שהוזן ידנית בפרטי בית הכנסת, וגם מי שקיבל הרשאת גבאי לבית כנסת זה דרך ממשק הניהול (משתמשים והרשאות)
-  const manualGabaiNames = shul.gabaiNames || [];
-  const adminGabaiNames = (shul.assignedGabaim || []).map(g=>g.name).filter(Boolean);
-  const allGabaiNames = Array.from(new Set([...manualGabaiNames, ...adminGabaiNames].map(n=>n.trim()).filter(Boolean)));
 
   el.innerHTML = `
     <button class="btn ghost" onclick="closeShulPage()">→ חזרה</button>
@@ -3707,7 +3737,7 @@ function renderShulPage(){
       <h2 style="margin:0;font-size:30px">${escapeHtml(shul.name)}</h2>
       <div class="muted" style="margin-top:6px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
       ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">${shul.rabbiNames.length > 1 ? 'רבני בית הכנסת' : 'רב בית הכנסת'}: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
-      ${allGabaiNames.length ? `<div class="muted" style="margin-top:2px">${allGabaiNames.length > 1 ? 'גבאים' : 'גבאי'}: ${allGabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
+      ${shul.gabaiNames && shul.gabaiNames.length ? `<div class="muted" style="margin-top:2px">${shul.gabaiNames.length > 1 ? 'גבאים' : 'גבאי'}: ${shul.gabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
       <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="icon-btn" onclick="toggleMyShul('${shul.id}')" aria-label="${isMyShul(shul.id)?'הסרה מבית הכנסת שלי':'סימון כבית הכנסת שלי'}" title="${isMyShul(shul.id)?'זהו בית הכנסת שלי - לחצו להסרה':'סמנו כבית הכנסת שלי, לגישה מהירה דרך סמל הכוכב למעלה'}">${isMyShul(shul.id)?'⭐':'☆'}</button>
         <button class="icon-btn" onclick="shareShulLink('${shul.id}')" aria-label="שיתוף" title="שיתוף">🔗</button>
@@ -4161,7 +4191,14 @@ function openShiurForm(shiurId){
     </div>
     ${isManager()?`
     <div class="field optional"><label for="f_recordingLink">קישור להקלטת השיעור (יוטיוב, ספוטיפיי או קישור אחר)</label><input id="f_recordingLink" type="url" placeholder="https://..." value="${s?escapeHtml(s.recordingLink||''):''}"></div>
-    `:''}
+    `: s ? `
+    <div class="field optional">
+      <label for="f_recordingLinkRequest">קישור להקלטת השיעור (יוטיוב, ספוטיפיי או קישור אחר)</label>
+      <input id="f_recordingLinkRequest" type="url" placeholder="https://...">
+      <p class="muted" style="margin-top:4px;font-size:12px">שליחת הקישור כאן נשלחת כפנייה למנהל לאישור - הוא יופיע בפועל בשיעור רק אחרי שהמנהל יאשר ויוסיף אותו.</p>
+      <button type="button" class="btn" style="margin-top:6px" onclick="requestRecordingLink('${s.id}')">📨 שליחת קישור לאישור המנהל</button>
+    </div>
+    ` : ''}
     <div class="inline2">
       <div class="field optional"><label for="f_contactName">איש קשר לפרטים</label><input id="f_contactName" value="${s?escapeHtml(s.contactName||''):''}"></div>
       <div class="field optional"><label for="f_contactPhone">טלפון איש קשר</label><input id="f_contactPhone" value="${s?escapeHtml(s.contactPhone||''):''}"></div>
@@ -4429,10 +4466,10 @@ const WHATS_NEW = [
     date: '2.8.2026',
     items: [
       '💬 ההודעות למנהל הפכו להתכתבות מלאה: אפשר לשלוח הודעות המשך (גם תושב וגם מנהל), ורואים את כל ההיסטוריה במקום אחד.',
-      '🔴 תגית מספרית אדומה על אייקון המעטפה בראש העמוד, שמראה כמה הודעות חדשות מחכות (למנהל - פניות חדשות מתושבים; לתושב - תשובות חדשות). האייקון עצמו נשאר גם אחרי שקוראים, רק התגית מתבטלת.',
+      '🔴 תגית מספרית אדומה על אייקון המעטפה בראש העמוד, שמראה כמה הודעות חדשות מחכות. האייקון עצמו נשאר גם אחרי שקוראים, רק התגית מתבטלת.',
       '📩 חלונית קופצת בכניסה לאפליקציה כשיש תשובה חדשה מהמנהל, עם אפשרות לשלוח הודעת המשך ישירות מהחלונית.',
       '🖨️ תיקון בהדפסה הכללית מדף הבית: הטבלה מסודרת עכשיו כרונולוגית (לפי שעות) לכל בתי הכנסת יחד, במקום מחולקת לפי בית כנסת - וגם תוקנה תקלה שגרמה לעמוד הראשון להיראות כמעט ריק.',
-      '🧑‍💼 בדף בית כנסת: גבאים שקיבלו הרשאה דרך "משתמשים והרשאות" בניהול מוצגים עכשיו ליד שם הרב, גם אם לא הוזנו ידנית בפרטי בית הכנסת.'
+      '🎥 בטופס עריכת שיעור: מי שאינו מנהל יכול עכשיו להציע קישור להקלטת השיעור - הבקשה נשלחת אוטומטית למנהל, והקישור יופיע בפועל רק לאחר אישורו.'
     ]
   },
   {
