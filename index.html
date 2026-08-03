@@ -89,6 +89,7 @@
   .badge.men{background:#E6F0F7;color:#1F4A6B}
   .badge.women{background:#F7E9F0;color:#7A2E52}
   .badge.youth{background:#FBF0DD;color:#7A5210}
+  .badge.kids{background:#EFE6F7;color:#5A2E8A}
   .timeline{position:relative;padding-right:20px}
   .timeline::before{content:'';position:absolute;right:6px;top:6px;bottom:6px;width:2px;background:var(--border)}
   .tline-item{position:relative;margin-bottom:10px;border-right:3px solid var(--dot-color, transparent);padding-right:10px}
@@ -341,13 +342,13 @@
           <option value="fri">שישי</option>
           <option value="sat">שבת</option>
         </select>
-        <select id="filterTopic"><option value="">כל הנושאים</option></select>
         <select id="filterAudience">
           <option value="">כל הקהלים</option>
           <option value="all">כולם</option>
           <option value="men">גברים</option>
           <option value="women">נשים</option>
           <option value="youth">נוער</option>
+          <option value="kids">ילדים</option>
         </select>
         <input id="filterSearch" placeholder="חיפוש חופשי...">
       </div>
@@ -643,7 +644,7 @@
   </div>
 </div>
 
-<footer class="note">
+<footer class="note" id="siteFooter">
   הזמנים לזריחה / שקיעה / צאת הכוכבים מחושבים אוטומטית לפי קואורדינטות בית אל, ומהווים קירוב — לפני קביעת זמן מניין רגיש יש לוודא מול רב היישוב. תמיכה בלוח שנה עברי מלא (חגים, ראש חודש) מתוכננת לשלב הבא.
   <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:center">
     האפליקציה פותחה על ידי <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--ink-soft);text-decoration:underline">מחלקת דת - מועצה מקומית בית אל</a>
@@ -772,12 +773,22 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// מטמון מקומי (IndexedDB): בכניסה חוזרת מאותו דפדפן, Firestore קורא מהמטמון המקומי ומביא מהשרת
+// רק את מה שהשתנה מאז - במקום את כל האוסף מחדש בכל טעינה. מצמצם משמעותית קריאות במכסה היומית.
+// synchronizeTabs מאפשר כמה טאבים פתוחים של האתר בו-זמנית בלי שהמטמון "יתנגש" ביניהם.
+db.enablePersistence({ synchronizeTabs: true }).catch(err=>{
+  if (err.code !== 'failed-precondition' && err.code !== 'unimplemented') console.error('Firestore persistence error:', err);
+  // failed-precondition = כבר מופעל בטאב אחר בלי synchronizeTabs (נדיר); unimplemented = דפדפן לא תומך - נמשיך בלי מטמון, לא קריטי
+});
 const googleProvider = new firebase.auth.GoogleAuthProvider();
 
 let currentUser = null;
 let currentRole = 'guest';
 let currentUserBlocked = false;
 let currentUserAssignedShulIds = [];
+let currentUserFollowedShiurIds = [];
+let currentUserFollowedShiurSnapshots = {};
+let shownShiurChangeKeys = new Set(); // מונע הצגה כפולה של אותה התראת שינוי באותה טעינת עמוד
 let lastShownMessageKey = null;
 let currentUserName = '';
 let unsubUserDoc;
@@ -886,6 +897,8 @@ auth.onAuthStateChanged(async user=>{
   if (!user){
     currentRole = 'guest';
     roleResolved = true;
+    currentUserFollowedShiurIds = [];
+    currentUserFollowedShiurSnapshots = {};
     document.getElementById('signInBtn').style.display = '';
     document.getElementById('userInfo').style.display = 'none';
     document.getElementById('adminTabBtn').style.display = 'none';
@@ -925,6 +938,9 @@ auth.onAuthStateChanged(async user=>{
     roleResolved = true;
     currentUserBlocked = !!(d && d.blocked);
     currentUserAssignedShulIds = (d && Array.isArray(d.assignedShulIds)) ? d.assignedShulIds : [];
+    currentUserFollowedShiurIds = (d && Array.isArray(d.followedShiurIds)) ? d.followedShiurIds : [];
+    if (currentUserFollowedShiurIds.length) ensureShiurimLoaded();
+    currentUserFollowedShiurSnapshots = (d && d.followedShiurSnapshots) ? d.followedShiurSnapshots : {};
     currentUserName = (d && d.name) ? d.name : (user.displayName || user.email);
     document.getElementById('userNameLabel').textContent = currentUserName;
     const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל'};
@@ -941,6 +957,7 @@ auth.onAuthStateChanged(async user=>{
     attachUsersListenerIfManager();
     attachSupportMessagesListenerIfManager();
     if (d) maybeShowPendingMessage(d);
+    checkFollowedShiurimChanges();
     updateAppLockScreen();
     render();
   });
@@ -1112,6 +1129,72 @@ function maybeShowNewReplyPopups(){
         </div>`;
       document.getElementById('overlay').classList.add('show');
     });
+  });
+}
+// ---------- מעקב אחרי שיעורים - התראה בכניסה הבאה לאפליקציה אם השיעור בוטל או שהזמן שלו השתנה ----------
+// דורש התחברות (חשבון גוגל) - שומר snapshot קטן של השיעור אצל המשתמש עצמו, ומשווה אליו בכל טעינה
+function toggleFollowShiur(shiurId){
+  if (!currentUser){
+    if (confirm('כדי לעקוב אחרי שיעור צריך להתחבר עם חשבון Google. להתחבר עכשיו?')) doSignIn();
+    return;
+  }
+  const isFollowing = (currentUserFollowedShiurIds||[]).includes(shiurId);
+  const snapshotPath = 'followedShiurSnapshots.' + shiurId;
+  if (isFollowing){
+    db.collection('users').doc(currentUser.uid).update({
+      followedShiurIds: firebase.firestore.FieldValue.arrayRemove(shiurId),
+      [snapshotPath]: firebase.firestore.FieldValue.delete()
+    }).catch(e=>alert('שגיאה: '+e.message));
+  } else {
+    const s = data.shiurim.find(x=>x.id===shiurId);
+    if (!s) return;
+    db.collection('users').doc(currentUser.uid).update({
+      followedShiurIds: firebase.firestore.FieldValue.arrayUnion(shiurId),
+      [snapshotPath]: { title: s.title||'', time: s.time||'', days: s.days||[], oneTimeDate: s.oneTimeDate||null }
+    }).then(()=>alert('נרשמתם למעקב - תקבלו התראה כאן באפליקציה אם השיעור יבוטל או שהזמן שלו ישתנה.'))
+      .catch(e=>alert('שגיאה: '+e.message));
+  }
+}
+// בודק את כל השיעורים שהמשתמש עוקב אחריהם מול ה-snapshot השמור, ומקפיץ התראה על כל שינוי/ביטול שעדיין לא הוצג
+function checkFollowedShiurimChanges(){
+  if (!currentUser || isManager()) return;
+  const followedIds = currentUserFollowedShiurIds || [];
+  if (!followedIds.length) return;
+  followedIds.forEach(shiurId=>{
+    const snapshot = (currentUserFollowedShiurSnapshots||{})[shiurId];
+    if (!snapshot) return; // אין עדיין snapshot תקין להשוואה - נדלג הפעם
+    const shiur = data.shiurim.find(s=>s.id===shiurId);
+    const stateKey = shiur ? JSON.stringify([shiur.time, shiur.days, shiur.oneTimeDate]) : 'DELETED';
+    const key = shiurId + '|' + stateKey;
+    if (shownShiurChangeKeys.has(key)) return;
+    let message = null;
+    if (!shiur){
+      message = `השיעור "${snapshot.title||''}" בוטל או הוסר מהאפליקציה.`;
+    } else if (snapshot.time !== (shiur.time||'') || JSON.stringify(snapshot.days||[]) !== JSON.stringify(shiur.days||[]) || (snapshot.oneTimeDate||null) !== (shiur.oneTimeDate||null)){
+      message = `הזמן של השיעור "${shiur.title}" השתנה. הזמן המעודכן: ${shiurScheduleLabel(shiur)}${shiur.time?' · '+shiur.time:''}.`;
+    }
+    if (!message) return;
+    shownShiurChangeKeys.add(key);
+    enqueuePopup(()=>{
+      document.getElementById('modalBody').innerHTML = `
+        <h3>🔔 עדכון בשיעור שאתם עוקבים אחריו</h3>
+        <p style="line-height:1.7;margin-bottom:18px">${escapeHtml(message)}</p>
+        <div class="modal-actions">
+          <button class="btn primary" onclick="closeModal()">הבנתי</button>
+        </div>`;
+      document.getElementById('overlay').classList.add('show');
+    });
+    const snapshotPath = 'followedShiurSnapshots.' + shiurId;
+    if (!shiur){
+      db.collection('users').doc(currentUser.uid).update({
+        followedShiurIds: firebase.firestore.FieldValue.arrayRemove(shiurId),
+        [snapshotPath]: firebase.firestore.FieldValue.delete()
+      }).catch(()=>{});
+    } else {
+      db.collection('users').doc(currentUser.uid).update({
+        [snapshotPath]: { title: shiur.title||'', time: shiur.time||'', days: shiur.days||[], oneTimeDate: shiur.oneTimeDate||null }
+      }).catch(()=>{});
+    }
   });
 }
 function dismissReplyPopup(messageId){
@@ -1639,7 +1722,7 @@ function renderRabbanimAdmin(){
     <div class="card row">
       <div>
         <h3>${r.isFeatured?'⭐ ':''}${escapeHtml(r.name)}</h3>
-        <div class="muted">${[r.phone, r.email].filter(Boolean).map(escapeHtml).join(' · ')}${r.role?' · '+escapeHtml(r.role):''}</div>
+        <div class="muted">${[r.phone, r.email].filter(Boolean).map(escapeHtml).join(' · ')}${r.role?' · '+escapeHtml(r.role):''}${(r.phone&&r.whatsappEnabled)?' · 💬 וואטסאפ פעיל':''}</div>
         ${r.contactNote?`<div class="muted" style="font-size:11.5px">📝 ${escapeHtml(r.contactNote)}</div>`:''}
         ${(r.shulIds||[]).length?`<div class="muted" style="font-size:12px;margin-top:2px">רב קהילת ${r.shulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}</div>`:''}
       </div>
@@ -1657,6 +1740,10 @@ function openRabbiForm(rabbiId){
     ${updatedByLineHtml(r)}
     <div class="field"><label for="f_rabbiName">שם הרב</label><input id="f_rabbiName" value="${r?escapeHtml(r.name):''}"></div>
     <div class="field optional"><label for="f_rabbiPhone">טלפון</label><input id="f_rabbiPhone" value="${r?escapeHtml(r.phone||''):''}" placeholder="לדוגמה: 050-1234567"></div>
+    <label id="rabbiWhatsappField" style="display:${r&&r.phone?'flex':'none'};align-items:center;gap:6px;cursor:pointer;margin:-6px 0 12px;font-weight:400;font-size:13.5px">
+      <input type="checkbox" id="f_rabbiWhatsapp" ${r&&r.whatsappEnabled?'checked':''}>
+      להציג גם כפתור וואטסאפ למספר הזה (פותח שיחת הודעות ישירה)
+    </label>
     <div class="field optional"><label for="f_rabbiEmail">אימייל</label><input id="f_rabbiEmail" type="email" value="${r?escapeHtml(r.email||''):''}" placeholder="לדוגמה: rabbi@example.com"></div>
     <p class="muted" style="margin:-8px 0 12px;font-size:12px">יש למלא טלפון או אימייל (לפחות אחד מהשניים).</p>
     <div class="field optional"><label for="f_rabbiContactNote">הערה ליצירת קשר</label><input id="f_rabbiContactNote" value="${r?escapeHtml(r.contactNote||''):''}" placeholder="לדוגמה: בהודעות בלבד, או: בשעות הערב"></div>
@@ -1680,6 +1767,11 @@ function openRabbiForm(rabbiId){
       <button class="btn primary" onclick="saveRabbi('${rabbiId||''}')">שמירה</button>
     </div>`;
   document.getElementById('overlay').classList.add('show');
+  const rabbiPhoneInput = document.getElementById('f_rabbiPhone');
+  if (rabbiPhoneInput) rabbiPhoneInput.addEventListener('input', ()=>{
+    const wField = document.getElementById('rabbiWhatsappField');
+    if (wField) wField.style.display = rabbiPhoneInput.value.trim() ? 'flex' : 'none';
+  });
 }
 // מחשב את רשימת {id,name} של הרבנים שמוגדרים כרב-קהילה של בית כנסת נתון, לשמירה על שדה shul.assignedRabbanim מסונכרן
 // excludeId/includeExcluded משמשים כדי לשקף שינוי שעדיין לא נשמר ל-data.rabbanim (לפני שההאזנה מתעדכנת)
@@ -1712,6 +1804,7 @@ function saveRabbi(rabbiId){
     address: document.getElementById('f_rabbiAddress').value.trim(),
     extraDetails: document.getElementById('f_rabbiExtraDetails').value.trim(),
     isFeatured: document.getElementById('f_rabbiFeatured').checked,
+    whatsappEnabled: phone ? document.getElementById('f_rabbiWhatsapp').checked : false,
     shulIds: newShulIds
   });
   const affectedShulIds = Array.from(new Set([...prevShulIds, ...newShulIds]));
@@ -2592,14 +2685,6 @@ function attachListeners(){
     data.minyanim = snap.docs.map(d=>({id:d.id, ...d.data()}));
     render();
   }, e=>console.error(e));
-  db.collection('shiurim').onSnapshot(snap=>{
-    data.shiurim = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    render();
-  }, e=>console.error(e));
-  db.collection('rabbanim').onSnapshot(snap=>{
-    data.rabbanim = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    render();
-  }, e=>console.error(e));
   db.collection('config').doc('tefilaTypes').onSnapshot(doc=>{
     const d = doc.exists ? doc.data() : null;
     TEFILA_ORDER = [...TEFILA_BASE, ...((d && d.types) || [])];
@@ -2634,6 +2719,30 @@ function attachListeners(){
     APP_LOCK_CONFIG = doc.exists ? doc.data() : null;
     updateAppLockScreen();
     if (currentTab === 'admin') populateAppLockAdmin();
+  }, e=>console.error(e));
+}
+// --- טעינה עצלה (lazy) לאוספי shiurim ו-rabbanim ---
+// כדי לצמצם קריאות ל-Firestore: מי שנכנס לאפליקציה רק כדי לבדוק תפילות (הלשונית הכי נפוצה) לא צריך
+// להוריד את כל השיעורים והרבנים בכל טעינה. האוספים האלה נטענים בפועל רק כשבאמת צריך אותם - ראו כל
+// קריאה ל-ensureShiurimLoaded/ensureRabbanimLoaded באפליקציה (מעבר ללשונית הרלוונטית, פתיחת דף בית
+// כנסת, כניסה לניהול, וכו'). הדגל מונע חיבור כפול של אותה האזנה.
+let shiurimLoaded = false;
+function ensureShiurimLoaded(){
+  if (shiurimLoaded) return;
+  shiurimLoaded = true;
+  db.collection('shiurim').onSnapshot(snap=>{
+    data.shiurim = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    checkFollowedShiurimChanges();
+    render();
+  }, e=>console.error(e));
+}
+let rabbanimLoaded = false;
+function ensureRabbanimLoaded(){
+  if (rabbanimLoaded) return;
+  rabbanimLoaded = true;
+  db.collection('rabbanim').onSnapshot(snap=>{
+    data.rabbanim = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
   }, e=>console.error(e));
 }
 
@@ -2994,7 +3103,8 @@ function tempNoteBannerHtml(item){
   const untilStr = item.tempNoteUntil ? ` (עד ${new Date(item.tempNoteUntil+'T00:00:00').toLocaleDateString('he-IL')})` : '';
   return `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">⚠️ ${escapeHtml(note)}${escapeHtml(untilStr)}</div>`;
 }
-function renderTopicChips(currentFilter){
+let selectedTopics = new Set(); // בחירה מרובה של נושאי שיעורים (במקום בחירה יחידה) - "הכל" = הסט ריק
+function renderTopicChips(){
   const container = document.getElementById('topicChipsRow');
   const toggleWrap = document.getElementById('topicChipsToggleWrap');
   if (!container || !toggleWrap) return;
@@ -3005,9 +3115,9 @@ function renderTopicChips(currentFilter){
   const usedSortedByCount = usedTopics.sort((a,b)=> countByTopic[b] - countByTopic[a]);
   const unusedTopics = TOPIC_LIST.filter(t=>!usedTopics.includes(t));
   const orderedTopics = [...usedSortedByCount, ...unusedTopics];
-  const chip = t => `<span class="daychip ${currentFilter===t?'active':''}" tabindex="0" role="button" onclick="selectTopicChip('${escapeHtml(t)}')">${escapeHtml(t)}</span>`;
+  const chip = t => `<span class="daychip ${selectedTopics.has(t)?'active':''}" tabindex="0" role="button" onclick="selectTopicChip('${escapeHtml(t)}')">${escapeHtml(t)}</span>`;
   container.className = 'topic-chips-row' + (topicChipsExpanded ? ' expanded' : '');
-  container.innerHTML = `<span class="daychip ${!currentFilter?'active':''}" tabindex="0" role="button" onclick="selectTopicChip('')">הכל</span>` + orderedTopics.map(chip).join('');
+  container.innerHTML = `<span class="daychip ${!selectedTopics.size?'active':''}" tabindex="0" role="button" onclick="selectTopicChip('')">הכל</span>` + orderedTopics.map(chip).join('');
   // בודקים בפועל אם התוכן חורג משתי השורות, ומציגים את כפתור עוד/פחות רק אם צריך
   const collapsedMaxHeight = window.innerWidth <= 600 ? 92 : 68;
   const isOverflowing = container.scrollHeight > collapsedMaxHeight + 4;
@@ -3017,8 +3127,11 @@ function renderTopicChips(currentFilter){
     toggleWrap.innerHTML = '';
   }
 }
+// לחיצה על "הכל" מנקה את כל הבחירה; לחיצה על נושא מוסיפה/מסירה אותו מהבחירה (אפשר לבחור כמה נושאים יחד)
 function selectTopicChip(t){
-  document.getElementById('filterTopic').value = t;
+  if (t === ''){ selectedTopics.clear(); }
+  else if (selectedTopics.has(t)){ selectedTopics.delete(t); }
+  else { selectedTopics.add(t); }
   render();
 }
 function toggleTopicChipsExpand(){
@@ -3028,11 +3141,18 @@ function toggleTopicChipsExpand(){
 const TEFILA_DEFAULT_TIME = {'שחרית':'07:00', 'מנחה':'19:00', 'ערבית':'21:00'};
 let TEFILA_ORDER = [...TEFILA_BASE];
 function render(){
+  updateFooterVisibility();
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot') renderTefilot();
   else if (currentTab === 'shiurim') renderShiurim();
   else if (currentTab === 'info') renderInfoTab();
   else if (currentTab === 'admin'){ renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); renderRabbanimAdmin(); }
+}
+// הפוטר התחתון (זמנים משוערים + קרדיט) מוצג רק בדפי תפילות ובית כנסת - לא בשיעורים ולא במידע שימושי
+function updateFooterVisibility(){
+  const footer = document.getElementById('siteFooter');
+  if (!footer) return;
+  footer.style.display = (viewingShulId || currentTab === 'tefilot') ? '' : 'none';
 }
 function timeMinutesIsrael(t){
   const s = t.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'});
@@ -3303,23 +3423,18 @@ function renderTefilot(){
 }
 
 // ---------- רינדור: שיעורים ----------
-const AUDIENCE_LABEL = {all:'כולם', men:'גברים', women:'נשים', youth:'נוער'};
+const AUDIENCE_LABEL = {all:'כולם', men:'גברים', women:'נשים', youth:'נוער', kids:'ילדים'};
 function renderShiurim(){
-  const topicSel = document.getElementById('filterTopic');
-  const currentTopic = topicSel.value;
-  topicSel.innerHTML = '<option value="">כל הנושאים</option>' + TOPIC_LIST.map(t=>`<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
-  topicSel.value = currentTopic;
-
   const audF = document.getElementById('filterAudience').value;
   const searchF = document.getElementById('filterSearch').value.trim().toLowerCase();
-  const topicF = topicSel.value;
 
   const descBox = document.getElementById('topicDescriptionBox');
-  const descObj = topicF ? getTopicDescObj(topicF) : null;
+  const soleTopic = selectedTopics.size === 1 ? [...selectedTopics][0] : null;
+  const descObj = soleTopic ? getTopicDescObj(soleTopic) : null;
   if (descObj){
     descBox.innerHTML = `<div class="card" style="margin-bottom:14px">
       ${descObj.image?`<img src="${escapeHtml(descObj.image)}" alt="" style="width:100%;border-radius:8px;margin-bottom:10px" onerror="this.style.display='none'">`:''}
-      <h3 style="margin-bottom:6px">${escapeHtml(topicF)}</h3>
+      <h3 style="margin-bottom:6px">${escapeHtml(soleTopic)}</h3>
       ${descObj.text?`<p style="line-height:1.7;margin:0 0 10px">${escapeHtml(descObj.text)}</p>`:''}
       ${descObj.link?`<a href="${escapeHtml(descObj.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none">${escapeHtml(descObj.linkLabel||'לפרטים נוספים')}</a>`:''}
     </div>`;
@@ -3327,7 +3442,7 @@ function renderShiurim(){
     descBox.innerHTML = '';
   }
 
-  renderTopicChips(topicF);
+  renderTopicChips();
 
   const dayF = document.getElementById('filterShiurDay').value || 'today';
   const now = new Date();
@@ -3346,7 +3461,7 @@ function renderShiurim(){
   let list = data.shiurim.filter(s=>{
     if (isShiurExpired(s)) return false;
     const sTopics = getShiurTopics(s);
-    if (topicF && !sTopics.includes(topicF)) return false;
+    if (selectedTopics.size && !sTopics.some(t=>selectedTopics.has(t))) return false;
     if (audF && (s.audience||'all') !== audF) return false;
     if (searchF && !(s.title+' '+sTopics.join(' ')+' '+(s.location||'')).toLowerCase().includes(searchF)) return false;
     return true;
@@ -3684,6 +3799,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
 function openShiurMenuPopover(e, shiurId){
   e.stopPropagation();
   closeNavPopover();
+  try{
   const s = data.shiurim.find(x=>x.id===shiurId);
   if (!s) return;
   const btn = e.currentTarget;
@@ -3706,6 +3822,8 @@ function openShiurMenuPopover(e, shiurId){
   }
   html += `<a href="${whatsappShareUrl(shiurShareText(s))}" target="_blank" rel="noopener" onclick="trackEvent('share_whatsapp',{type:'shiur'})" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">💬 שיתוף בוואטסאפ</a>`;
   html += `<a href="#" onclick="closeNavPopover();downloadShiurIcs('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">📅 הוספה ליומן</a>`;
+  { const isFollowing = currentUser && (currentUserFollowedShiurIds||[]).includes(shiurId);
+    html += `<a href="#" onclick="closeNavPopover();toggleFollowShiur('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">${isFollowing?'✅ עוקבים - הסרת מעקב':'⭐ עקבו אחרי השיעור'}</a>`; }
   if (links){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
@@ -3719,6 +3837,10 @@ function openShiurMenuPopover(e, shiurId){
   document.body.appendChild(pop);
   keepPopoverInViewport(pop, rect);
   setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
+  }catch(err){
+    alert('שגיאה בפתיחת תפריט השיעור: ' + err.message + '\n\nאנא צלמו מסך של ההודעה הזו ושלחו כדי שנוכל לתקן.');
+    console.error('openShiurMenuPopover error:', err);
+  }
 }
 
 // ---------- טפסים: בית כנסת ----------
@@ -3890,6 +4012,8 @@ function canEditShul(shul){
 function openShulPage(shulId){
   if (!shulId) return;
   viewingShulId = shulId;
+  ensureShiurimLoaded();
+  ensureRabbanimLoaded();
   document.getElementById('tefilot-tab').style.display = 'none';
   document.getElementById('shiurim-tab').style.display = 'none';
   document.getElementById('info-tab').style.display = 'none';
@@ -3902,6 +4026,7 @@ function openShulPage(shulId){
     history.replaceState(null, '', url);
   }catch(e){}
   renderShulPage();
+  updateFooterVisibility();
   maybeShowFirstVisitAnnouncement(shulId);
   const shulForTracking = data.shuls.find(s=>s.id===shulId);
   trackPageView('בית כנסת - ' + (shulForTracking ? shulForTracking.name : shulId), '/?shul=' + shulId);
@@ -4039,7 +4164,7 @@ function shareShiurimFilter(){
   try{
     const url = new URL(window.location.href);
     url.searchParams.delete('shul');
-    const topicF = document.getElementById('filterTopic').value;
+    const topicF = [...selectedTopics].join(',');
     const audF = document.getElementById('filterAudience').value;
     const searchF = document.getElementById('filterSearch').value.trim();
     if (topicF) url.searchParams.set('shiurTopic', topicF); else url.searchParams.delete('shiurTopic');
@@ -4267,6 +4392,7 @@ function printShulSchedule(shulId){
   window.print();
 }
 function openPrintGeneralModal(){
+  ensureShiurimLoaded();
   document.getElementById('modalBody').innerHTML = `
     <h3>🖨️ הדפסת זמני תפילות - כלל היישוב</h3>
     <p class="muted" style="margin-bottom:14px">מדפיס טבלה כרונולוגית (לפי שעות) לכל בתי הכנסת ביישוב יחד, לפי הבחירה שלכם.</p>
@@ -4542,6 +4668,31 @@ function onTefilaChange(isEdit){
   const def = TEFILA_DEFAULT_TIME[tefila];
   if (def) document.getElementById('f_fixedTime').value = def;
 }
+// טווחי שעות "רגילים" לכל סוג תפילה (בדקות מחצות), כדי לתפוס טעויות הקלדה - למשל שחרית שהוזנה בטעות ל-14:00.
+// חל רק על סוגי התפילה הבסיסיים; סוג תפילה מותאם אישית שהוסיף מנהל לא נבדק (אין לו טווח ידוע).
+const TEFILA_TIME_RANGES = {
+  'ותיקין': [240, 420],   // 04:00–07:00
+  'שחרית': [300, 690],    // 05:00–11:30
+  'מנחה': [690, 1230],    // 11:30–20:30
+  'ערבית': [960, 1439]    // 16:00–23:59
+};
+function unusualTimeWarning(m){
+  const toMin = hhmm => { const p=(hhmm||'').split(':').map(Number); return (p.length===2 && !isNaN(p[0]) && !isNaN(p[1])) ? p[0]*60+p[1] : null; };
+  const fmt = x => String(Math.floor(x/60)).padStart(2,'0')+':'+String(x%60).padStart(2,'0');
+  if (m.timeType === 'fixed'){
+    const range = TEFILA_TIME_RANGES[m.tefila];
+    const mins = toMin(m.fixedTime);
+    if (!range || mins == null) return null;
+    if (mins < range[0] || mins > range[1]){
+      return `השעה שהזנתם (${m.fixedTime}) חורגת מהטווח הרגיל ל${m.tefila} (בדרך כלל בין ${fmt(range[0])} ל-${fmt(range[1])}). ייתכן שזו טעות הקלדה.`;
+    }
+  } else if (m.timeType === 'relative' && m.offsetSign !== 'exact'){
+    if (Number(m.offsetMinutes||0) > 180){
+      return `הזנתם היסט של ${m.offsetMinutes} דקות מ${ANCHOR_LABEL[m.anchor]||''} - זה נשמע הרבה. ייתכן שזו טעות הקלדה (למשל 200 במקום 20).`;
+    }
+  }
+  return null;
+}
 function isDuplicateMinyan(candidate, excludeId){
   return data.minyanim.some(m=>{
     if (m.id === excludeId) return false;
@@ -4581,6 +4732,11 @@ function saveMinyan(shulId, minyanId){
     tempNote: tempNote,
     tempNoteUntil: tempNote ? tempNoteUntil : null
   };
+  const timeWarning = unusualTimeWarning(candidate);
+  if (timeWarning){
+    const proceed = confirm(timeWarning + '\n\nלשמור בכל זאת?');
+    if (!proceed) return;
+  }
   if (isDuplicateMinyan(candidate, id)){
     const proceed = confirm('כבר קיים בבית הכנסת הזה מניין דומה - אותה תפילה, עם ימים חופפים ואותו זמן בדיוק. לשמור בכל זאת?');
     if (!proceed) return;
@@ -4619,6 +4775,7 @@ function openShiurForm(shiurId){
         <option value="men" ${s&&s.audience==='men'?'selected':''}>גברים</option>
         <option value="women" ${s&&s.audience==='women'?'selected':''}>נשים</option>
         <option value="youth" ${s&&s.audience==='youth'?'selected':''}>נוער</option>
+        <option value="kids" ${s&&s.audience==='kids'?'selected':''}>ילדים</option>
       </select>
     </div>
     <div class="field">
@@ -4804,6 +4961,8 @@ function isRunningStandalone(){
 }
 const MAIL_ICON_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M22 6l-10 7L2 6"/></svg>';
 const GOOGLE_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-4px"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>';
+// אייקון וואטסאפ (לוגו אמיתי - ריבוע ירוק מעוגל + בועת שיחה עם שפופרת - לא אימוג'י)
+const WHATSAPP_ICON_SVG = '<svg width="17" height="17" viewBox="0 0 24 24" style="vertical-align:-4px"><rect x="1" y="1" width="22" height="22" rx="6" fill="#25D366"/><path d="M12 5.8c-3.4 0-6.2 2.8-6.2 6.2 0 1.1.3 2.2.8 3.1l-.9 3.3 3.4-.9c.9.5 1.9.7 2.9.7h0c3.4 0 6.2-2.8 6.2-6.2s-2.8-6.2-6.2-6.2z" fill="#fff"/><path d="M9.3 8.6c-.2 0-.4.1-.5.3-.2.2-.6.7-.6 1.5s.6 1.5.7 1.6c.1.1 1.4 2.3 3.4 3.1 1.7.7 2 .6 2.4.5.4-.1 1.1-.5 1.3-.9.2-.4.2-.8.1-.9-.1-.1-.2-.2-.4-.3-.3-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.7.9-.1.1-.3.2-.5.1-.3-.1-1-.4-2-1.2-.7-.6-1.2-1.4-1.4-1.7-.1-.2 0-.3.1-.4.1-.1.2-.3.3-.4.1-.1.2-.2.2-.4 0-.1 0-.3-.1-.4-.1-.2-.5-1.1-.7-1.5-.2-.4-.3-.3-.5-.3z" fill="#25D366"/></svg>';
 function openAboutModal(){
   document.getElementById('modalBody').innerHTML = `
     <h3>אודות <span class="muted" style="font-weight:400;font-size:14px">· גרסה ${escapeHtml(CURRENT_APP_VERSION)}</span></h3>
@@ -4917,9 +5076,16 @@ function openAccessibilityPanel(){
   document.getElementById('overlay').classList.add('show');
 }
 // כפתורי יצירת קשר לרב (טלפון ו/או אימייל, כל מה שקיים) + הערת יצירת קשר, לשימוש חוזר בכמה מקומות תצוגה
+// ממיר מספר טלפון ישראלי (בפורמט מקומי, למשל 050-1234567) לפורמט בינלאומי הנדרש על ידי wa.me (972...)
+function phoneToWhatsappNumber(phone){
+  let digits = (phone||'').replace(/\D/g,'');
+  if (digits.startsWith('0')) digits = '972' + digits.slice(1);
+  return digits;
+}
 function rabbiContactButtonsHtml(r){
   const parts = [];
   if (r.phone) parts.push(`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn" style="font-size:13px;padding:8px 12px;white-space:nowrap">📞 ${escapeHtml(r.phone)}</a>`);
+  if (r.phone && r.whatsappEnabled) parts.push(`<a href="https://wa.me/${phoneToWhatsappNumber(r.phone)}" target="_blank" rel="noopener" class="btn" style="font-size:13px;padding:8px 12px;white-space:nowrap;display:inline-flex;align-items:center;gap:5px">${WHATSAPP_ICON_SVG} וואטסאפ</a>`);
   if (r.email) parts.push(`<a href="mailto:${escapeHtml(r.email)}" class="btn" style="font-size:13px;padding:8px 12px;white-space:nowrap">✉️ ${escapeHtml(r.email)}</a>`);
   return parts.join(' ');
 }
@@ -5042,13 +5208,32 @@ function infoAccordionHtml(icon, title, body){
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
   {
+    version: '1.7',
+    date: '3.8.2026',
+    items: [
+      '⚡ שיפור ביצועים "מאחורי הקלעים": האפליקציה שומרת מטמון מקומי בדפדפן, כך שכניסה חוזרת מאותו מכשיר טוענת נתונים מהר יותר ומורידה פחות מהשרת. שיעורי תורה ורבנים נטענים רק כשבאמת נכנסים ללשונית שלהם, במקום בכל כניסה לאפליקציה.',
+      '👶 נוסף "ילדים" כאפשרות קהל יעד לשיעורים.',
+      '🏷️ סינון שיעורים לפי נושא הפך לבחירה מרובה - אפשר לבחור כמה נושאים בו-זמנית (למשל "פשט" וגם "הלכה"), ולא רק אחד.'
+    ]
+  },
+  {
+    version: '1.6',
+    date: '3.8.2026',
+    items: [
+      '⏰ בהוספת מניין: אם השעה שהוזנה חורגת בהרבה מהטווח הרגיל לאותה תפילה (למשל שחרית ב-14:00), מוצגת התראה לפני השמירה - כדי לתפוס טעויות הקלדה.',
+      '⭐ אפשר לעקוב אחרי שיעור ספציפי (דורש התחברות עם גוגל) - אם הוא מבוטל או שהזמן שלו משתנה, מקבלים על כך התראה בכניסה הבאה לאפליקציה.',
+      '💬 בפרטי רב: אם הוזן טלפון, אפשר לסמן בניהול שיוצג גם כפתור וואטסאפ שפותח שיחת הודעות ישירה למספר שלו.'
+    ]
+  },
+  {
     version: '1.5',
     date: '3.8.2026',
     items: [
       '📇 לשונית חדשה "מידע שימושי" בסרגל התחתון: למעלה מוצגת רשימת רבני הישוב (ניתנת לניהול מלא בפאנל הניהול), ומתחת מידע שימושי נוסף. רב שמוגדר כ"רב קהילה" של בית כנסת מקבל קישור הדדי - שמו מופיע כקישור בדף בית הכנסת, ושם בית הכנסת מופיע כקישור בכרטיס שלו.',
       '📇 בפרטי רב: אפשר להוסיף גם אימייל (בנוסף/במקום טלפון - מספיק אחד מהשניים), ו"הערה ליצירת קשר" (למשל "בהודעות בלבד" או "בשעות הערב") שמוצגת ליד פרטי הקשר.',
       '⭐ בפרטי רב אפשר לסמן "רב היישוב" - הוא מוצג תמיד למעלה ברשימת "רבנים בישוב", והשאר מתחת לכפתור "רבנים נוספים".',
-      '📋 "מידע שימושי" עוצב מחדש כרשימת נושאים לחיצה (מקוואות נשים/גברים, גניזה, עירוב, מפת בית העלמין, הכנת מודעת אבל, רישום לנישואין) - לוחצים על כותרת והפרטים נפתחים.'
+      '📋 "מידע שימושי" עוצב מחדש כרשימת נושאים לחיצה (מקוואות נשים/גברים, גניזה, עירוב, מפת בית העלמין, הכנת מודעת אבל, רישום לנישואין) - לוחצים על כותרת והפרטים נפתחים.',
+      '🦶 הפוטר התחתון (הערת דיוק זמנים + קרדיט) מוצג עכשיו רק בדפי תפילות ובית כנסת - לא בשיעורי תורה ולא במידע שימושי.'
     ]
   },
   {
@@ -5234,6 +5419,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.getElementById('shiurim-tab').style.display = currentTab==='shiurim' ? '' : 'none';
     document.getElementById('info-tab').style.display = currentTab==='info' ? '' : 'none';
     document.getElementById('admin-tab').style.display = currentTab==='admin' ? '' : 'none';
+    if (currentTab === 'shiurim' || currentTab === 'admin') ensureShiurimLoaded();
+    if (currentTab === 'info' || currentTab === 'admin') ensureRabbanimLoaded();
     const tabLabels = {tefilot:'תפילות', shiurim:'שיעורי תורה', info:'מידע שימושי', admin:'ניהול'};
     trackPageView(tabLabels[currentTab] || currentTab, '/?tab=' + currentTab);
     incrementPageViewCount();
@@ -5258,7 +5445,6 @@ document.getElementById('filterShul').addEventListener('change', render);
 document.getElementById('filterTimeMode').addEventListener('change', render);
 document.getElementById('filterTimeFrom').addEventListener('change', render);
 document.getElementById('addShiurBtn').addEventListener('click', ()=>openShiurForm());
-document.getElementById('filterTopic').addEventListener('change', render);
 document.getElementById('filterAudience').addEventListener('change', render);
 document.getElementById('filterSearch').addEventListener('input', render);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
@@ -5302,7 +5488,7 @@ document.addEventListener('keydown', e=>{
     const audParam = params.get('shiurAudience');
     const searchParam = params.get('shiurSearch');
     if (tabParam === 'shiurim' || topicParam || audParam || searchParam){
-      if (topicParam) document.getElementById('filterTopic').value = topicParam;
+      if (topicParam) topicParam.split(',').filter(Boolean).forEach(t=>selectedTopics.add(t));
       if (audParam) document.getElementById('filterAudience').value = audParam;
       if (searchParam) document.getElementById('filterSearch').value = searchParam;
       document.getElementById('shiurimFiltersPanel').classList.add('show');
