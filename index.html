@@ -62,6 +62,14 @@
   .sub-toggle button{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface);font-size:13px;cursor:pointer;color:var(--ink-soft)}
   .sub-toggle button.active{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px}
+  .info-accordion{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:10px;overflow:hidden}
+  .info-accordion summary{padding:14px 16px;cursor:pointer;font-weight:700;font-size:15px;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .info-accordion summary::-webkit-details-marker{display:none}
+  .info-accordion summary::after{content:'›';font-size:20px;line-height:1;color:var(--ink-soft);transform:rotate(90deg);transition:transform .15s;flex-shrink:0}
+  .info-accordion[open] summary::after{transform:rotate(-90deg)}
+  .info-accordion .info-accordion-body{padding:0 16px 16px;line-height:1.8;font-size:14px}
+  .info-link-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;text-decoration:none;color:var(--ink);font-weight:700;font-size:15px}
+  .info-link-row .arrow{color:var(--ink-soft);font-size:18px;flex-shrink:0}
   .card h3{font-size:17px}
   .muted{color:var(--ink-soft);font-size:13px}
   .row{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
@@ -467,7 +475,7 @@
     </div>
     <div class="card admin-section" style="margin-top:14px">
       <button type="button" class="admin-section-header" id="adminSectionHeader_rabbanim" aria-expanded="false" onclick="toggleAdminSection('rabbanim')">
-        <h3>👳 רבני הישוב</h3>
+        <h3>📚 רבנים בישוב</h3>
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div class="admin-section-body" id="adminSection_rabbanim" style="display:none">
@@ -1631,7 +1639,8 @@ function renderRabbanimAdmin(){
     <div class="card row">
       <div>
         <h3>${escapeHtml(r.name)}</h3>
-        <div class="muted">${escapeHtml(r.phone||'')}${r.role?' · '+escapeHtml(r.role):''}</div>
+        <div class="muted">${[r.phone, r.email].filter(Boolean).map(escapeHtml).join(' · ')}${r.role?' · '+escapeHtml(r.role):''}</div>
+        ${r.contactNote?`<div class="muted" style="font-size:11.5px">📝 ${escapeHtml(r.contactNote)}</div>`:''}
         ${(r.shulIds||[]).length?`<div class="muted" style="font-size:12px;margin-top:2px">רב קהילת ${r.shulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}</div>`:''}
       </div>
       <div>
@@ -1647,7 +1656,10 @@ function openRabbiForm(rabbiId){
     <h3>${r?'עריכת רב':'הוספת רב'}</h3>
     ${updatedByLineHtml(r)}
     <div class="field"><label for="f_rabbiName">שם הרב</label><input id="f_rabbiName" value="${r?escapeHtml(r.name):''}"></div>
-    <div class="field"><label for="f_rabbiPhone">טלפון</label><input id="f_rabbiPhone" value="${r?escapeHtml(r.phone||''):''}" placeholder="לדוגמה: 050-1234567"></div>
+    <div class="field optional"><label for="f_rabbiPhone">טלפון</label><input id="f_rabbiPhone" value="${r?escapeHtml(r.phone||''):''}" placeholder="לדוגמה: 050-1234567"></div>
+    <div class="field optional"><label for="f_rabbiEmail">אימייל</label><input id="f_rabbiEmail" type="email" value="${r?escapeHtml(r.email||''):''}" placeholder="לדוגמה: rabbi@example.com"></div>
+    <p class="muted" style="margin:-8px 0 12px;font-size:12px">יש למלא טלפון או אימייל (לפחות אחד מהשניים).</p>
+    <div class="field optional"><label for="f_rabbiContactNote">הערה ליצירת קשר</label><input id="f_rabbiContactNote" value="${r?escapeHtml(r.contactNote||''):''}" placeholder="לדוגמה: בהודעות בלבד, או: בשעות הערב"></div>
     <div class="field optional"><label for="f_rabbiRole">תפקיד</label><input id="f_rabbiRole" value="${r?escapeHtml(r.role||''):''}" placeholder="לדוגמה: רב היישוב, רב שכונה א'"></div>
     <div class="field optional"><label for="f_rabbiResponseAreas">תחומי מענה</label><input id="f_rabbiResponseAreas" value="${r?escapeHtml(r.responseAreas||''):''}" placeholder="לדוגמה: כשרות, שאלות הלכתיות, אבלות"></div>
     <div class="field optional"><label for="f_rabbiAddress">כתובת</label><input id="f_rabbiAddress" value="${r?escapeHtml(r.address||''):''}"></div>
@@ -1679,8 +1691,9 @@ function saveRabbi(rabbiId){
   if (!isManager()) return;
   const name = document.getElementById('f_rabbiName').value.trim();
   const phone = document.getElementById('f_rabbiPhone').value.trim();
+  const email = document.getElementById('f_rabbiEmail').value.trim();
   if (!name){ alert('יש להזין שם'); return; }
-  if (!phone){ alert('יש להזין טלפון'); return; }
+  if (!phone && !email){ alert('יש להזין טלפון או אימייל (לפחות אחד מהשניים)'); return; }
   const id = rabbiId || uid();
   const newShulIds = [...document.querySelectorAll('#rabbiShulChips .daychip.active')].map(c=>c.dataset.shul).filter(Boolean);
   const existing = rabbiId ? data.rabbanim.find(x=>x.id===rabbiId) : null;
@@ -1688,6 +1701,8 @@ function saveRabbi(rabbiId){
   const obj = stamp({
     name,
     phone,
+    email,
+    contactNote: document.getElementById('f_rabbiContactNote').value.trim(),
     role: document.getElementById('f_rabbiRole').value.trim(),
     responseAreas: document.getElementById('f_rabbiResponseAreas').value.trim(),
     address: document.getElementById('f_rabbiAddress').value.trim(),
@@ -2286,6 +2301,7 @@ function fmtDateHe(iso){
 }
 function minyanTimeDescription(m){
   if (m.timeType === 'fixed') return m.fixedTime || '';
+  if (m.offsetSign === 'exact') return `בדיוק ב${ANCHOR_LABEL[m.anchor]||''}`;
   return `${m.offsetMinutes||0} דקות ${OFFSET_SIGN_LABEL[m.offsetSign]||''} ${ANCHOR_LABEL[m.anchor]||''}`;
 }
 function exportToExcel(){
@@ -2357,7 +2373,7 @@ function downloadImportTemplate(){
     {'הנחיה': 'ימים: כתבו "כל השבוע", "ימי חול" (א-ו), או אותיות מופרדות בפסיקים, למשל: א,ג,ה (א=ראשון, ב=שני, ג=שלישי, ד=רביעי, ה=חמישי, ו=שישי, ש=שבת).'},
     {'הנחיה': 'תפילה (בגליון מניינים): רק אחת מהאפשרויות - שחרית / מנחה / ערבית / ותיקין.'},
     {'הנחיה': 'סוג זמן "קבוע": מלאו רק את עמודת שעה, בפורמט 19:00.'},
-    {'הנחיה': 'סוג זמן "יחסי": מלאו ביחס_ל (הנץ החמה / שקיעה / צאת הכוכבים), לפני_אחרי (לפני / אחרי), ודקות (מספר).'},
+    {'הנחיה': 'סוג זמן "יחסי": מלאו ביחס_ל (הנץ החמה / שקיעה / צאת הכוכבים), לפני_אחרי (לפני / אחרי / בדיוק), ודקות (מספר - מיותר אם בחרתם "בדיוק").'},
     {'הנחיה': 'קהל יעד (בגליון שיעורים): כולם / גברים / נשים / נוער.'},
     {'הנחיה': 'הייבוא תמיד יוצר פריטים חדשים - לא מעדכן קיימים. אחרי ייבוא גדול כדאי לעבור ולבדוק כפילויות.'}
   ];
@@ -2383,7 +2399,7 @@ function downloadImportTemplate(){
 }
 
 const ANCHOR_LOOKUP = {'הנץ החמה':'sunrise', 'שקיעה':'sunset', 'צאת הכוכבים':'tzeit'};
-const OFFSET_LOOKUP = {'לפני':'before', 'אחרי':'after'};
+const OFFSET_LOOKUP = {'לפני':'before', 'אחרי':'after', 'בדיוק':'exact'};
 const AUDIENCE_LOOKUP = {'כולם':'all', 'גברים':'men', 'נשים':'women', 'נוער':'youth'};
 function parseDaysInput(val){
   if (!val) return [];
@@ -4474,14 +4490,15 @@ function openMinyanForm(shulId, minyanId){
             <option value="tzeit" ${m&&m.anchor==='tzeit'?'selected':''}>צאת הכוכבים</option>
           </select>
         </div>
-        <div class="field"><label for="f_offsetSign">לפני/אחרי</label>
-          <select id="f_offsetSign">
+        <div class="field"><label for="f_offsetSign">לפני/אחרי/בדיוק</label>
+          <select id="f_offsetSign" onchange="onOffsetSignChange()">
             <option value="before" ${m&&m.offsetSign==='before'?'selected':''}>לפני</option>
             <option value="after" ${m&&m.offsetSign==='after'?'selected':''}>אחרי</option>
+            <option value="exact" ${m&&m.offsetSign==='exact'?'selected':''}>בדיוק</option>
           </select>
         </div>
       </div>
-      <div class="field"><label for="f_offsetMinutes">מספר דקות</label><input id="f_offsetMinutes" type="number" min="0" value="${m&&m.offsetMinutes||20}"></div>
+      <div class="field" id="offsetMinutesField"><label for="f_offsetMinutes">מספר דקות</label><input id="f_offsetMinutes" type="number" min="0" value="${m&&m.offsetMinutes||20}"></div>
     </div>
     <div class="field optional"><label for="f_notes">הערות</label><input id="f_notes" value="${m?escapeHtml(m.notes||''):''}" placeholder="למשל: ותיקין, מניין מהיר"></div>
     <div class="field optional">
@@ -4498,6 +4515,7 @@ function openMinyanForm(shulId, minyanId){
     </div>`;
   document.getElementById('overlay').classList.add('show');
   toggleTimeFields();
+  onOffsetSignChange();
   const tempNoteInput = document.getElementById('f_tempNote');
   if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
     document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
@@ -4507,6 +4525,11 @@ function toggleTimeFields(){
   const isFixed = document.getElementById('f_timeType').value === 'fixed';
   document.getElementById('fixedField').style.display = isFixed ? '' : 'none';
   document.getElementById('relativeField').style.display = isFixed ? 'none' : '';
+}
+// "בדיוק" אומר היסט של 0 דקות - אין טעם להציג/למלא שדה דקות במקרה הזה
+function onOffsetSignChange(){
+  const isExact = document.getElementById('f_offsetSign').value === 'exact';
+  document.getElementById('offsetMinutesField').style.display = isExact ? 'none' : '';
 }
 function onTefilaChange(isEdit){
   if (isEdit) return; // בעריכה לא דורסים שעה שכבר הוזנה
@@ -4539,6 +4562,7 @@ function saveMinyan(shulId, minyanId){
   const tempNoteUntil = document.getElementById('f_tempNoteUntil').value;
   if (tempNote && !tempNoteUntil){ alert('יש לקבוע עד מתי ההערה הזמנית תוצג'); return; }
   const id = minyanId || uid();
+  const offsetSignVal = document.getElementById('f_offsetSign').value;
   const candidate = {
     shulId,
     tefila: document.getElementById('f_tefila').value,
@@ -4546,8 +4570,8 @@ function saveMinyan(shulId, minyanId){
     timeType: document.getElementById('f_timeType').value,
     fixedTime: document.getElementById('f_fixedTime').value,
     anchor: document.getElementById('f_anchor').value,
-    offsetSign: document.getElementById('f_offsetSign').value,
-    offsetMinutes: Number(document.getElementById('f_offsetMinutes').value)||0,
+    offsetSign: offsetSignVal,
+    offsetMinutes: offsetSignVal === 'exact' ? 0 : (Number(document.getElementById('f_offsetMinutes').value)||0),
     notes: document.getElementById('f_notes').value.trim(),
     tempNote: tempNote,
     tempNoteUntil: tempNote ? tempNoteUntil : null
@@ -4887,6 +4911,13 @@ function openAccessibilityPanel(){
     </div>`;
   document.getElementById('overlay').classList.add('show');
 }
+// כפתורי יצירת קשר לרב (טלפון ו/או אימייל, כל מה שקיים) + הערת יצירת קשר, לשימוש חוזר בכמה מקומות תצוגה
+function rabbiContactButtonsHtml(r){
+  const parts = [];
+  if (r.phone) parts.push(`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn" style="font-size:13px;padding:8px 12px;white-space:nowrap">📞 ${escapeHtml(r.phone)}</a>`);
+  if (r.email) parts.push(`<a href="mailto:${escapeHtml(r.email)}" class="btn" style="font-size:13px;padding:8px 12px;white-space:nowrap">✉️ ${escapeHtml(r.email)}</a>`);
+  return parts.join(' ');
+}
 // חלונית עם פרטי רב מלאים - נפתחת מקישור בדף בית כנסת. כוללת קישור חזרה לבית/בתי הכנסת שהוא רב קהילה שלהם (אם יש).
 function openRabbiInfoModal(rabbiId){
   const r = data.rabbanim.find(x=>x.id===rabbiId);
@@ -4896,7 +4927,8 @@ function openRabbiInfoModal(rabbiId){
   document.getElementById('modalBody').innerHTML = `
     <h3 style="margin-bottom:4px">${escapeHtml(r.name)}</h3>
     ${r.role?`<p class="muted" style="margin-bottom:12px">${escapeHtml(r.role)}</p>`:''}
-    ${r.phone?`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn primary" style="display:inline-flex;margin-bottom:14px">📞 ${escapeHtml(r.phone)}</a>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">${rabbiContactButtonsHtml(r)}</div>
+    ${r.contactNote?`<p class="muted" style="margin:4px 0 14px;font-size:12.5px">📝 ${escapeHtml(r.contactNote)}</p>`:'<div style="margin-bottom:14px"></div>'}
     ${r.responseAreas?`<div style="margin-bottom:8px;font-size:14px"><b>תחומי מענה:</b> ${escapeHtml(r.responseAreas)}</div>`:''}
     ${r.address?`<div style="margin-bottom:8px;font-size:14px"><b>כתובת:</b> ${escapeHtml(r.address)}</div>`:''}
     ${shulLinks?`<div style="margin-bottom:8px;font-size:14px"><b>רב קהילת</b> ${shulLinks}</div>`:''}
@@ -4915,13 +4947,10 @@ function renderInfoTab(){
       .map(s=>`<a href="#" onclick="openShulPage('${s.id}');return false" style="color:var(--dusk);font-weight:500;text-decoration:underline">${escapeHtml(s.name)}</a>`).join(', ');
     return `
     <div class="card" style="margin-bottom:10px">
-      <div class="row">
-        <div style="min-width:0">
-          <div style="font-weight:700;font-size:15px">${escapeHtml(r.name)}</div>
-          ${r.role?`<div class="muted" style="font-size:12.5px;margin-top:2px">${escapeHtml(r.role)}</div>`:''}
-        </div>
-        ${r.phone?`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn" style="flex-shrink:0;font-size:13px;padding:8px 12px;white-space:nowrap">📞 ${escapeHtml(r.phone)}</a>`:''}
-      </div>
+      <div style="font-weight:700;font-size:15px">${escapeHtml(r.name)}</div>
+      ${r.role?`<div class="muted" style="font-size:12.5px;margin-top:2px">${escapeHtml(r.role)}</div>`:''}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">${rabbiContactButtonsHtml(r)}</div>
+      ${r.contactNote?`<div class="muted" style="font-size:11.5px;margin-top:4px">📝 ${escapeHtml(r.contactNote)}</div>`:''}
       ${shulLinks?`<div style="margin-top:8px;font-size:13.5px"><b>רב קהילת</b> ${shulLinks}</div>`:''}
       ${r.responseAreas?`<div style="margin-top:8px;font-size:13.5px"><b>תחומי מענה:</b> ${escapeHtml(r.responseAreas)}</div>`:''}
       ${r.address?`<div style="margin-top:4px;font-size:13.5px"><b>כתובת:</b> ${escapeHtml(r.address)}</div>`:''}
@@ -4930,38 +4959,62 @@ function renderInfoTab(){
   }).join('') : '<div class="empty">טרם נוספו רבנים</div>';
 
   el.innerHTML = `
-    <h2 style="margin-bottom:12px">👳 רבני הישוב</h2>
+    <h2 style="margin-bottom:12px">📚 רבנים בישוב</h2>
     ${rabbanimHtml}
     <div style="margin:26px 0;border-top:1px solid var(--border)"></div>
     <h2 style="margin-bottom:6px">ℹ️ מידע שימושי</h2>
-    <p class="muted" style="margin-bottom:14px">מידע נבחר מאתר המועצה, לנוחיותכם. לפרטים המלאים והמעודכנים - תמיד עדיף להיכנס לקישור המקורי.</p>
-    ${usefulInfoSectionHtml('🗑️ גניזה', `
-      ביישוב שלושה מיכלי גניזה: ליד בית הכנסת אברהם אוהבי (מעגלי הראי"ה), ליד בתי הכנסת בשכונה א' (מבוא אבני החושן), וליד בית הכנסת סולם יעקב (רמת בית אל).<br>
-      מחירון: שקית קטנה (20×30 ס"מ) - 5 ₪ · שקית בינונית (40×30 ס"מ) - 14 ₪ · דף פרשת שבוע/ספר (57×70 ס"מ) - 2 ₪. ניתן לשלם באשראי דרך אתר התשלומים של המועצה.<br>
+    <p class="muted" style="margin-bottom:14px">מידע נבחר מאתר המועצה, לנוחיותכם. לחצו על כל כותרת לפרטים המלאים. לעדכונים ותשלומים - תמיד עדיף להיכנס לקישור המקורי.</p>
+    ${infoAccordionHtml('🚿', 'מקוואות נשים', `
+      ביישוב שלושה מקוואות נשים:<br><br>
+      <b>מקווה שכונה א'</b> - שביל שבות סיני 1 (ליד גן הפיל) · טלפון: <a href="tel:029975234" style="color:var(--dusk)">02-9975234</a>, ברכה סבג <a href="tel:0584561826" style="color:var(--dusk)">058-4561826</a><br>
+      ימי חול: סגור (פתוח בסופי שבוע בלבד - יש להתקשר לפני ההגעה לוודא שיש מקום) · מוצ"ש: שעה אחרי צאת השבת, למשך שעה<br>
+      <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=100730" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה</a><br><br>
+      <b>מקווה שכונה ב'</b> - רח' מעגלי הראי"ה 1 · טלפון: <a href="tel:029973540" style="color:var(--dusk)">02-9973540</a>, בלניות: ברכה סבג <a href="tel:0584561826" style="color:var(--dusk)">058-4561826</a>, רותי כהן <a href="tel:0523114937" style="color:var(--dusk)">052-3114937</a><br>
+      ימי חול (שעון קיץ): 19:30-23:00 · מוצ"ש: 21:30-23:00<br>
+      <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=100732" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה</a><br><br>
+      <b>מקווה שכונת האולפנה</b> - רח' זבולון 1 · טלפון: <a href="tel:029971924" style="color:var(--dusk)">02-9971924</a>, שרית שרון <a href="tel:0542040699" style="color:var(--dusk)">054-2040699</a>, בליל שבת - לימור חזן <a href="tel:0584422159" style="color:var(--dusk)">058-4422159</a><br>
+      ימי חול (שעון קיץ): חצי שעה לפני השקיעה למשך שעתיים · מוצ"ש: שעה אחרי צאת השבת, למשך שעה<br>
+      <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=733" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה</a><br><br>
+      <b>ערבי שבת וחג (בכל המקוואות, כולל שכונה א'):</b> עשר דקות לפני צאת הכוכבים ועד חצי שעה אחריו.<br>
+      <b>עלות:</b> 25 ₪ לטבילה (כולל ליל שבת). בשכונה ב' ובאולפנה ניתן לשלם באשראי במקום. טבילה חד-פעמית מחוץ לשעות הפתיחה - בתיאום עם הבלנית ובעלות 50 ₪.<br><br>
+      <a href="https://www.bet-el.muni.il/duplicated-1711524071/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה ←</a>
+    `)}
+    ${infoAccordionHtml('🚿', 'מקווה גברים', `
+      כתובת: מעגלי הראי"ה 1.<br><br>
+      <b>שעות פתיחה:</b> ימים א'-ה': 3:00-10:00 · ערבי שבת וחג: 3:00 עד הדלקת נרות · שבת: 3:00-11:00.<br><br>
+      הכניסה בתשלום דרך קרוסלה (מזומן, אשראי או צ'יפ). ניתן לרכוש צ'יפ (25 ₪) במחלקת דת בימים א', ב', ג', ה' בין 9:00-13:00.<br><br>
+      <b>מחירון:</b> טבילה בודדת (מזומן/אשראי) - 10 ₪ · צ'יפ ערך צבור (10 כניסות) - 90 ₪ · צ'יפ חודשי - 100 ₪. לזכאי הנחה (בחור ישיבה/אברך, חייל, ילד מתחת לגיל 18, נכה, סטודנט, גמלאי): צ'יפ ערך צבור - 63 ₪, צ'יפ חודשי - 70 ₪.<br>
+      בעלי מנוי חודשי פטורים מתשלום בשבת/חג; בעלי צ'יפ ערך צבור וציבור רחב נדרשים לשלם עבור טבילה בשבת/חג.<br><br>
+      תקלה במקווה: עמיעד - <a href="tel:0556882259" style="color:var(--dusk)">055-6882259</a><br><br>
+      <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=100731" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה בשבת/חג</a><br>
+      <a href="https://www.bet-el.muni.il/מקווה-גברים/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה ←</a>
+    `)}
+    ${infoAccordionHtml('🗑️', 'גניזה', `
+      ביישוב שלושה מיכלי גניזה: ליד בית הכנסת אברהם אוהבי (מעגלי הראי"ה), ליד בתי הכנסת בשכונה א' (מבוא אבני החושן), וליד בית הכנסת סולם יעקב (רמת בית אל).<br><br>
+      מחירון: שקית קטנה (20×30 ס"מ) - 5 ₪ · שקית בינונית (40×30 ס"מ) - 14 ₪ · דף פרשת שבוע/ספר (57×70 ס"מ) - 2 ₪. ניתן לשלם באשראי דרך אתר התשלומים של המועצה.<br><br>
       <a href="https://www.bet-el.muni.il/גניזה/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה ←</a>
     `)}
-    ${usefulInfoSectionHtml('🧵 עירוב', `
-      העירוב בבית אל מבוסס על גדר שעוברת בדיקה תמידית על ידי סייר מחלקת הביטחון. מעל שערי הכניסה והיציאה מהיישוב פרוסה צורת הפתח.<br>
+    ${infoAccordionHtml('🧵', 'עירוב', `
+      העירוב בבית אל מבוסס על גדר שעוברת בדיקה תמידית על ידי סייר מחלקת הביטחון. מעל שערי הכניסה והיציאה מהיישוב פרוסה צורת הפתח.<br><br>
       <a href="https://www.bet-el.muni.il/עירוב/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה (כולל מפה) ←</a>
     `)}
-    ${usefulInfoSectionHtml('💍 רישום לנישואין', `
-      חשוב: אין להתחיל את תהליך הרישום יותר מ-3 חודשים לפני מועד החתונה (זה תוקף תיק הנישואין ותעודת הרווקות).<br><br>
-      <b>מסמכים שצריך להביא:</b> תעודת זהות עם ספח (של שניכם), תעודת נישואין של ההורים, אישור הדרכת כלות עם תאריך החתונה, שם/ת.ז./טלפון של הרב המסדר, פרטי מקום החתונה ואישור כשרות, ו-2 עדים לרווקות (מגיעים לאחר פתיחת התיק).<br><br>
-      <b>אגרה:</b> 844 ₪ במחיר רגיל, 506 ₪ לזכאי הנחה (חיילים, שירות לאומי, סטודנטים/בני ישיבה עד גיל 30, עולים חדשים בשנתיים הראשונות, נכים ובעלי מוגבלות ראייה - בהצגת אישור מתאים).<br><br>
-      <b>איך נרשמים:</b> קובעים פגישה במחלקת דת לפחות 45 יום לפני החתונה בטלפון <a href="tel:029700518" style="color:var(--dusk)">02-9700518</a>. אפשר (אך לא חובה) למלא פרטים מראש באתר המשרד לשירותי דת - זה לא מחליף את קביעת הפגישה. מומלץ גם לתאם פגישה זוגית עם רב היישוב, הרב אריאל בראלי שליט"א.<br><br>
-      <a href="https://www.bet-el.muni.il/0-1655362326-רישום-לנישואין/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה (כולל קישורי תשלום) ←</a>
+    <a href="https://cemetery.bet-el.muni.il/" target="_blank" rel="noopener" class="info-link-row"><span>🗺️ מפת בית העלמין</span><span class="arrow">←</span></a>
+    <a href="https://obit.bet-el.muni.il/" target="_blank" rel="noopener" class="info-link-row"><span>📝 הכנה עצמית של מודעת אבל</span><span class="arrow">←</span></a>
+    ${infoAccordionHtml('💍', 'רישום לנישואין', `
+      יש לתאם פגישה במחלקת דת, 45 יום לכל הפחות לפני מועד החתונה (<a href="tel:029700518" style="color:var(--dusk)">02-9700518</a>). הפגישה אורכת כשעה.<br><br>
+      <a href="https://www.bet-el.muni.il/0-1655362326-רישום-לנישואין/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה ←</a>
     `)}
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
       ${(isMobileDevice()&&!isRunningStandalone())?`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`:''}
     </div>`;
 }
-function usefulInfoSectionHtml(title, body){
+function infoAccordionHtml(icon, title, body){
   return `
-    <div class="card" style="margin-bottom:14px">
-      <h4 style="margin:0 0 6px;color:var(--dusk);font-size:15px">${title}</h4>
-      <div style="line-height:1.8;font-size:14px">${body}</div>
-    </div>`;
+    <details class="info-accordion">
+      <summary>${icon} ${title}</summary>
+      <div class="info-accordion-body">${body}</div>
+    </details>`;
 }
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
@@ -4979,7 +5032,10 @@ const WHATS_NEW = [
       '📌 אפשר להוסיף למניין או לשיעור "הערה זמנית" (למשל "לא מתקיים בבין הזמנים") עם תאריך תפוגה - היא מוצגת בבליטות בכתום עד התאריך שנקבע, ואז נעלמת אוטומטית. מופיעה בכל מקום שהמניין/השיעור מוצג, כולל הדפסה וייצוא לאקסל.',
       '💾 גיבוי ושחזור: הגיבוי המלא כולל עכשיו גם הודעות תושבים והגדרות שנוספו לאחרונה (נעילת עריכה, מנהל ראשי) שהיו חסרות קודם. בטעינת גיבוי אפשר עכשיו לבחור בין מיזוג (משלים, לא מוחק) לבין שחזור מלא (דורס ומחליף הכל בדיוק לפי הגיבוי).',
       '🚫 בניהול: אפשרות לחסום את כל האפליקציה זמנית (למשל לצורך תחזוקה) - כל מי שנכנס רואה מסך "האפליקציה אינה זמינה", חוץ ממנהלים שיכולים להתחבר עם גוגל מאותו מסך ולהמשיך לעבוד כרגיל.',
-      '📇 לשונית חדשה "מידע שימושי" בסרגל התחתון: למעלה מוצגת רשימת רבני הישוב (ניתנת לניהול מלא בפאנל הניהול - שם וטלפון חובה, השאר רשות), ומתחת המידע השימושי הקיים (גניזה, עירוב, רישום לנישואין). רב שמוגדר כ"רב קהילה" של בית כנסת מקבל קישור הדדי - שמו מופיע כקישור בדף בית הכנסת, ושם בית הכנסת מופיע כקישור בכרטיס שלו.'
+      '📇 לשונית חדשה "מידע שימושי" בסרגל התחתון: למעלה מוצגת רשימת רבני הישוב (ניתנת לניהול מלא בפאנל הניהול - שם וטלפון חובה, השאר רשות), ומתחת המידע השימושי הקיים (גניזה, עירוב, רישום לנישואין). רב שמוגדר כ"רב קהילה" של בית כנסת מקבל קישור הדדי - שמו מופיע כקישור בדף בית הכנסת, ושם בית הכנסת מופיע כקישור בכרטיס שלו.',
+      '🕐 בזמן יחסי למניין (הנץ/שקיעה/צאת הכוכבים) נוספה אפשרות "בדיוק", לצד "לפני" ו"אחרי" - שימושי למשל לערבית בדיוק בשקיעה.',
+      '📇 בפרטי רב: אפשר להוסיף גם אימייל (בנוסף/במקום טלפון - מספיק אחד מהשניים), ו"הערה ליצירת קשר" (למשל "בהודעות בלבד" או "בשעות הערב") שמוצגת ליד פרטי הקשר.',
+      '📋 "מידע שימושי" עוצב מחדש כרשימת נושאים לחיצה (מקוואות נשים/גברים, גניזה, עירוב, מפת בית העלמין, הכנת מודעת אבל, רישום לנישואין) - לוחצים על כותרת והפרטים נפתחים. גם עודכן תוכן מקוואות הנשים והגברים (כתובות, שעות, מחירים וקישורי תשלום).'
     ]
   },
   {
