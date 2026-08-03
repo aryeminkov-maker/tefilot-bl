@@ -193,6 +193,11 @@
     #printArea .print-footer{margin-top:24px;font-size:10.5px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:8px}
   }
   .cookie-bar{position:fixed;right:0;left:0;bottom:0;z-index:9999;background:var(--ink);color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;box-shadow:0 -2px 12px rgba(0,0,0,.2)}
+  #appLockScreen{display:none;position:fixed;inset:0;z-index:99999;background:var(--bg);align-items:center;justify-content:center;padding:24px;text-align:center}
+  #appLockScreen .box{max-width:420px}
+  #appLockScreen .icon{font-size:44px;margin-bottom:14px}
+  #appLockScreen h2{margin:0 0 10px;font-size:22px}
+  #appLockScreen p{color:var(--ink-soft);line-height:1.7;margin:0 0 22px}
   .cookie-bar-text{font-size:13.5px;line-height:1.6;max-width:640px}
   .cookie-bar-text a{color:#fff;text-decoration:underline}
   .cookie-bar .btn.primary{white-space:nowrap;flex-shrink:0}
@@ -200,6 +205,18 @@
 </style>
 </head>
 <body>
+
+<div id="appLockScreen" role="alertdialog" aria-live="assertive">
+  <div class="box">
+    <div class="icon">🔧</div>
+    <h2>האפליקציה אינה זמינה כרגע</h2>
+    <p id="appLockReasonText">האפליקציה בתחזוקה זמנית ותחזור לפעול בקרוב.</p>
+    <button type="button" class="btn primary" onclick="doSignIn()" style="display:inline-flex;align-items:center;gap:8px">
+      <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+      התחברות עם Google (למנהלים)
+    </button>
+  </div>
+</div>
 
 <header class="top">
   <div class="wrap">
@@ -243,6 +260,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="tefilot">תפילות</button>
     <button class="tab-btn" data-tab="shiurim">שיעורי תורה</button>
+    <button class="tab-btn" data-tab="info">מידע שימושי</button>
     <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none">ניהול</button>
   </div>
 
@@ -342,6 +360,10 @@
     <div id="shiurimList"></div>
   </div>
 
+  <div id="info-tab" style="display:none">
+    <div id="infoTabContent"></div>
+  </div>
+
   <div id="admin-tab" style="display:none">
     <div class="card admin-section">
       <button type="button" class="admin-section-header" id="adminSectionHeader_messages" aria-expanded="false" onclick="toggleAdminSection('messages')">
@@ -390,6 +412,23 @@
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_appLock" aria-expanded="false" onclick="toggleAdminSection('appLock')">
+        <h3>🚫 חסימת האפליקציה כולה <span class="badge" id="appLockActiveBadge" style="display:none;background:var(--danger);color:#fff;border-color:var(--danger)">פעילה</span></h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_appLock" style="display:none">
+        <p class="muted" style="margin-bottom:12px">כשהחסימה פעילה, כל מי שנכנס לאפליקציה (גם ללא התחברות) רואה מסך "האפליקציה אינה זמינה" במקום התוכן - <b>חוץ ממנהלים</b>, שיכולים להתחבר עם גוגל דרך אותו מסך ולהמשיך כרגיל. שימושי לתחזוקה או שינוי מבנה נתונים.</p>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="appLockEnabled">
+          החסימה פעילה
+        </label>
+        <div class="field optional"><label for="appLockReason">הודעה שתוצג למשתמשים</label>
+          <input id="appLockReason" placeholder="לדוגמה: האפליקציה בתחזוקה זמנית ותחזור בקרוב">
+        </div>
+        <button class="btn primary" onclick="saveAppLockConfig()">שמירה</button>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
       <button type="button" class="admin-section-header" id="adminSectionHeader_users" aria-expanded="false" onclick="toggleAdminSection('users')">
         <h3>👥 משתמשים והרשאות</h3>
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -424,6 +463,23 @@
         </div>
         <p class="muted" style="margin-bottom:12px">הוספה חדשה, ועריכת הפרטים של כל בית כנסת קיים - שם, כתובת, מיקום GPS ונוסח.</p>
         <div id="shulsAdminList"></div>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_rabbanim" aria-expanded="false" onclick="toggleAdminSection('rabbanim')">
+        <h3>👳 רבני הישוב</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_rabbanim" style="display:none">
+        <div class="row" style="margin-bottom:8px">
+          <span></span>
+          <button class="btn primary" onclick="openRabbiForm()">+ הוספת רב</button>
+        </div>
+        <p class="muted" style="margin-bottom:12px">הרשימה מוצגת בלשונית "מידע שימושי" לכל המבקרים באתר. שם וטלפון הם היחידים שחובה למלא. אם מסמנים "רב קהילה של" בית כנסת מסוים, נוצר קישור הדדי - שם הרב יופיע כקישור בדף בית הכנסת, ושם בית הכנסת יופיע כקישור בכרטיס הרב.</p>
+        <div id="rabbanimAdminList"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <button class="btn" onclick="resyncAllShulRabbanim()">🔄 רענון רשימת רבנים מקושרים בכל בתי הכנסת</button>
+        </div>
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
@@ -509,9 +565,9 @@
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <div class="admin-section-body" id="adminSection_backup" style="display:none">
-        <p class="muted" style="margin-bottom:12px">גיבוי מלא של <b>כל</b> המידע באפליקציה - בתי כנסת, מניינים, שיעורים, וגם משתמשים והרשאות (גבאים, מנהלים, חסימות). שונה מהייצוא לאקסל שמעליו - זה קובץ טכני שנועד לגיבוי ושחזור, לא לקריאה.</p>
+        <p class="muted" style="margin-bottom:12px">גיבוי מלא של <b>כל</b> המידע באפליקציה - בתי כנסת, מניינים, שיעורים, משתמשים והרשאות (גבאים, מנהלים, חסימות), הודעות תושבים למנהל, וכל הגדרות המערכת. שונה מהייצוא לאקסל שמעליו - זה קובץ טכני שנועד לגיבוי ושחזור, לא לקריאה.</p>
         <button class="btn primary" id="exportBackupBtn" onclick="exportFullBackup()">⬇ הורדת גיבוי מלא</button>
-        <p class="muted" style="margin:16px 0 8px">טעינת גיבוי קודם <b>מעדכנת/מחליפה</b> פריטים קיימים עם אותו מזהה, ומוסיפה פריטים חדשים מהקובץ. היא <b>לא</b> מוחקת פריטים שנוצרו אחרי הגיבוי ולא נמצאים בקובץ. פעולה זו לא הפיכה - ודאו שזה הקובץ הנכון לפני שממשיכים.</p>
+        <p class="muted" style="margin:16px 0 8px">טעינת גיבוי קודם נותנת לבחור בין <b>מיזוג</b> (משלים ומעדכן, לא מוחק כלום) לבין <b>שחזור מלא</b> (דורס - מחליף את המצב הנוכחי בדיוק במה שיש בגיבוי). הבחירה מוצגת אחרי שבוחרים קובץ. פעולה זו לא הפיכה - ודאו שזה הקובץ הנכון לפני שממשיכים.</p>
         <label class="btn" style="cursor:pointer">
           📤 טעינת גיבוי
           <input type="file" id="backupImportFileInput" accept=".json" style="display:none" onchange="handleBackupImportFile(this)">
@@ -598,7 +654,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
-let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [] };
+let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [] };
 let currentView = 'chrono';
 let selectedDayKey = '';
 let selectedSpecificDate = ''; // תאריך מדויק שנבחר (YYYY-MM-DD), או ריק אם מציגים לפי יום בשבוע כללי
@@ -717,6 +773,9 @@ let currentUserAssignedShulIds = [];
 let lastShownMessageKey = null;
 let currentUserName = '';
 let unsubUserDoc;
+let APP_LOCK_CONFIG = null;
+let authResolved = false; // הופך true אחרי הקריאה הראשונה ל-onAuthStateChanged (עם או בלי משתמש מחובר)
+let roleResolved = false; // הופך true אחרי שידוע גם התפקיד (מיד אם אין משתמש, או אחרי טעינת מסמך המשתמש)
 
 function doSignIn(){
   const btn = document.getElementById('signInBtn');
@@ -813,10 +872,12 @@ auth.getRedirectResult().then(result=>{
 
 auth.onAuthStateChanged(async user=>{
   currentUser = user;
+  authResolved = true;
   if (unsubUserDoc){ unsubUserDoc(); unsubUserDoc = null; }
 
   if (!user){
     currentRole = 'guest';
+    roleResolved = true;
     document.getElementById('signInBtn').style.display = '';
     document.getElementById('userInfo').style.display = 'none';
     document.getElementById('adminTabBtn').style.display = 'none';
@@ -831,8 +892,10 @@ auth.onAuthStateChanged(async user=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
       document.getElementById('tefilot-tab').style.display = '';
       document.getElementById('shiurim-tab').style.display = 'none';
+      document.getElementById('info-tab').style.display = 'none';
       document.getElementById('admin-tab').style.display = 'none';
     }
+    updateAppLockScreen();
     render();
     return;
   }
@@ -851,6 +914,7 @@ auth.onAuthStateChanged(async user=>{
   unsubUserDoc = userRef.onSnapshot(doc=>{
     const d = doc.data();
     currentRole = d ? d.role : 'resident';
+    roleResolved = true;
     currentUserBlocked = !!(d && d.blocked);
     currentUserAssignedShulIds = (d && Array.isArray(d.assignedShulIds)) ? d.assignedShulIds : [];
     currentUserName = (d && d.name) ? d.name : (user.displayName || user.email);
@@ -863,11 +927,13 @@ auth.onAuthStateChanged(async user=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
       document.getElementById('tefilot-tab').style.display = '';
       document.getElementById('shiurim-tab').style.display = 'none';
+      document.getElementById('info-tab').style.display = 'none';
       document.getElementById('admin-tab').style.display = 'none';
     }
     attachUsersListenerIfManager();
     attachSupportMessagesListenerIfManager();
     if (d) maybeShowPendingMessage(d);
+    updateAppLockScreen();
     render();
   });
 });
@@ -1180,6 +1246,8 @@ function sendUserFollowup(messageId){
 function renderUsers(){
   const el = document.getElementById('usersList');
   if (!data.users.length){ el.innerHTML = '<div class="empty">אין עדיין משתמשים רשומים</div>'; return; }
+  ensurePrimaryManagerInitialized();
+  const primaryUid = effectivePrimaryManagerUid();
   const searchF = (document.getElementById('userSearchFilter').value||'').trim().toLowerCase();
   const roleF = document.getElementById('userRoleFilter').value;
   const filtered = data.users.filter(u=>{
@@ -1198,11 +1266,14 @@ function renderUsers(){
   el.innerHTML = filtered.map(u=>{
     const userMsgs = data.supportMessages.filter(m=>m.fromUid===u.id);
     const unrepliedCount = userMsgs.filter(isUnreadForManager).length;
+    const isPrimary = u.role==='manager' && u.id===primaryUid;
+    const primaryBadge = isPrimary ? ' <span class="badge" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">⭐ מנהל ראשי</span>' : '';
+    const selectLocked = isPrimary && !(currentUser && currentUser.uid===primaryUid);
     return `
     <div class="card">
       <div class="row">
-        <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.createdAt?' · הצטרפ/ה ב-'+new Date(u.createdAt).toLocaleDateString('he-IL'):''}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.role==='gabai'?(u.assignedShulIds&&u.assignedShulIds.length?` · גבאי ${u.assignedShulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}`:' · גבאי ללא שיוך'):''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}</div>
-        <select onchange="changeUserRole('${u.id}', this.value)">
+        <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.createdAt?' · הצטרפ/ה ב-'+new Date(u.createdAt).toLocaleDateString('he-IL'):''}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.role==='gabai'?(u.assignedShulIds&&u.assignedShulIds.length?` · גבאי ${u.assignedShulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}`:' · גבאי ללא שיוך'):''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}${primaryBadge}</div>
+        <select onchange="changeUserRole('${u.id}', this.value, this)" ${selectLocked?'disabled title="רק המנהל הראשי יכול לשנות את ההרשאה של עצמו"':''}>
           <option value="resident" ${u.role==='resident'?'selected':''}>תושב</option>
           <option value="gabai" ${u.role==='gabai'?'selected':''}>גבאי</option>
           <option value="manager" ${u.role==='manager'?'selected':''}>מנהל</option>
@@ -1364,13 +1435,87 @@ function updatedByLineHtml(obj){
     : name;
   return `<p class="muted" style="margin-bottom:12px">עודכן ע"י ${nameHtml} · ${dateStr}</p>`;
 }
-function changeUserRole(targetUid, newRole){
+// ---------- ניהול "מנהל ראשי" - הגנה על כך שהיישוב לא יישאר בלי אף מנהל, ושרק המנהל הראשי יכול להסיר הרשאה ממנהלים אחרים ----------
+function currentManagersList(){
+  return (data.users||[]).filter(u=>u.role==='manager');
+}
+// המנהל הראשי בפועל: מה שמוגדר ב-config/primaryManager, ואם עדיין לא הוגדר במפורש (למשל לפני שהתכונה הזו הופעלה) -
+// המנהל עם תאריך ההצטרפות המוקדם ביותר, כברירת מחדל סבירה וקבועה (לא תלויה בסדר טעינה).
+function effectivePrimaryManagerUid(){
+  if (PRIMARY_MANAGER_UID) return PRIMARY_MANAGER_UID;
+  const managers = currentManagersList();
+  if (!managers.length) return null;
+  return managers.slice().sort((a,b)=> new Date(a.createdAt||0) - new Date(b.createdAt||0))[0].id;
+}
+// קובע את המנהל הראשי בפעם הראשונה אם עדיין לא הוגדר במפורש. בטוח להרצה חוזרת (כותב תמיד את אותו ערך במקרה כזה).
+function ensurePrimaryManagerInitialized(){
+  if (!isManager() || PRIMARY_MANAGER_UID) return;
+  const fallback = effectivePrimaryManagerUid();
+  if (!fallback) return;
+  db.collection('config').doc('primaryManager').set({
+    uid: fallback, setBy: 'אתחול אוטומטי', setAt: new Date().toISOString()
+  }, { merge: true }).catch(()=>{});
+}
+function openChooseNewPrimaryManagerModal(oldPrimaryUid, newRoleForOldPrimary){
+  const others = currentManagersList().filter(m=>m.id!==oldPrimaryUid);
+  if (!others.length){
+    alert('אין כרגע מנהל אחר להעביר אליו את התפקיד - קודם יש להעניק הרשאת מנהל למישהו נוסף.');
+    return;
+  }
+  const options = others.map(m=>`<option value="${m.id}">${escapeHtml(m.name||m.email||m.id)}</option>`).join('');
+  document.getElementById('modalBody').innerHTML = `
+    <h3>העברת תפקיד מנהל ראשי</h3>
+    <p style="line-height:1.7;margin-bottom:14px">אתם המנהל הראשי. לפני שמסירים מעצמכם את הרשאת הניהול, יש לבחור מי מהמנהלים הנוספים יהיה המנהל הראשי החדש.</p>
+    <div class="field"><label for="newPrimaryManagerSelect">מנהל ראשי חדש</label>
+      <select id="newPrimaryManagerSelect">${options}</select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="confirmNewPrimaryManagerAndDemote('${oldPrimaryUid}','${newRoleForOldPrimary}')">אישור והעברה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function confirmNewPrimaryManagerAndDemote(oldPrimaryUid, newRoleForOldPrimary){
+  const newPrimaryUid = document.getElementById('newPrimaryManagerSelect').value;
+  if (!newPrimaryUid) return;
+  const batch = db.batch();
+  batch.set(db.collection('config').doc('primaryManager'), {
+    uid: newPrimaryUid,
+    setBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '',
+    setAt: new Date().toISOString()
+  });
+  batch.update(db.collection('users').doc(oldPrimaryUid), { role: newRoleForOldPrimary, assignedShulIds: [] });
+  batch.commit().then(()=>{ closeModal(); alert('התפקיד הועבר, וההרשאה שלכם עודכנה בהתאם.'); })
+    .catch(e=>alert('שגיאה: '+e.message));
+}
+function changeUserRole(targetUid, newRole, selectEl){
   if (!isManager()) return;
+  const u = (data.users||[]).find(x=>x.id===targetUid);
+  if (u && u.role === 'manager' && newRole !== 'manager'){
+    // מסירים הרשאת מנהל - כללי הגנה כדי שהיישוב לא יישאר בלי אף מנהל, ורק המנהל הראשי יכול להסיר ממנהלים אחרים
+    const managers = currentManagersList();
+    if (managers.length <= 1){
+      alert('אי אפשר להסיר הרשאת מנהל מהמנהל היחיד ביישוב. קודם יש להעניק הרשאת מנהל למישהו אחר, ורק אז אפשר להסיר את שלכם.');
+      if (selectEl) selectEl.value = 'manager';
+      return;
+    }
+    const primaryUid = effectivePrimaryManagerUid();
+    if (targetUid === primaryUid){
+      if (!currentUser || currentUser.uid !== primaryUid){
+        alert('רק המנהל הראשי יכול להסיר את ההרשאה של עצמו - מנהלים אחרים לא יכולים להסיר ממנו הרשאה.');
+        if (selectEl) selectEl.value = 'manager';
+        return;
+      }
+      // המנהל הראשי מבקש להסיר לעצמו הרשאה - קודם צריך לבחור מנהל ראשי חדש מבין השאר
+      if (selectEl) selectEl.value = 'manager';
+      openChooseNewPrimaryManagerModal(targetUid, newRole);
+      return;
+    }
+  }
   if (newRole === 'gabai'){
     openGabaiShulAssignModal(targetUid);
     return;
   }
-  const u = (data.users||[]).find(x=>x.id===targetUid);
   const prevIds = (u && Array.isArray(u.assignedShulIds)) ? u.assignedShulIds : [];
   const batch = db.batch();
   batch.update(db.collection('users').doc(targetUid), { role: newRole, assignedShulIds: [] });
@@ -1475,6 +1620,110 @@ function renderShulsAdmin(){
         <button class="btn danger" onclick="deleteShul('${s.id}')">מחיקה</button>
       </div>
     </div>`).join('');
+}
+// ---------- ניהול: רבני הישוב (מוצג ללא התחברות בלשונית "מידע שימושי") ----------
+function renderRabbanimAdmin(){
+  const el = document.getElementById('rabbanimAdminList');
+  if (!el) return;
+  if (!data.rabbanim.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו רבנים</div>'; return; }
+  const sorted = [...data.rabbanim].sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'));
+  el.innerHTML = sorted.map(r=>`
+    <div class="card row">
+      <div>
+        <h3>${escapeHtml(r.name)}</h3>
+        <div class="muted">${escapeHtml(r.phone||'')}${r.role?' · '+escapeHtml(r.role):''}</div>
+        ${(r.shulIds||[]).length?`<div class="muted" style="font-size:12px;margin-top:2px">רב קהילה של: ${r.shulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}</div>`:''}
+      </div>
+      <div>
+        <button class="btn" onclick="openRabbiForm('${r.id}')">עריכה</button>
+        <button class="btn danger" onclick="deleteRabbi('${r.id}')">מחיקה</button>
+      </div>
+    </div>`).join('');
+}
+function openRabbiForm(rabbiId){
+  if (!isManager()) return;
+  const r = rabbiId ? data.rabbanim.find(x=>x.id===rabbiId) : null;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>${r?'עריכת רב':'הוספת רב'}</h3>
+    ${updatedByLineHtml(r)}
+    <div class="field"><label for="f_rabbiName">שם הרב</label><input id="f_rabbiName" value="${r?escapeHtml(r.name):''}"></div>
+    <div class="field"><label for="f_rabbiPhone">טלפון</label><input id="f_rabbiPhone" value="${r?escapeHtml(r.phone||''):''}" placeholder="לדוגמה: 050-1234567"></div>
+    <div class="field optional"><label for="f_rabbiRole">תפקיד</label><input id="f_rabbiRole" value="${r?escapeHtml(r.role||''):''}" placeholder="לדוגמה: רב היישוב, רב שכונה א'"></div>
+    <div class="field optional"><label for="f_rabbiResponseAreas">תחומי מענה</label><input id="f_rabbiResponseAreas" value="${r?escapeHtml(r.responseAreas||''):''}" placeholder="לדוגמה: כשרות, שאלות הלכתיות, אבלות"></div>
+    <div class="field optional"><label for="f_rabbiAddress">כתובת</label><input id="f_rabbiAddress" value="${r?escapeHtml(r.address||''):''}"></div>
+    <div class="field optional"><label for="f_rabbiExtraDetails">פרטים נוספים</label><textarea id="f_rabbiExtraDetails" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${r?escapeHtml(r.extraDetails||''):''}</textarea></div>
+    <div class="field optional">
+      <label id="rabbiShulChips_label">רב קהילה של בית/בתי כנסת (רשות - יוצר קישור הדדי בין דף בית הכנסת לפרטי הרב)</label>
+      <div class="days" id="rabbiShulChips" role="group" aria-labelledby="rabbiShulChips_label">
+        ${[...data.shuls].sort((a,b)=>a.name.localeCompare(b.name,'he')).map(s=>`<span class="daychip ${r&&Array.isArray(r.shulIds)&&r.shulIds.includes(s.id)?'active':''}" data-shul="${s.id}" tabindex="0" role="button" onclick="this.classList.toggle('active')">${escapeHtml(s.name)}</span>`).join('')}
+      </div>
+      <p class="muted" style="margin-top:6px;font-size:12px">לא חובה לבחור - יש רבנים שהתפקיד שלהם לא כולל רבנות של בית כנסת ספציפי.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="saveRabbi('${rabbiId||''}')">שמירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+// מחשב את רשימת {id,name} של הרבנים שמוגדרים כרב-קהילה של בית כנסת נתון, לשמירה על שדה shul.assignedRabbanim מסונכרן
+// excludeId/includeExcluded משמשים כדי לשקף שינוי שעדיין לא נשמר ל-data.rabbanim (לפני שההאזנה מתעדכנת)
+function rabbanimListForShul(shulId, excludeId, includeExcluded, overrideName){
+  const others = (data.rabbanim||[]).filter(x=> x.id!==excludeId && Array.isArray(x.shulIds) && x.shulIds.includes(shulId))
+    .map(x=>({ id:x.id, name: x.name || '' }));
+  if (includeExcluded){
+    others.push({ id: excludeId, name: overrideName || '' });
+  }
+  return others;
+}
+function saveRabbi(rabbiId){
+  if (!isManager()) return;
+  const name = document.getElementById('f_rabbiName').value.trim();
+  const phone = document.getElementById('f_rabbiPhone').value.trim();
+  if (!name){ alert('יש להזין שם'); return; }
+  if (!phone){ alert('יש להזין טלפון'); return; }
+  const id = rabbiId || uid();
+  const newShulIds = [...document.querySelectorAll('#rabbiShulChips .daychip.active')].map(c=>c.dataset.shul).filter(Boolean);
+  const existing = rabbiId ? data.rabbanim.find(x=>x.id===rabbiId) : null;
+  const prevShulIds = (existing && Array.isArray(existing.shulIds)) ? existing.shulIds : [];
+  const obj = stamp({
+    name,
+    phone,
+    role: document.getElementById('f_rabbiRole').value.trim(),
+    responseAreas: document.getElementById('f_rabbiResponseAreas').value.trim(),
+    address: document.getElementById('f_rabbiAddress').value.trim(),
+    extraDetails: document.getElementById('f_rabbiExtraDetails').value.trim(),
+    shulIds: newShulIds
+  });
+  const affectedShulIds = Array.from(new Set([...prevShulIds, ...newShulIds]));
+  const batch = db.batch();
+  batch.set(db.collection('rabbanim').doc(id), obj, { merge: true });
+  affectedShulIds.forEach(shulId=>{
+    batch.update(db.collection('shuls').doc(shulId), { assignedRabbanim: rabbanimListForShul(shulId, id, newShulIds.includes(shulId), name) });
+  });
+  batch.commit().catch(e=>alert('שגיאה בשמירה: '+e.message));
+  closeModal();
+}
+function deleteRabbi(rabbiId){
+  if (!isManager()) return;
+  if (!confirm('למחוק את הרב מהרשימה?')) return;
+  const r = data.rabbanim.find(x=>x.id===rabbiId);
+  const shulIds = (r && Array.isArray(r.shulIds)) ? r.shulIds : [];
+  const batch = db.batch();
+  batch.delete(db.collection('rabbanim').doc(rabbiId));
+  shulIds.forEach(shulId=>{
+    batch.update(db.collection('shuls').doc(shulId), { assignedRabbanim: rabbanimListForShul(shulId, rabbiId, false) });
+  });
+  batch.commit().catch(e=>alert('שגיאה: '+e.message));
+}
+// כלי חד-פעמי לרענון: מחשב מחדש את שדה assignedRabbanim לכל בתי הכנסת, לפי הקישורים הנוכחיים ב-rabbanim
+function resyncAllShulRabbanim(){
+  if (!isManager()) return;
+  if (!confirm('לרענן את רשימת הרבנים המקושרים בדפי בתי הכנסת, לפי הקישורים הנוכחיים? הפעולה לא מוחקת שום דבר, רק מעדכנת את התצוגה.')) return;
+  const batch = db.batch();
+  data.shuls.forEach(shul=>{
+    batch.update(db.collection('shuls').doc(shul.id), { assignedRabbanim: rabbanimListForShul(shul.id, null, false) });
+  });
+  batch.commit().then(()=>alert('הרשימה עודכנה בכל בתי הכנסת')).catch(e=>alert('שגיאה: '+e.message));
 }
 function renderTefilaTypesAdmin(){
   const el = document.getElementById('tefilaTypesList');
@@ -1852,28 +2101,35 @@ async function exportFullBackup(){
   btn.textContent = 'מכין גיבוי...';
   btn.disabled = true;
   try{
-    const [shulsSnap, minyanimSnap, shiurimSnap, usersSnap, tefilaTypesDoc, topicsDoc, topicDescDoc, announcementDoc] = await Promise.all([
+    const [shulsSnap, minyanimSnap, shiurimSnap, usersSnap, supportMessagesSnap, tefilaTypesDoc, topicsDoc, topicDescDoc, announcementDoc, editLockDoc, primaryManagerDoc] = await Promise.all([
       db.collection('shuls').get(),
       db.collection('minyanim').get(),
       db.collection('shiurim').get(),
       db.collection('users').get(),
+      db.collection('supportMessages').get(),
       db.collection('config').doc('tefilaTypes').get(),
       db.collection('config').doc('topics').get(),
       db.collection('config').doc('topicDescriptions').get(),
       db.collection('config').doc('announcement').get(),
+      db.collection('config').doc('editLock').get(),
+      db.collection('config').doc('primaryManager').get(),
     ]);
     const backup = {
       appName: 'תפילות ושיעורי תורה בבית אל',
+      backupFormatVersion: 2,
       exportedAt: new Date().toISOString(),
       shuls: shulsSnap.docs.map(d=>({id:d.id, data:d.data()})),
       minyanim: minyanimSnap.docs.map(d=>({id:d.id, data:d.data()})),
       shiurim: shiurimSnap.docs.map(d=>({id:d.id, data:d.data()})),
       users: usersSnap.docs.map(d=>({id:d.id, data:d.data()})),
+      supportMessages: supportMessagesSnap.docs.map(d=>({id:d.id, data:d.data()})),
       config: {
         tefilaTypes: tefilaTypesDoc.exists ? tefilaTypesDoc.data() : null,
         topics: topicsDoc.exists ? topicsDoc.data() : null,
         topicDescriptions: topicDescDoc.exists ? topicDescDoc.data() : null,
         announcement: announcementDoc.exists ? announcementDoc.data() : null,
+        editLock: editLockDoc.exists ? editLockDoc.data() : null,
+        primaryManager: primaryManagerDoc.exists ? primaryManagerDoc.data() : null,
       }
     };
     const json = JSON.stringify(backup, null, 2);
@@ -1882,7 +2138,7 @@ async function exportFullBackup(){
     const a = document.createElement('a');
     const dateStr = new Date().toISOString().slice(0,10);
     a.href = url;
-    a.download = `גיבוי-שער-השמים-${dateStr}.json`;
+    a.download = `גיבוי-תפילות-בית-אל-${dateStr}.json`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1910,11 +2166,28 @@ async function restoreCollection(name, items, statusEl){
     if (statusEl) statusEl.textContent = `טוען ${name}... (${done}/${items.length})`;
   }
 }
+// שחזור "דורס": קודם מוחק מהאוסף כל מסמך שלא קיים בגיבוי, ואז כותב/מעדכן את מה שכן נמצא בגיבוי -
+// כך שבסוף התהליך תוכן האוסף זהה בדיוק לתוכן הגיבוי (ולא רק "מתווסף" אליו כמו במיזוג).
+async function restoreCollectionOverwrite(name, items, statusEl){
+  if (!isManager()) return;
+  const backupIds = new Set((items||[]).map(it=>it && it.id).filter(Boolean));
+  const existingSnap = await db.collection(name).get();
+  const idsToDelete = existingSnap.docs.map(d=>d.id).filter(id=>!backupIds.has(id));
+  for (let i=0; i<idsToDelete.length; i+=450){
+    const chunk = idsToDelete.slice(i, i+450);
+    const batch = db.batch();
+    chunk.forEach(id=>batch.delete(db.collection(name).doc(id)));
+    await batch.commit();
+    if (statusEl) statusEl.textContent = `מוחק פריטים שלא בגיבוי מתוך ${name}... (${Math.min(i+450, idsToDelete.length)}/${idsToDelete.length})`;
+  }
+  await restoreCollection(name, items, statusEl);
+}
+let PENDING_BACKUP_DATA = null;
+let PENDING_BACKUP_INPUT = null;
 async function handleBackupImportFile(input){
   if (!isManager()){ input.value=''; return; }
   const file = input.files[0];
   if (!file) return;
-  const statusEl = document.getElementById('backupImportStatus');
   try{
     const text = await file.text();
     const backup = JSON.parse(text);
@@ -1923,25 +2196,63 @@ async function handleBackupImportFile(input){
       input.value = '';
       return;
     }
-    const counts = {
-      shuls: (backup.shuls||[]).length,
-      minyanim: (backup.minyanim||[]).length,
-      shiurim: (backup.shiurim||[]).length,
-      users: (backup.users||[]).length,
-    };
-    const exportDate = backup.exportedAt ? new Date(backup.exportedAt).toLocaleString('he-IL') : 'לא ידוע';
-    const ok = confirm(
-      `לטעון את הגיבוי הזה?\n\n` +
-      `תאריך הגיבוי: ${exportDate}\n` +
-      `בתי כנסת: ${counts.shuls} · מניינים: ${counts.minyanim} · שיעורים: ${counts.shiurim} · משתמשים: ${counts.users}\n\n` +
-      `זה יעדכן/יחליף פריטים קיימים עם אותו מזהה ויוסיף פריטים חדשים מהקובץ. זה לא ימחק פריטים שנוצרו אחרי הגיבוי. הפעולה לא הפיכה.`
-    );
-    if (!ok){ input.value = ''; return; }
+    openBackupRestoreModeModal(backup, input);
+  }catch(e){
+    alert('שגיאה בקריאת הקובץ: ' + e.message);
+    input.value = '';
+  }
+}
+function openBackupRestoreModeModal(backup, input){
+  const counts = {
+    shuls: Array.isArray(backup.shuls) ? backup.shuls.length : 0,
+    minyanim: Array.isArray(backup.minyanim) ? backup.minyanim.length : 0,
+    shiurim: Array.isArray(backup.shiurim) ? backup.shiurim.length : 0,
+    users: Array.isArray(backup.users) ? backup.users.length : 0,
+    supportMessages: Array.isArray(backup.supportMessages) ? backup.supportMessages.length : null // null = גיבוי ישן שלא כלל הודעות
+  };
+  const exportDate = backup.exportedAt ? new Date(backup.exportedAt).toLocaleString('he-IL') : 'לא ידוע';
+  PENDING_BACKUP_DATA = backup;
+  PENDING_BACKUP_INPUT = input;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>טעינת גיבוי</h3>
+    <p class="muted" style="margin-bottom:4px">תאריך הגיבוי: ${escapeHtml(exportDate)}</p>
+    <p class="muted" style="margin-bottom:14px">בתי כנסת: ${counts.shuls} · מניינים: ${counts.minyanim} · שיעורים: ${counts.shiurim} · משתמשים: ${counts.users}${counts.supportMessages===null?'':' · הודעות: '+counts.supportMessages}</p>
+    <div class="field">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:400;margin-bottom:10px">
+        <input type="radio" name="restoreMode" value="merge" checked style="margin-top:3px">
+        <span><b>מיזוג (מומלץ)</b> - מעדכן/מחליף פריטים קיימים עם אותו מזהה, ומוסיף פריטים חדשים מהקובץ. לא מוחק שום דבר שנוצר אחרי הגיבוי.</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:400">
+        <input type="radio" name="restoreMode" value="overwrite" style="margin-top:3px">
+        <span><b>שחזור מלא (דריסה)</b> - מחליף את כל המידע במדויק במה שיש בקובץ. <span style="color:var(--danger)">מוחק לצמיתות</span> כל בית כנסת, מניין, שיעור, משתמש או הודעה שנוצרו <u>אחרי</u> הגיבוי ולא נמצאים בו.</span>
+      </label>
+    </div>
+    <p style="color:var(--danger);font-weight:500;margin:14px 0;line-height:1.6">הפעולה אינה הפיכה. בשחזור מלא - ודאו שהמשתמש שלכם עצמכם נמצא בגיבוי, אחרת אתם עלולים לאבד גישה למערכת.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal();PENDING_BACKUP_DATA=null;if(PENDING_BACKUP_INPUT)PENDING_BACKUP_INPUT.value='';PENDING_BACKUP_INPUT=null">ביטול</button>
+      <button class="btn primary" onclick="confirmRestoreBackup()">המשך</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+async function confirmRestoreBackup(){
+  const modeEl = document.querySelector('input[name="restoreMode"]:checked');
+  const mode = modeEl ? modeEl.value : 'merge';
+  const backup = PENDING_BACKUP_DATA;
+  const input = PENDING_BACKUP_INPUT;
+  if (!backup) return;
+  if (mode === 'overwrite'){
+    const doubleCheck = confirm('בטוחים לגמרי? שחזור מלא ימחק לצמיתות כל בית כנסת, מניין, שיעור, משתמש או הודעה שנוצרו אחרי הגיבוי ולא נמצאים בו. הפעולה לא הפיכה.');
+    if (!doubleCheck) return;
+  }
+  closeModal();
+  const statusEl = document.getElementById('backupImportStatus');
+  const restoreFn = mode === 'overwrite' ? restoreCollectionOverwrite : restoreCollection;
+  try{
     statusEl.textContent = 'מתחיל טעינה...';
-    await restoreCollection('shuls', backup.shuls, statusEl);
-    await restoreCollection('minyanim', backup.minyanim, statusEl);
-    await restoreCollection('shiurim', backup.shiurim, statusEl);
-    await restoreCollection('users', backup.users, statusEl);
+    for (const name of ['shuls','minyanim','shiurim','users','supportMessages']){
+      if (!Array.isArray(backup[name])) continue; // גיבוי ישן שלא כלל את האוסף הזה - לא נוגעים בו כלל
+      await restoreFn(name, backup[name], statusEl);
+    }
     if (backup.config){
       const cfg = backup.config;
       const writes = [];
@@ -1949,6 +2260,8 @@ async function handleBackupImportFile(input){
       if (cfg.topics) writes.push(db.collection('config').doc('topics').set(cfg.topics));
       if (cfg.topicDescriptions) writes.push(db.collection('config').doc('topicDescriptions').set(cfg.topicDescriptions));
       if (cfg.announcement) writes.push(db.collection('config').doc('announcement').set(cfg.announcement));
+      if (cfg.editLock) writes.push(db.collection('config').doc('editLock').set(cfg.editLock));
+      if (cfg.primaryManager) writes.push(db.collection('config').doc('primaryManager').set(cfg.primaryManager));
       await Promise.all(writes);
     }
     statusEl.textContent = '✓ הגיבוי נטען בהצלחה';
@@ -1957,7 +2270,9 @@ async function handleBackupImportFile(input){
     statusEl.textContent = '';
     alert('שגיאה בטעינת הגיבוי: ' + e.message);
   }
-  input.value = '';
+  if (input) input.value = '';
+  PENDING_BACKUP_DATA = null;
+  PENDING_BACKUP_INPUT = null;
 }
 
 // ---------- ייצוא לאקסל ----------
@@ -1997,6 +2312,8 @@ function exportToExcel(){
       'ימים': daysToLabel(m.days),
       'זמן': minyanTimeDescription(m),
       'הערות': xs(m.notes),
+      'הערה זמנית': xs(activeTempNote(m) || ''),
+      'הערה זמנית בתוקף עד': m.tempNoteUntil && activeTempNote(m) ? fmtDateHe(m.tempNoteUntil) : '',
       'עודכן ע"י': xs(m.updatedBy),
       'עודכן בתאריך': fmtDateHe(m.updatedAt)
     };
@@ -2014,6 +2331,8 @@ function exportToExcel(){
     'איש קשר': xs(s.contactName),
     'טלפון איש קשר': xs(s.contactPhone),
     'הערות': xs(s.notes),
+    'הערה זמנית': xs(activeTempNote(s) || ''),
+    'הערה זמנית בתוקף עד': s.tempNoteUntil && activeTempNote(s) ? fmtDateHe(s.tempNoteUntil) : '',
     'עודכן ע"י': xs(s.updatedBy),
     'עודכן בתאריך': fmtDateHe(s.updatedAt)
   }));
@@ -2256,6 +2575,10 @@ function attachListeners(){
     data.shiurim = snap.docs.map(d=>({id:d.id, ...d.data()}));
     render();
   }, e=>console.error(e));
+  db.collection('rabbanim').onSnapshot(snap=>{
+    data.rabbanim = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    render();
+  }, e=>console.error(e));
   db.collection('config').doc('tefilaTypes').onSnapshot(doc=>{
     const d = doc.exists ? doc.data() : null;
     TEFILA_ORDER = [...TEFILA_BASE, ...((d && d.types) || [])];
@@ -2281,6 +2604,15 @@ function attachListeners(){
   db.collection('config').doc('editLock').onSnapshot(doc=>{
     EDIT_LOCK_CONFIG = doc.exists ? doc.data() : null;
     if (currentTab === 'admin') populateEditLockAdmin();
+  }, e=>console.error(e));
+  db.collection('config').doc('primaryManager').onSnapshot(doc=>{
+    PRIMARY_MANAGER_UID = doc.exists ? (doc.data().uid || null) : null;
+    if (currentTab === 'admin') renderUsers();
+  }, e=>console.error(e));
+  db.collection('config').doc('appLock').onSnapshot(doc=>{
+    APP_LOCK_CONFIG = doc.exists ? doc.data() : null;
+    updateAppLockScreen();
+    if (currentTab === 'admin') populateAppLockAdmin();
   }, e=>console.error(e));
 }
 
@@ -2318,6 +2650,18 @@ function canDeleteShiur(s){
   return false;
 }
 function isManager(){ return currentRole === 'manager'; }
+// מציג/מסתיר את מסך "האפליקציה אינה זמינה" - חוסם את כולם חוץ ממנהלים כשהחסימה פעילה.
+// לא מציג כלום עד שגם מצב ההתחברות וגם התפקיד ידועים בוודאות, כדי לא "להבהב" את המסך למנהל שחוזר לאפליקציה.
+function updateAppLockScreen(){
+  const screen = document.getElementById('appLockScreen');
+  if (!screen) return;
+  if (!authResolved || !roleResolved){ screen.style.display = 'none'; return; }
+  const locked = !!(APP_LOCK_CONFIG && APP_LOCK_CONFIG.enabled) && !isManager();
+  screen.style.display = locked ? 'flex' : 'none';
+  if (locked){
+    document.getElementById('appLockReasonText').textContent = (APP_LOCK_CONFIG.reason && APP_LOCK_CONFIG.reason.trim()) || 'האפליקציה בתחזוקה זמנית ותחזור לפעול בקרוב.';
+  }
+}
 function showEditAuthGate(){
   document.getElementById('modalBody').innerHTML = `
     <h3>נדרשת התחברות</h3>
@@ -2455,6 +2799,7 @@ let TOPIC_LIST = [...TOPIC_BASE];
 let TOPIC_DESCRIPTIONS = {};
 let ANNOUNCEMENT_CONFIG = null;
 let EDIT_LOCK_CONFIG = null;
+let PRIMARY_MANAGER_UID = null; // מזהה המנהל הראשי (config/primaryManager) - ר' ensurePrimaryManagerInitialized ופונקציות ההרשאה סביב changeUserRole
 let ANNOUNCEMENT_IMAGE_DATA = '';
 let TOPIC_DESC_IMAGE_DATA = '';
 let SHIUR_IMAGE_DATA = '';
@@ -2569,6 +2914,26 @@ function saveEditLockConfig(){
     setAt: new Date().toISOString()
   }).then(()=>alert('ההגדרה נשמרה')).catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
+function populateAppLockAdmin(){
+  const enabledEl = document.getElementById('appLockEnabled');
+  if (!enabledEl) return; // הטופס לא בתצוגה כרגע (לא בטאב ניהול)
+  const cfg = APP_LOCK_CONFIG || {};
+  enabledEl.checked = !!cfg.enabled;
+  document.getElementById('appLockReason').value = cfg.reason || '';
+  const badge = document.getElementById('appLockActiveBadge');
+  badge.style.display = cfg.enabled ? '' : 'none';
+}
+function saveAppLockConfig(){
+  if (!isManager()) return;
+  const enabled = document.getElementById('appLockEnabled').checked;
+  const reason = document.getElementById('appLockReason').value.trim();
+  if (enabled && !confirm('להפעיל חסימה כוללת לאפליקציה? כל מי שאינו מנהל יראה מסך "האפליקציה אינה זמינה" במקום התוכן, מיידית.')) return;
+  db.collection('config').doc('appLock').set({
+    enabled, reason,
+    setBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '',
+    setAt: new Date().toISOString()
+  }).then(()=>alert('ההגדרה נשמרה')).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
 function toggleShulExpand(shulId){
   if (expandedShulIds.has(shulId)) expandedShulIds.delete(shulId); else expandedShulIds.add(shulId);
   render();
@@ -2591,6 +2956,22 @@ function isShiurExpired(s){
   today.setHours(0,0,0,0);
   const shiurDate = new Date(s.oneTimeDate + 'T00:00:00');
   return shiurDate < today;
+}
+// מחזיר את תוכן ההערה הזמנית (מניין/שיעור) אם היא עדיין בתוקף, אחרת null (למשל אחרי שהתאריך "עד" חלף)
+function activeTempNote(item){
+  if (!item || !item.tempNote) return null;
+  if (item.tempNoteUntil){
+    const until = new Date(item.tempNoteUntil + 'T23:59:59');
+    if (until < new Date()) return null;
+  }
+  return item.tempNote;
+}
+// בלוק אזהרה בולט להצגת הערה זמנית פעילה (מניין/שיעור) - כתום, עם אייקון, כולל תאריך התוקף אם קיים
+function tempNoteBannerHtml(item){
+  const note = activeTempNote(item);
+  if (!note) return '';
+  const untilStr = item.tempNoteUntil ? ` (עד ${new Date(item.tempNoteUntil+'T00:00:00').toLocaleDateString('he-IL')})` : '';
+  return `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">⚠️ ${escapeHtml(note)}${escapeHtml(untilStr)}</div>`;
 }
 function renderTopicChips(currentFilter){
   const container = document.getElementById('topicChipsRow');
@@ -2629,7 +3010,8 @@ function render(){
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot') renderTefilot();
   else if (currentTab === 'shiurim') renderShiurim();
-  else if (currentTab === 'admin'){ renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); }
+  else if (currentTab === 'info') renderInfoTab();
+  else if (currentTab === 'admin'){ renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); renderRabbanimAdmin(); }
 }
 function timeMinutesIsrael(t){
   const s = t.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'});
@@ -2821,6 +3203,7 @@ function renderTefilot(){
               ${daysToLabel(m.days)}
             </span>
           </div>
+          ${tempNoteBannerHtml(m)}
         </div>`;
       }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים לבית כנסת זה</div>';
       const distanceBadge = (sortByProximity && userLocation)
@@ -2888,6 +3271,7 @@ function renderTefilot(){
         <span class="time">${fmtTime(it.t)}</span> —
         <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="confirmEditMinyanFromChrono('${it.m.shulId}','${it.m.id}')">${it.m.tefila}</span> · <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
+        ${tempNoteBannerHtml(it.m)}
       </div>`;
     }).join('');
     if (!nowMarkerInserted){
@@ -3017,6 +3401,7 @@ function renderShiurim(){
         ${distanceBadge}
       </div>
       ${(s.contactName || s.notes) ? `<div class="muted" style="margin-top:3px;font-size:12px">${s.contactName?`איש קשר: ${escapeHtml(s.contactName)}${s.contactPhone?' · '+escapeHtml(s.contactPhone):''}`:''}${s.notes?(s.contactName?' · ':'')+escapeHtml(s.notes):''}</div>` : ''}
+      ${tempNoteBannerHtml(s)}
       </div>
       ${shiurRecordingBigButtonHtml(s)}
     </div>`;
@@ -3215,12 +3600,30 @@ function openNavPopover(e){
     <a href="${btn.dataset.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 4px;color:var(--ink);text-decoration:none">🧭 פתח ב-Google Maps</a>
   `;
   document.body.appendChild(pop);
+  keepPopoverInViewport(pop, rect);
   setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
 }
 function closeNavPopover(){
   const el = document.getElementById('navPopoverDynamic');
   if (el) el.remove();
   document.removeEventListener('click', closeNavPopover);
+}
+// לאחר שהפופאובר נוסף ל-DOM, בודק אם הוא חורג מתחתית המסך (קורה כשלוחצים על פריט קרוב לתחתית הרשימה,
+// ואז החלק התחתון של התפריט "נחתך" מתחת לסרגל הניווט התחתון). אם כן - פותח אותו כלפי מעלה מהכפתור במקום כלפי מטה,
+// ואם גם ככה אין מספיק מקום (תפריט ארוך מהמסך) - הופך אותו לגלילה פנימית במקום שיהיה בלתי נגיש.
+function keepPopoverInViewport(pop, rect){
+  const margin = 10;
+  const popRect = pop.getBoundingClientRect();
+  if (popRect.bottom <= window.innerHeight - margin) return; // יש מספיק מקום, אין מה לתקן
+  const spaceAbove = rect.top - margin;
+  const spaceBelow = window.innerHeight - rect.bottom - margin;
+  if (spaceAbove > spaceBelow){
+    pop.style.top = '';
+    pop.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
+  }
+  const maxH = Math.max(spaceAbove, spaceBelow, 120);
+  pop.style.maxHeight = maxH + 'px';
+  pop.style.overflowY = 'auto';
 }
 function openMinyanMenuPopover(e, shulId, minyanId){
   e.stopPropagation();
@@ -3254,6 +3657,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   }
   pop.innerHTML = html;
   document.body.appendChild(pop);
+  keepPopoverInViewport(pop, rect);
   setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
 }
 function openShiurMenuPopover(e, shiurId){
@@ -3292,6 +3696,7 @@ function openShiurMenuPopover(e, shiurId){
   }
   pop.innerHTML = html;
   document.body.appendChild(pop);
+  keepPopoverInViewport(pop, rect);
   setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
 }
 
@@ -3466,6 +3871,7 @@ function openShulPage(shulId){
   viewingShulId = shulId;
   document.getElementById('tefilot-tab').style.display = 'none';
   document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('info-tab').style.display = 'none';
   document.getElementById('admin-tab').style.display = 'none';
   document.getElementById('shul-page').style.display = '';
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -3573,6 +3979,7 @@ function goHome(){
   document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
   document.getElementById('tefilot-tab').style.display = '';
   document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('info-tab').style.display = 'none';
   document.getElementById('admin-tab').style.display = 'none';
   trackPageView('תפילות', '/?tab=tefilot');
   incrementPageViewCount();
@@ -3664,6 +4071,7 @@ function renderShulPage(){
           ${daysToLabel(m.days)}
         </span>
       </div>
+      ${tempNoteBannerHtml(m)}
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין עדיין מניינים</div>';
 
@@ -3688,6 +4096,7 @@ function renderShulPage(){
           ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}
         </span>
       </div>
+      ${tempNoteBannerHtml(s)}
     </div>`;
   }).join('') || '<div class="muted" style="padding:6px 0">אין שיעורים רשומים במיקום זה</div>';
 
@@ -3730,13 +4139,23 @@ function renderShulPage(){
       </div>`;
   }
 
+  // מיזוג להצגה: שמות שהוזנו ידנית + רבנים שקושרו לבית כנסת זה דרך "רבני הישוב" בניהול (אלה מוצגים כקישור לפרטי הרב)
+  const manualRabbiNames = shul.rabbiNames || [];
+  const linkedRabbanim = shul.assignedRabbanim || [];
+  const linkedNamesSet = new Set(linkedRabbanim.map(r=>(r.name||'').trim()));
+  const manualOnlyRabbiNames = manualRabbiNames.filter(n => !linkedNamesSet.has((n||'').trim()));
+  const rabbiPartsHtml = [
+    ...linkedRabbanim.map(r=>`<a href="#" onclick="openRabbiInfoModal('${r.id}');return false" style="color:var(--dusk);font-weight:500;text-decoration:underline">${escapeHtml(r.name)}</a>`),
+    ...manualOnlyRabbiNames.map(n=>escapeHtml(n))
+  ];
+
   el.innerHTML = `
     <button class="btn ghost" onclick="closeShulPage()">→ חזרה</button>
     <div style="text-align:center;margin-top:8px">
       ${shul.photo?`<img src="${escapeHtml(shul.photo)}" alt="תמונה של ${escapeHtml(shul.name)}" style="width:100%;max-height:260px;object-fit:cover;border-radius:12px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
       <h2 style="margin:0;font-size:30px">${escapeHtml(shul.name)}</h2>
       <div class="muted" style="margin-top:6px">${escapeHtml(shul.address||'')}${shul.nusach?` · נוסח ${escapeHtml(shul.nusach)}`:''}</div>
-      ${shul.rabbiNames && shul.rabbiNames.length ? `<div class="muted" style="margin-top:4px">${shul.rabbiNames.length > 1 ? 'רבני בית הכנסת' : 'רב בית הכנסת'}: ${shul.rabbiNames.map(escapeHtml).join(', ')}</div>` : ''}
+      ${rabbiPartsHtml.length ? `<div class="muted" style="margin-top:4px">${rabbiPartsHtml.length > 1 ? 'רבני בית הכנסת' : 'רב בית הכנסת'}: ${rabbiPartsHtml.join(', ')}</div>` : ''}
       ${shul.gabaiNames && shul.gabaiNames.length ? `<div class="muted" style="margin-top:2px">${shul.gabaiNames.length > 1 ? 'גבאים' : 'גבאי'}: ${shul.gabaiNames.map(escapeHtml).join(', ')}</div>` : ''}
       <div style="display:flex;justify-content:center;gap:8px;margin-top:12px;flex-wrap:wrap">
         <button class="icon-btn" onclick="toggleMyShul('${shul.id}')" aria-label="${isMyShul(shul.id)?'הסרה מבית הכנסת שלי':'סימון כבית הכנסת שלי'}" title="${isMyShul(shul.id)?'זהו בית הכנסת שלי - לחצו להסרה':'סמנו כבית הכנסת שלי, לגישה מהירה דרך סמל הכוכב למעלה'}">${isMyShul(shul.id)?'⭐':'☆'}</button>
@@ -3775,6 +4194,13 @@ function renderShulPage(){
     ${editorsHtml}
   `;
 }
+// טקסט קצר להצגת הערה זמנית פעילה במסמכי הדפסה/ייצוא (טקסט רגיל, לא HTML מעוצב)
+function tempNotePrintText(item){
+  const note = activeTempNote(item);
+  if (!note) return '';
+  const untilStr = item.tempNoteUntil ? ` (עד ${new Date(item.tempNoteUntil+'T00:00:00').toLocaleDateString('he-IL')})` : '';
+  return `⚠ ${note}${untilStr}`;
+}
 function printShulSchedule(shulId){
   const shul = data.shuls.find(s=>s.id===shulId);
   if (!shul) return;
@@ -3785,7 +4211,7 @@ function printShulSchedule(shulId){
     m, t: computeMinyanTime(m, today, zmanim)
   })).sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
   const minyanRows = mins.map(({m,t})=>`
-    <tr><td>${escapeHtml(m.tefila)}</td><td>${escapeHtml(daysToLabel(m.days))}</td><td>${fmtTime(t)}</td><td>${escapeHtml(m.notes||'')}</td></tr>
+    <tr><td>${escapeHtml(m.tefila)}</td><td>${escapeHtml(daysToLabel(m.days))}</td><td>${fmtTime(t)}</td><td>${escapeHtml([m.notes, tempNotePrintText(m)].filter(Boolean).join(' · '))}</td></tr>
   `).join('');
   const minyanTable = mins.length ? `
     <table>
@@ -3796,7 +4222,8 @@ function printShulSchedule(shulId){
   const shiurim = data.shiurim.filter(s=>s.locationShulId===shulId && !isShiurExpired(s));
   const shiurRows = shiurim.map(s=>{
     const topics = getShiurTopics(s);
-    return `<tr><td>${escapeHtml(s.title)}</td><td>${escapeHtml(topics.join(', '))}</td><td>${escapeHtml(shiurScheduleLabel(s))}</td><td>${escapeHtml(s.time||'')}</td><td>${escapeHtml(s.teacherName||'')}</td></tr>`;
+    const titleCell = [escapeHtml(s.title), tempNotePrintText(s)?`<div style="font-size:10.5px;color:#7A5A17">${escapeHtml(tempNotePrintText(s))}</div>`:''].join('');
+    return `<tr><td>${titleCell}</td><td>${escapeHtml(topics.join(', '))}</td><td>${escapeHtml(shiurScheduleLabel(s))}</td><td>${escapeHtml(s.time||'')}</td><td>${escapeHtml(s.teacherName||'')}</td></tr>`;
   }).join('');
   const shiurTable = shiurim.length ? `
     <table>
@@ -3868,7 +4295,7 @@ function doPrintGeneral(){
       return { m, shul, t: computeMinyanTime(m, refDate, zmanim) };
     }).sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
     const minyanRows = minsWithTime.map(({m,shul,t})=>`
-      <tr><td>${fmtTime(t)}</td><td>${escapeHtml(m.tefila)}</td><td>${escapeHtml(shul?shul.name:'')}</td><td>${escapeHtml(m.notes||'')}</td></tr>
+      <tr><td>${fmtTime(t)}</td><td>${escapeHtml(m.tefila)}</td><td>${escapeHtml(shul?shul.name:'')}</td><td>${escapeHtml([m.notes, tempNotePrintText(m)].filter(Boolean).join(' · '))}</td></tr>
     `).join('');
     const minyanTable = minsWithTime.length ? `
       <table>
@@ -3883,7 +4310,8 @@ function doPrintGeneral(){
         .sort((a,b)=> (a.s.time||'').localeCompare(b.s.time||''))
         .map(({s,shul})=>{
           const topics = getShiurTopics(s);
-          return `<tr><td>${escapeHtml(s.time||'')}</td><td>${escapeHtml(s.title)}</td><td>${escapeHtml(topics.join(', '))}</td><td>${escapeHtml(shul?shul.name:(s.location||''))}</td></tr>`;
+          const titleCell = [escapeHtml(s.title), tempNotePrintText(s)?`<div style="font-size:10.5px;color:#7A5A17">${escapeHtml(tempNotePrintText(s))}</div>`:''].join('');
+          return `<tr><td>${escapeHtml(s.time||'')}</td><td>${titleCell}</td><td>${escapeHtml(topics.join(', '))}</td><td>${escapeHtml(shul?shul.name:(s.location||''))}</td></tr>`;
         }).join('');
       shiurBlock = shiurRows ? `
         <h4 style="margin:12px 0 6px;font-size:13.5px;color:var(--ink-soft)">שיעורי תורה</h4>
@@ -4056,12 +4484,24 @@ function openMinyanForm(shulId, minyanId){
       <div class="field"><label for="f_offsetMinutes">מספר דקות</label><input id="f_offsetMinutes" type="number" min="0" value="${m&&m.offsetMinutes||20}"></div>
     </div>
     <div class="field optional"><label for="f_notes">הערות</label><input id="f_notes" value="${m?escapeHtml(m.notes||''):''}" placeholder="למשל: ותיקין, מניין מהיר"></div>
+    <div class="field optional">
+      <label for="f_tempNote">הערה זמנית (למשל: "לא מתקיים בבין הזמנים")</label>
+      <input id="f_tempNote" value="${m?escapeHtml(m.tempNote||''):''}" placeholder="תוצג בבליטות עד התאריך שתקבעו">
+      <div id="f_tempNoteUntilField" style="margin-top:6px;${m&&m.tempNote?'':'display:none'}">
+        <label for="f_tempNoteUntil" style="font-weight:400;font-size:12.5px">בתוקף עד (כולל)</label>
+        <input id="f_tempNoteUntil" type="date" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveMinyan('${shulId||''}','${minyanId||''}')">שמירה</button>
     </div>`;
   document.getElementById('overlay').classList.add('show');
   toggleTimeFields();
+  const tempNoteInput = document.getElementById('f_tempNote');
+  if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
+    document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
+  });
 }
 function toggleTimeFields(){
   const isFixed = document.getElementById('f_timeType').value === 'fixed';
@@ -4095,6 +4535,9 @@ function saveMinyan(shulId, minyanId){
   if (!shulId){ alert('יש לבחור בית כנסת'); return; }
   const days = [...document.querySelectorAll('#f_days .daychip.active')].map(d=>d.dataset.day);
   if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  const tempNote = document.getElementById('f_tempNote').value.trim();
+  const tempNoteUntil = document.getElementById('f_tempNoteUntil').value;
+  if (tempNote && !tempNoteUntil){ alert('יש לקבוע עד מתי ההערה הזמנית תוצג'); return; }
   const id = minyanId || uid();
   const candidate = {
     shulId,
@@ -4105,7 +4548,9 @@ function saveMinyan(shulId, minyanId){
     anchor: document.getElementById('f_anchor').value,
     offsetSign: document.getElementById('f_offsetSign').value,
     offsetMinutes: Number(document.getElementById('f_offsetMinutes').value)||0,
-    notes: document.getElementById('f_notes').value.trim()
+    notes: document.getElementById('f_notes').value.trim(),
+    tempNote: tempNote,
+    tempNoteUntil: tempNote ? tempNoteUntil : null
   };
   if (isDuplicateMinyan(candidate, id)){
     const proceed = confirm('כבר קיים בבית הכנסת הזה מניין דומה - אותה תפילה, עם ימים חופפים ואותו זמן בדיוק. לשמור בכל זאת?');
@@ -4204,6 +4649,14 @@ function openShiurForm(shiurId){
       <div class="field optional"><label for="f_contactPhone">טלפון איש קשר</label><input id="f_contactPhone" value="${s?escapeHtml(s.contactPhone||''):''}"></div>
     </div>
     <div class="field optional"><label for="f_shiurNotes">הערות</label><input id="f_shiurNotes" value="${s?escapeHtml(s.notes||''):''}"></div>
+    <div class="field optional">
+      <label for="f_shiurTempNote">הערה זמנית (למשל: "לא מתקיים בבין הזמנים")</label>
+      <input id="f_shiurTempNote" value="${s?escapeHtml(s.tempNote||''):''}" placeholder="תוצג בבליטות עד התאריך שתקבעו">
+      <div id="f_shiurTempNoteUntilField" style="margin-top:6px;${s&&s.tempNote?'':'display:none'}">
+        <label for="f_shiurTempNoteUntil" style="font-weight:400;font-size:12.5px">בתוקף עד (כולל)</label>
+        <input id="f_shiurTempNoteUntil" type="date" value="${s&&s.tempNoteUntil?s.tempNoteUntil:''}">
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveShiur('${shiurId||''}')">שמירה</button>
@@ -4211,6 +4664,10 @@ function openShiurForm(shiurId){
   document.getElementById('overlay').classList.add('show');
   onShiurLocationChange();
   onOneTimeChange();
+  const shiurTempNoteInput = document.getElementById('f_shiurTempNote');
+  if (shiurTempNoteInput) shiurTempNoteInput.addEventListener('input', ()=>{
+    document.getElementById('f_shiurTempNoteUntilField').style.display = shiurTempNoteInput.value.trim() ? '' : 'none';
+  });
 }
 function onOneTimeChange(){
   const isOneTime = document.getElementById('f_oneTime').checked;
@@ -4259,6 +4716,9 @@ function saveShiur(shiurId){
     recordingLink = recordingLinkEl.value.trim();
     if (recordingLink && !/^https?:\/\//i.test(recordingLink)){ alert('קישור להקלטה צריך להתחיל ב-http:// או https://'); return; }
   }
+  const tempNote = document.getElementById('f_shiurTempNote').value.trim();
+  const tempNoteUntil = document.getElementById('f_shiurTempNoteUntil').value;
+  if (tempNote && !tempNoteUntil){ alert('יש לקבוע עד מתי ההערה הזמנית תוצג'); return; }
   const id = shiurId || uid();
   const obj = stamp({
     title,
@@ -4276,7 +4736,9 @@ function saveShiur(shiurId){
     image: SHIUR_IMAGE_DATA,
     contactName: document.getElementById('f_contactName').value.trim(),
     contactPhone: document.getElementById('f_contactPhone').value.trim(),
-    notes: document.getElementById('f_shiurNotes').value.trim()
+    notes: document.getElementById('f_shiurNotes').value.trim(),
+    tempNote: tempNote,
+    tempNoteUntil: tempNote ? tempNoteUntil : null
   });
   if (recordingLinkEl) obj.recordingLink = recordingLink;
   db.collection('shiurim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
@@ -4321,7 +4783,7 @@ function openAboutModal(){
     <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - ניתן לפנות ב<a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:underline;font-weight:500">מייל</a>, או <a href="#" onclick="openSendAdminMessageForm('');return false" style="color:var(--dusk);text-decoration:underline;font-weight:500">דרך האפליקציה</a>.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn primary" onclick="openUserGuide()">📖 מדריך למשתמש</button>
-      <button type="button" class="btn" onclick="openUsefulInfoModal()">ℹ️ מידע שימושי</button>
+      <button type="button" class="btn" onclick="closeModal();document.querySelector('.tab-btn[data-tab=&quot;info&quot;]').click()">ℹ️ מידע שימושי</button>
       <button type="button" class="btn" onclick="openAccessibilityPanel()">♿ נגישות</button>
       <button type="button" class="btn" onclick="openPrivacyModal()">🔒 מדיניות פרטיות</button>
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
@@ -4425,25 +4887,64 @@ function openAccessibilityPanel(){
     </div>`;
   document.getElementById('overlay').classList.add('show');
 }
-function openUsefulInfoModal(){
-  const sec = (title, body) => `
-    <div style="margin-bottom:20px">
-      <h4 style="margin:0 0 6px;color:var(--dusk);font-size:15px">${title}</h4>
-      <div style="line-height:1.8;font-size:14px">${body}</div>
-    </div>`;
+// חלונית עם פרטי רב מלאים - נפתחת מקישור בדף בית כנסת. כוללת קישור חזרה לבית/בתי הכנסת שהוא רב קהילה שלהם (אם יש).
+function openRabbiInfoModal(rabbiId){
+  const r = data.rabbanim.find(x=>x.id===rabbiId);
+  if (!r) return;
+  const shulLinks = (r.shulIds||[]).map(id=>data.shuls.find(s=>s.id===id)).filter(Boolean)
+    .map(s=>`<a href="#" onclick="closeModal();openShulPage('${s.id}');return false" style="color:var(--dusk);font-weight:500;text-decoration:underline">${escapeHtml(s.name)}</a>`).join(', ');
   document.getElementById('modalBody').innerHTML = `
-    <h3 style="margin-bottom:6px">מידע שימושי</h3>
+    <h3 style="margin-bottom:4px">${escapeHtml(r.name)}</h3>
+    ${r.role?`<p class="muted" style="margin-bottom:12px">${escapeHtml(r.role)}</p>`:''}
+    ${r.phone?`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn primary" style="display:inline-flex;margin-bottom:14px">📞 ${escapeHtml(r.phone)}</a>`:''}
+    ${r.responseAreas?`<div style="margin-bottom:8px;font-size:14px"><b>תחומי מענה:</b> ${escapeHtml(r.responseAreas)}</div>`:''}
+    ${r.address?`<div style="margin-bottom:8px;font-size:14px"><b>כתובת:</b> ${escapeHtml(r.address)}</div>`:''}
+    ${shulLinks?`<div style="margin-bottom:8px;font-size:14px"><b>רב קהילה של:</b> ${shulLinks}</div>`:''}
+    ${r.extraDetails?`<div class="muted" style="margin-top:10px;white-space:pre-wrap;font-size:13px">${escapeHtml(r.extraDetails)}</div>`:''}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function renderInfoTab(){
+  const el = document.getElementById('infoTabContent');
+  if (!el) return;
+  const rabbanimSorted = [...data.rabbanim].sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'));
+  const rabbanimHtml = rabbanimSorted.length ? rabbanimSorted.map(r=>{
+    const shulLinks = (r.shulIds||[]).map(id=>data.shuls.find(s=>s.id===id)).filter(Boolean)
+      .map(s=>`<a href="#" onclick="openShulPage('${s.id}');return false" style="color:var(--dusk);font-weight:500;text-decoration:underline">${escapeHtml(s.name)}</a>`).join(', ');
+    return `
+    <div class="card" style="margin-bottom:10px">
+      <div class="row">
+        <div style="min-width:0">
+          <div style="font-weight:700;font-size:15px">${escapeHtml(r.name)}</div>
+          ${r.role?`<div class="muted" style="font-size:12.5px;margin-top:2px">${escapeHtml(r.role)}</div>`:''}
+        </div>
+        ${r.phone?`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn" style="flex-shrink:0;font-size:13px;padding:8px 12px;white-space:nowrap">📞 ${escapeHtml(r.phone)}</a>`:''}
+      </div>
+      ${shulLinks?`<div style="margin-top:8px;font-size:13.5px"><b>רב קהילה של:</b> ${shulLinks}</div>`:''}
+      ${r.responseAreas?`<div style="margin-top:8px;font-size:13.5px"><b>תחומי מענה:</b> ${escapeHtml(r.responseAreas)}</div>`:''}
+      ${r.address?`<div style="margin-top:4px;font-size:13.5px"><b>כתובת:</b> ${escapeHtml(r.address)}</div>`:''}
+      ${r.extraDetails?`<div class="muted" style="margin-top:6px;font-size:12.5px;white-space:pre-wrap">${escapeHtml(r.extraDetails)}</div>`:''}
+    </div>`;
+  }).join('') : '<div class="empty">טרם נוספו רבנים</div>';
+
+  el.innerHTML = `
+    <h2 style="margin-bottom:12px">👳 רבני הישוב</h2>
+    ${rabbanimHtml}
+    <div style="margin:26px 0;border-top:1px solid var(--border)"></div>
+    <h2 style="margin-bottom:6px">ℹ️ מידע שימושי</h2>
     <p class="muted" style="margin-bottom:14px">מידע נבחר מאתר המועצה, לנוחיותכם. לפרטים המלאים והמעודכנים - תמיד עדיף להיכנס לקישור המקורי.</p>
-    ${sec('🗑️ גניזה', `
+    ${usefulInfoSectionHtml('🗑️ גניזה', `
       ביישוב שלושה מיכלי גניזה: ליד בית הכנסת אברהם אוהבי (מעגלי הראי"ה), ליד בתי הכנסת בשכונה א' (מבוא אבני החושן), וליד בית הכנסת סולם יעקב (רמת בית אל).<br>
       מחירון: שקית קטנה (20×30 ס"מ) - 5 ₪ · שקית בינונית (40×30 ס"מ) - 14 ₪ · דף פרשת שבוע/ספר (57×70 ס"מ) - 2 ₪. ניתן לשלם באשראי דרך אתר התשלומים של המועצה.<br>
       <a href="https://www.bet-el.muni.il/גניזה/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה ←</a>
     `)}
-    ${sec('🧵 עירוב', `
+    ${usefulInfoSectionHtml('🧵 עירוב', `
       העירוב בבית אל מבוסס על גדר שעוברת בדיקה תמידית על ידי סייר מחלקת הביטחון. מעל שערי הכניסה והיציאה מהיישוב פרוסה צורת הפתח.<br>
       <a href="https://www.bet-el.muni.il/עירוב/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה (כולל מפה) ←</a>
     `)}
-    ${sec('💍 רישום לנישואין', `
+    ${usefulInfoSectionHtml('💍 רישום לנישואין', `
       חשוב: אין להתחיל את תהליך הרישום יותר מ-3 חודשים לפני מועד החתונה (זה תוקף תיק הנישואין ותעודת הרווקות).<br><br>
       <b>מסמכים שצריך להביא:</b> תעודת זהות עם ספח (של שניכם), תעודת נישואין של ההורים, אישור הדרכת כלות עם תאריך החתונה, שם/ת.ז./טלפון של הרב המסדר, פרטי מקום החתונה ואישור כשרות, ו-2 עדים לרווקות (מגיעים לאחר פתיחת התיק).<br><br>
       <b>אגרה:</b> 844 ₪ במחיר רגיל, 506 ₪ לזכאי הנחה (חיילים, שירות לאומי, סטודנטים/בני ישיבה עד גיל 30, עולים חדשים בשנתיים הראשונות, נכים ובעלי מוגבלות ראייה - בהצגת אישור מתאים).<br><br>
@@ -4453,11 +4954,14 @@ function openUsefulInfoModal(){
     <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px">
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
       ${(isMobileDevice()&&!isRunningStandalone())?`<button type="button" class="btn" onclick="addToHomeScreen()">📲 הוספה למסך הבית</button>`:''}
-    </div>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">סגירה</button>
     </div>`;
-  document.getElementById('overlay').classList.add('show');
+}
+function usefulInfoSectionHtml(title, body){
+  return `
+    <div class="card" style="margin-bottom:14px">
+      <h4 style="margin:0 0 6px;color:var(--dusk);font-size:15px">${title}</h4>
+      <div style="line-height:1.8;font-size:14px">${body}</div>
+    </div>`;
 }
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
@@ -4469,7 +4973,13 @@ const WHATS_NEW = [
       '🔴 תגית מספרית אדומה על אייקון המעטפה בראש העמוד, שמראה כמה הודעות חדשות מחכות. האייקון עצמו נשאר גם אחרי שקוראים, רק התגית מתבטלת.',
       '📩 חלונית קופצת בכניסה לאפליקציה כשיש תשובה חדשה מהמנהל, עם אפשרות לשלוח הודעת המשך ישירות מהחלונית.',
       '🖨️ תיקון בהדפסה הכללית מדף הבית: הטבלה מסודרת עכשיו כרונולוגית (לפי שעות) לכל בתי הכנסת יחד, במקום מחולקת לפי בית כנסת - וגם תוקנה תקלה שגרמה לעמוד הראשון להיראות כמעט ריק.',
-      '🎥 בטופס עריכת שיעור: מי שאינו מנהל יכול עכשיו להציע קישור להקלטת השיעור - הבקשה נשלחת אוטומטית למנהל, והקישור יופיע בפועל רק לאחר אישורו.'
+      '🎥 בטופס עריכת שיעור: מי שאינו מנהל יכול עכשיו להציע קישור להקלטת השיעור - הבקשה נשלחת אוטומטית למנהל, והקישור יופיע בפועל רק לאחר אישורו.',
+      '🐛 תוקן באג בתפריטי המידע (ⓘ) של מניינים ושיעורים - כשלוחצים על פריט קרוב לתחתית המסך, התפריט נפתח עכשיו כלפי מעלה במקום להיחתך מתחת לסרגל הניווט התחתון.',
+      '👑 הגנה על הרשאת "מנהל": אי אפשר יותר להסיר הרשאת מנהל אם נשאר מנהל יחיד ביישוב. כשיש כמה מנהלים, רק ה"מנהל הראשי" (מסומן ⭐) יכול להסיר הרשאה ממנהלים אחרים - ואם הוא רוצה להסיר את שלו, עליו לבחור קודם מי יהיה המנהל הראשי החדש.',
+      '📌 אפשר להוסיף למניין או לשיעור "הערה זמנית" (למשל "לא מתקיים בבין הזמנים") עם תאריך תפוגה - היא מוצגת בבליטות בכתום עד התאריך שנקבע, ואז נעלמת אוטומטית. מופיעה בכל מקום שהמניין/השיעור מוצג, כולל הדפסה וייצוא לאקסל.',
+      '💾 גיבוי ושחזור: הגיבוי המלא כולל עכשיו גם הודעות תושבים והגדרות שנוספו לאחרונה (נעילת עריכה, מנהל ראשי) שהיו חסרות קודם. בטעינת גיבוי אפשר עכשיו לבחור בין מיזוג (משלים, לא מוחק) לבין שחזור מלא (דורס ומחליף הכל בדיוק לפי הגיבוי).',
+      '🚫 בניהול: אפשרות לחסום את כל האפליקציה זמנית (למשל לצורך תחזוקה) - כל מי שנכנס רואה מסך "האפליקציה אינה זמינה", חוץ ממנהלים שיכולים להתחבר עם גוגל מאותו מסך ולהמשיך לעבוד כרגיל.',
+      '📇 לשונית חדשה "מידע שימושי" בסרגל התחתון: למעלה מוצגת רשימת רבני הישוב (ניתנת לניהול מלא בפאנל הניהול - שם וטלפון חובה, השאר רשות), ומתחת המידע השימושי הקיים (גניזה, עירוב, רישום לנישואין). רב שמוגדר כ"רב קהילה" של בית כנסת מקבל קישור הדדי - שמו מופיע כקישור בדף בית הכנסת, ושם בית הכנסת מופיע כקישור בכרטיס שלו.'
     ]
   },
   {
@@ -4636,8 +5146,9 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     }
     document.getElementById('tefilot-tab').style.display = currentTab==='tefilot' ? '' : 'none';
     document.getElementById('shiurim-tab').style.display = currentTab==='shiurim' ? '' : 'none';
+    document.getElementById('info-tab').style.display = currentTab==='info' ? '' : 'none';
     document.getElementById('admin-tab').style.display = currentTab==='admin' ? '' : 'none';
-    const tabLabels = {tefilot:'תפילות', shiurim:'שיעורי תורה', admin:'ניהול'};
+    const tabLabels = {tefilot:'תפילות', shiurim:'שיעורי תורה', info:'מידע שימושי', admin:'ניהול'};
     trackPageView(tabLabels[currentTab] || currentTab, '/?tab=' + currentTab);
     incrementPageViewCount();
     render();
