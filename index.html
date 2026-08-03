@@ -1638,7 +1638,7 @@ function renderRabbanimAdmin(){
   el.innerHTML = sorted.map(r=>`
     <div class="card row">
       <div>
-        <h3>${escapeHtml(r.name)}</h3>
+        <h3>${r.isFeatured?'⭐ ':''}${escapeHtml(r.name)}</h3>
         <div class="muted">${[r.phone, r.email].filter(Boolean).map(escapeHtml).join(' · ')}${r.role?' · '+escapeHtml(r.role):''}</div>
         ${r.contactNote?`<div class="muted" style="font-size:11.5px">📝 ${escapeHtml(r.contactNote)}</div>`:''}
         ${(r.shulIds||[]).length?`<div class="muted" style="font-size:12px;margin-top:2px">רב קהילת ${r.shulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}</div>`:''}
@@ -1661,6 +1661,10 @@ function openRabbiForm(rabbiId){
     <p class="muted" style="margin:-8px 0 12px;font-size:12px">יש למלא טלפון או אימייל (לפחות אחד מהשניים).</p>
     <div class="field optional"><label for="f_rabbiContactNote">הערה ליצירת קשר</label><input id="f_rabbiContactNote" value="${r?escapeHtml(r.contactNote||''):''}" placeholder="לדוגמה: בהודעות בלבד, או: בשעות הערב"></div>
     <div class="field optional"><label for="f_rabbiRole">תפקיד</label><input id="f_rabbiRole" value="${r?escapeHtml(r.role||''):''}" placeholder="לדוגמה: רב היישוב, רב שכונה א'"></div>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:-6px 0 12px;font-weight:400;font-size:13.5px">
+      <input type="checkbox" id="f_rabbiFeatured" ${r&&r.isFeatured?'checked':''}>
+      רב היישוב - להציג תמיד למעלה ברשימת "רבנים בישוב" (לא מתחת ל"רבנים נוספים")
+    </label>
     <div class="field optional"><label for="f_rabbiResponseAreas">תחומי מענה</label><input id="f_rabbiResponseAreas" value="${r?escapeHtml(r.responseAreas||''):''}" placeholder="לדוגמה: כשרות, שאלות הלכתיות, אבלות"></div>
     <div class="field optional"><label for="f_rabbiAddress">כתובת</label><input id="f_rabbiAddress" value="${r?escapeHtml(r.address||''):''}"></div>
     <div class="field optional"><label for="f_rabbiExtraDetails">פרטים נוספים</label><textarea id="f_rabbiExtraDetails" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${r?escapeHtml(r.extraDetails||''):''}</textarea></div>
@@ -1707,6 +1711,7 @@ function saveRabbi(rabbiId){
     responseAreas: document.getElementById('f_rabbiResponseAreas').value.trim(),
     address: document.getElementById('f_rabbiAddress').value.trim(),
     extraDetails: document.getElementById('f_rabbiExtraDetails').value.trim(),
+    isFeatured: document.getElementById('f_rabbiFeatured').checked,
     shulIds: newShulIds
   });
   const affectedShulIds = Array.from(new Set([...prevShulIds, ...newShulIds]));
@@ -4938,14 +4943,10 @@ function openRabbiInfoModal(rabbiId){
     </div>`;
   document.getElementById('overlay').classList.add('show');
 }
-function renderInfoTab(){
-  const el = document.getElementById('infoTabContent');
-  if (!el) return;
-  const rabbanimSorted = [...data.rabbanim].sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'));
-  const rabbanimHtml = rabbanimSorted.length ? rabbanimSorted.map(r=>{
-    const shulLinks = (r.shulIds||[]).map(id=>data.shuls.find(s=>s.id===id)).filter(Boolean)
-      .map(s=>`<a href="#" onclick="openShulPage('${s.id}');return false" style="color:var(--dusk);font-weight:500;text-decoration:underline">${escapeHtml(s.name)}</a>`).join(', ');
-    return `
+function rabbiCardHtml(r){
+  const shulLinks = (r.shulIds||[]).map(id=>data.shuls.find(s=>s.id===id)).filter(Boolean)
+    .map(s=>`<a href="#" onclick="openShulPage('${s.id}');return false" style="color:var(--dusk);font-weight:500;text-decoration:underline">${escapeHtml(s.name)}</a>`).join(', ');
+  return `
     <div class="card" style="margin-bottom:10px">
       <div style="font-weight:700;font-size:15px">${escapeHtml(r.name)}</div>
       ${r.role?`<div class="muted" style="font-size:12.5px;margin-top:2px">${escapeHtml(r.role)}</div>`:''}
@@ -4956,7 +4957,29 @@ function renderInfoTab(){
       ${r.address?`<div style="margin-top:4px;font-size:13.5px"><b>כתובת:</b> ${escapeHtml(r.address)}</div>`:''}
       ${r.extraDetails?`<div class="muted" style="margin-top:6px;font-size:12.5px;white-space:pre-wrap">${escapeHtml(r.extraDetails)}</div>`:''}
     </div>`;
-  }).join('') : '<div class="empty">טרם נוספו רבנים</div>';
+}
+function renderInfoTab(){
+  const el = document.getElementById('infoTabContent');
+  if (!el) return;
+  const rabbanimSorted = [...data.rabbanim].sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'));
+  const featuredRabbanim = rabbanimSorted.filter(r=>r.isFeatured);
+  const otherRabbanim = rabbanimSorted.filter(r=>!r.isFeatured);
+  let rabbanimHtml;
+  if (!rabbanimSorted.length){
+    rabbanimHtml = '<div class="empty">טרם נוספו רבנים</div>';
+  } else {
+    rabbanimHtml = featuredRabbanim.map(rabbiCardHtml).join('');
+    if (otherRabbanim.length){
+      rabbanimHtml += `
+        <details class="info-accordion">
+          <summary>👥 רבנים נוספים (${otherRabbanim.length})</summary>
+          <div class="info-accordion-body" style="padding-top:4px">${otherRabbanim.map(rabbiCardHtml).join('')}</div>
+        </details>`;
+    } else if (!featuredRabbanim.length){
+      // אין אף רב שסומן כ"רב היישוב" - מציגים את כולם ברשימה הראשית כדי שלא ייעלמו
+      rabbanimHtml = otherRabbanim.map(rabbiCardHtml).join('');
+    }
+  }
 
   el.innerHTML = `
     <h2 style="margin-bottom:12px">📚 רבנים בישוב</h2>
@@ -4966,13 +4989,13 @@ function renderInfoTab(){
     <p class="muted" style="margin-bottom:14px">מידע נבחר מאתר המועצה, לנוחיותכם. לחצו על כל כותרת לפרטים המלאים. לעדכונים ותשלומים - תמיד עדיף להיכנס לקישור המקורי.</p>
     ${infoAccordionHtml('🚿', 'מקוואות נשים', `
       ביישוב שלושה מקוואות נשים:<br><br>
-      <b>מקווה שכונה א'</b> - שביל שבות סיני 1 (ליד גן הפיל) · טלפון: <a href="tel:029975234" style="color:var(--dusk)">02-9975234</a>, ברכה סבג <a href="tel:0584561826" style="color:var(--dusk)">058-4561826</a><br>
+      <b>מקווה שכונה א'</b> - שביל שבות סיני 1 (ליד גן הפיל) · טלפון: <a href="tel:029975234" style="color:var(--dusk)">02-9975234</a><br>
       ימי חול: סגור (פתוח בסופי שבוע בלבד - יש להתקשר לפני ההגעה לוודא שיש מקום) · מוצ"ש: שעה אחרי צאת השבת, למשך שעה<br>
       <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=100730" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה</a><br><br>
-      <b>מקווה שכונה ב'</b> - רח' מעגלי הראי"ה 1 · טלפון: <a href="tel:029973540" style="color:var(--dusk)">02-9973540</a>, בלניות: ברכה סבג <a href="tel:0584561826" style="color:var(--dusk)">058-4561826</a>, רותי כהן <a href="tel:0523114937" style="color:var(--dusk)">052-3114937</a><br>
+      <b>מקווה שכונה ב'</b> - רח' מעגלי הראי"ה 1 · טלפון: <a href="tel:029973540" style="color:var(--dusk)">02-9973540</a><br>
       ימי חול (שעון קיץ): 19:30-23:00 · מוצ"ש: 21:30-23:00<br>
       <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=100732" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה</a><br><br>
-      <b>מקווה שכונת האולפנה</b> - רח' זבולון 1 · טלפון: <a href="tel:029971924" style="color:var(--dusk)">02-9971924</a>, שרית שרון <a href="tel:0542040699" style="color:var(--dusk)">054-2040699</a>, בליל שבת - לימור חזן <a href="tel:0584422159" style="color:var(--dusk)">058-4422159</a><br>
+      <b>מקווה שכונת האולפנה</b> - רח' זבולון 1 · טלפון: <a href="tel:029971924" style="color:var(--dusk)">02-9971924</a><br>
       ימי חול (שעון קיץ): חצי שעה לפני השקיעה למשך שעתיים · מוצ"ש: שעה אחרי צאת השבת, למשך שעה<br>
       <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=733" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה</a><br><br>
       <b>ערבי שבת וחג (בכל המקוואות, כולל שכונה א'):</b> עשר דקות לפני צאת הכוכבים ועד חצי שעה אחריו.<br>
@@ -4982,10 +5005,10 @@ function renderInfoTab(){
     ${infoAccordionHtml('🚿', 'מקווה גברים', `
       כתובת: מעגלי הראי"ה 1.<br><br>
       <b>שעות פתיחה:</b> ימים א'-ה': 3:00-10:00 · ערבי שבת וחג: 3:00 עד הדלקת נרות · שבת: 3:00-11:00.<br><br>
-      הכניסה בתשלום דרך קרוסלה (מזומן, אשראי או צ'יפ). ניתן לרכוש צ'יפ (25 ₪) במחלקת דת בימים א', ב', ג', ה' בין 9:00-13:00.<br><br>
-      <b>מחירון:</b> טבילה בודדת (מזומן/אשראי) - 10 ₪ · צ'יפ ערך צבור (10 כניסות) - 90 ₪ · צ'יפ חודשי - 100 ₪. לזכאי הנחה (בחור ישיבה/אברך, חייל, ילד מתחת לגיל 18, נכה, סטודנט, גמלאי): צ'יפ ערך צבור - 63 ₪, צ'יפ חודשי - 70 ₪.<br>
+      <b>עלות כניסה בודדת: 10 ₪</b> (מזומן, אשראי או צ'יפ - תשלום דרך קרוסלה בכניסה).<br><br>
+      <b>לקבלת הנחה</b> - ניתן לרכוש צ'יפ (25 ₪) במשרדי מחלקת דת (ימים א', ב', ג', ה', 9:00-13:00), ולטעון עליו ערך צבור (90 ₪ ל-10 כניסות, 10% הנחה) או מנוי חודשי (100 ₪). לזכאי הנחה נוספת (בחור ישיבה/אברך, חייל, ילד מתחת לגיל 18, נכה, סטודנט, גמלאי): ערך צבור - 63 ₪, מנוי חודשי - 70 ₪.<br>
       בעלי מנוי חודשי פטורים מתשלום בשבת/חג; בעלי צ'יפ ערך צבור וציבור רחב נדרשים לשלם עבור טבילה בשבת/חג.<br><br>
-      תקלה במקווה: עמיעד - <a href="tel:0556882259" style="color:var(--dusk)">055-6882259</a><br><br>
+      לתקלות במקווה - פנו למחלקת דת.<br><br>
       <a href="https://eprmuni.co.il/#/randomPayments?muni=34&type=2&id=100731" target="_blank" rel="noopener" style="color:var(--dusk)">💳 לתשלום על טבילה בשבת/חג</a><br>
       <a href="https://www.bet-el.muni.il/מקווה-גברים/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה ←</a>
     `)}
@@ -5035,7 +5058,8 @@ const WHATS_NEW = [
       '📇 לשונית חדשה "מידע שימושי" בסרגל התחתון: למעלה מוצגת רשימת רבני הישוב (ניתנת לניהול מלא בפאנל הניהול - שם וטלפון חובה, השאר רשות), ומתחת המידע השימושי הקיים (גניזה, עירוב, רישום לנישואין). רב שמוגדר כ"רב קהילה" של בית כנסת מקבל קישור הדדי - שמו מופיע כקישור בדף בית הכנסת, ושם בית הכנסת מופיע כקישור בכרטיס שלו.',
       '🕐 בזמן יחסי למניין (הנץ/שקיעה/צאת הכוכבים) נוספה אפשרות "בדיוק", לצד "לפני" ו"אחרי" - שימושי למשל לערבית בדיוק בשקיעה.',
       '📇 בפרטי רב: אפשר להוסיף גם אימייל (בנוסף/במקום טלפון - מספיק אחד מהשניים), ו"הערה ליצירת קשר" (למשל "בהודעות בלבד" או "בשעות הערב") שמוצגת ליד פרטי הקשר.',
-      '📋 "מידע שימושי" עוצב מחדש כרשימת נושאים לחיצה (מקוואות נשים/גברים, גניזה, עירוב, מפת בית העלמין, הכנת מודעת אבל, רישום לנישואין) - לוחצים על כותרת והפרטים נפתחים. גם עודכן תוכן מקוואות הנשים והגברים (כתובות, שעות, מחירים וקישורי תשלום).'
+      '📋 "מידע שימושי" עוצב מחדש כרשימת נושאים לחיצה (מקוואות נשים/גברים, גניזה, עירוב, מפת בית העלמין, הכנת מודעת אבל, רישום לנישואין) - לוחצים על כותרת והפרטים נפתחים. גם עודכן תוכן מקוואות הנשים והגברים (כתובות, שעות, מחירים וקישורי תשלום).',
+      '⭐ בפרטי רב אפשר לסמן "רב היישוב" - הוא מוצג תמיד למעלה ברשימת "רבנים בישוב", והשאר מתחת לכפתור "רבנים נוספים". גם הוסרו ממידע מקוואות הנשים והגברים מספרי הטלפון האישיים של הבלניות/אחראי התחזוקה, ונשארו רק הטלפונים הרשמיים.'
     ]
   },
   {
