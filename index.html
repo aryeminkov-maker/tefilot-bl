@@ -1632,7 +1632,7 @@ function renderRabbanimAdmin(){
       <div>
         <h3>${escapeHtml(r.name)}</h3>
         <div class="muted">${escapeHtml(r.phone||'')}${r.role?' · '+escapeHtml(r.role):''}</div>
-        ${(r.shulIds||[]).length?`<div class="muted" style="font-size:12px;margin-top:2px">רב קהילה של: ${r.shulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}</div>`:''}
+        ${(r.shulIds||[]).length?`<div class="muted" style="font-size:12px;margin-top:2px">רב קהילת ${r.shulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}</div>`:''}
       </div>
       <div>
         <button class="btn" onclick="openRabbiForm('${r.id}')">עריכה</button>
@@ -4899,7 +4899,7 @@ function openRabbiInfoModal(rabbiId){
     ${r.phone?`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn primary" style="display:inline-flex;margin-bottom:14px">📞 ${escapeHtml(r.phone)}</a>`:''}
     ${r.responseAreas?`<div style="margin-bottom:8px;font-size:14px"><b>תחומי מענה:</b> ${escapeHtml(r.responseAreas)}</div>`:''}
     ${r.address?`<div style="margin-bottom:8px;font-size:14px"><b>כתובת:</b> ${escapeHtml(r.address)}</div>`:''}
-    ${shulLinks?`<div style="margin-bottom:8px;font-size:14px"><b>רב קהילה של:</b> ${shulLinks}</div>`:''}
+    ${shulLinks?`<div style="margin-bottom:8px;font-size:14px"><b>רב קהילת</b> ${shulLinks}</div>`:''}
     ${r.extraDetails?`<div class="muted" style="margin-top:10px;white-space:pre-wrap;font-size:13px">${escapeHtml(r.extraDetails)}</div>`:''}
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">סגירה</button>
@@ -4922,7 +4922,7 @@ function renderInfoTab(){
         </div>
         ${r.phone?`<a href="tel:${escapeHtml((r.phone||'').replace(/[^0-9+]/g,''))}" class="btn" style="flex-shrink:0;font-size:13px;padding:8px 12px;white-space:nowrap">📞 ${escapeHtml(r.phone)}</a>`:''}
       </div>
-      ${shulLinks?`<div style="margin-top:8px;font-size:13.5px"><b>רב קהילה של:</b> ${shulLinks}</div>`:''}
+      ${shulLinks?`<div style="margin-top:8px;font-size:13.5px"><b>רב קהילת</b> ${shulLinks}</div>`:''}
       ${r.responseAreas?`<div style="margin-top:8px;font-size:13.5px"><b>תחומי מענה:</b> ${escapeHtml(r.responseAreas)}</div>`:''}
       ${r.address?`<div style="margin-top:4px;font-size:13.5px"><b>כתובת:</b> ${escapeHtml(r.address)}</div>`:''}
       ${r.extraDetails?`<div class="muted" style="margin-top:6px;font-size:12.5px;white-space:pre-wrap">${escapeHtml(r.extraDetails)}</div>`:''}
