@@ -391,6 +391,11 @@
           <p class="muted" style="margin-bottom:8px">מספר גולשים וצפיות בעמודים נמדדים ב-Google Analytics (לא נשמרים באפליקציה עצמה, כדי לא להעמיס כתיבות נוספות על מכסת השימוש היומית ב-Firestore).</p>
           <a href="https://analytics.google.com/" target="_blank" rel="noopener" class="btn">📈 פתיחת Google Analytics</a>
         </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <h4 style="margin-bottom:6px">📋 יומן עדכונים אחרונים</h4>
+          <p class="muted" style="margin-bottom:12px">עד 100 העדכונים האחרונים באותו טווח שנבחר למעלה - בתי כנסת, מניינים ושיעורי תורה, מהחדש לישן, כולל מי עדכן ומתי.</p>
+          <div id="activityLogList"></div>
+        </div>
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
@@ -401,16 +406,6 @@
       <div class="admin-section-body" id="adminSection_messages" style="display:none">
         <p class="muted" style="margin-bottom:12px">הודעות ודיווחים ששלחו תושבים (למשל על מניין שהתבטל) - דרך כפתור "שליחת הודעה למנהל" שמופיע ברחבי האפליקציה. אפשר לנהל התכתבות מלאה - התשובה (וכל הודעת המשך) תוצג לתושב, עם הקפצת חלונית בכניסה הבאה שלו לאפליקציה.</p>
         <div id="adminMessagesList"></div>
-      </div>
-    </div>
-    <div class="card admin-section" style="margin-top:14px">
-      <button type="button" class="admin-section-header" id="adminSectionHeader_activityLog" aria-expanded="false" onclick="toggleAdminSection('activityLog')">
-        <h3>📋 יומן עדכונים אחרונים</h3>
-        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      </button>
-      <div class="admin-section-body" id="adminSection_activityLog" style="display:none">
-        <p class="muted" style="margin-bottom:12px">100 העדכונים האחרונים בבתי כנסת, מניינים ושיעורי תורה - מהחדש לישן, כולל מי עדכן ומתי.</p>
-        <div id="activityLogList"></div>
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
@@ -809,20 +804,15 @@ function getVisibleMinyanimForDate(allMinyanim, dateObj, info){
   info = info || getSpecialDayInfo(dateObj);
   if (!info) return allMinyanim;
   const dateStr = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0') + '-' + String(dateObj.getDate()).padStart(2,'0');
-  function occasionMatchesToday(m){
-    const occ = m.occasion;
-    if (!occ || occ.kind !== info.kind) return false;
-    if (!occ.recurring) return occ.date === dateStr;
-    return (occ.holidayName || '') === (info.holidayName || '');
-  }
+  const specialForToday = m => m.specialDate === dateStr;
   if (info.kind === 'roshChodesh' || info.kind === 'cholHamoed'){
-    return allMinyanim; // מציגים את השגרה הרגילה כרגיל
+    return allMinyanim; // מציגים את השגרה הרגילה כרגיל (העדכונים הייעודיים לתאריך הזה, אם יש, כבר מוצגים ממילא כי הם לא מוגבלים ל"ימים")
   }
   if (info.kind === 'erevChag'){
-    return allMinyanim.filter(m => m.tefila === 'שחרית' || occasionMatchesToday(m));
+    return allMinyanim.filter(m => (!m.specialDate && m.tefila === 'שחרית') || specialForToday(m));
   }
   if (info.kind === 'chag'){
-    return allMinyanim.filter(occasionMatchesToday);
+    return allMinyanim.filter(specialForToday);
   }
   return allMinyanim;
 }
@@ -1492,8 +1482,12 @@ function renderUsers(){
     const isPrimary = u.role==='manager' && u.id===primaryUid;
     const primaryBadge = isPrimary ? ' <span class="badge" style="background:var(--accent);color:var(--accent-ink);border-color:var(--accent)">⭐ מנהל ראשי</span>' : '';
     const selectLocked = isPrimary && !(currentUser && currentUser.uid===primaryUid);
+    const roleBadge = ` <span class="badge">${labels[u.role]||u.role}</span>`;
+    const blockedBadge = u.blocked ? ' <span class="badge" style="background:var(--danger-bg);color:var(--danger);border-color:var(--danger)">חסום</span>' : '';
     return `
-    <div class="card">
+    <details class="info-accordion" style="margin-bottom:10px">
+      <summary>${escapeHtml(u.name||u.email||'(ללא שם)')}${roleBadge}${blockedBadge}${primaryBadge}</summary>
+      <div class="info-accordion-body">
       <div class="row">
         <div class="muted">${escapeHtml(u.name||'')}${u.name?' · ':''}${escapeHtml(u.email||'')}${u.createdAt?' · הצטרפ/ה ב-'+new Date(u.createdAt).toLocaleDateString('he-IL'):''}${u.id===(currentUser&&currentUser.uid)?' · (אתם)':''}${u.role==='gabai'?(u.assignedShulIds&&u.assignedShulIds.length?` · גבאי ${u.assignedShulIds.map(id=>escapeHtml((data.shuls.find(s=>s.id===id)||{}).name||'')).join(', ')}`:' · גבאי ללא שיוך'):''}${u.blocked?' · <span style="color:var(--danger)">חסום מעריכה</span>':''}${primaryBadge}</div>
         <select onchange="changeUserRole('${u.id}', this.value, this)" ${selectLocked?'disabled title="רק המנהל הראשי יכול לשנות את ההרשאה של עצמו"':''}>
@@ -1516,7 +1510,8 @@ function renderUsers(){
         <button class="btn" onclick="openUserConversationModal('${u.id}')">💬 היסטוריית פניות${userMsgs.length?` (${userMsgs.length}${unrepliedCount?', '+unrepliedCount+' ממתינות':''})`:''}</button>
         <button class="btn ${u.blocked?'':'danger'}" onclick="toggleUserBlocked('${u.id}')">${u.blocked?'ביטול חסימה':'חסימה מעריכה'}</button>
       </div>
-    </div>`;
+      </div>
+    </details>`;
   }).join('');
 }
 function openUserConversationModal(targetUid){
@@ -3101,6 +3096,7 @@ let dashboardRange = '24h';
 function setDashboardRange(range){
   dashboardRange = range;
   renderDashboard();
+  renderActivityLog();
 }
 function dashboardRangeStartDate(){
   const now = new Date();
@@ -3146,17 +3142,19 @@ function renderDashboard(){
 function renderActivityLog(){
   const el = document.getElementById('activityLogList');
   if (!el) return;
+  const start = dashboardRangeStartDate();
+  const inRange = ts => !ts ? false : (!start || new Date(ts) >= start);
   const entries = [];
   data.shuls.forEach(s=>{
-    if (s.updatedAt) entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '🏠', label: 'בית כנסת', name: s.name, type:'shul', id:s.id, shulId:s.id });
+    if (s.updatedAt && inRange(s.updatedAt)) entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '🏠', label: 'בית כנסת', name: s.name, type:'shul', id:s.id, shulId:s.id });
   });
   data.minyanim.forEach(m=>{
-    if (!m.updatedAt) return;
+    if (!m.updatedAt || !inRange(m.updatedAt)) return;
     const shul = data.shuls.find(s=>s.id===m.shulId);
     entries.push({ time: m.updatedAt, by: m.updatedBy, icon: '🕍', label: 'מניין', name: `${m.tefila}${shul?' · '+shul.name:''}`, type:'minyan', id:m.id, shulId:m.shulId||'' });
   });
   data.shiurim.forEach(s=>{
-    if (!s.updatedAt) return;
+    if (!s.updatedAt || !inRange(s.updatedAt)) return;
     const shul = data.shuls.find(x=>x.id===s.locationShulId);
     entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '📖', label: 'שיעור', name: `${s.title}${shul?' · '+shul.name:''}`, type:'shiur', id:s.id, shulId:s.locationShulId||'' });
   });
@@ -3530,7 +3528,7 @@ function renderTefilot(){
               <span style="display:inline-flex;align-items:center;gap:1px">
                 <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
               </span>
-              ${daysToLabel(m.days)}
+              ${minyanDaysLabel(m)}
             </span>
           </div>
           ${tempNoteBannerHtml(m)}
@@ -3566,7 +3564,7 @@ function renderTefilot(){
   } else {
     let items = [];
     minyanimForDisplay.forEach(m=>{
-      const dayMatches = m.occasion ? true : (m.days||[]).includes(dk);
+      const dayMatches = m.specialDate ? (m.specialDate === (today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'))) : (m.days||[]).includes(dk);
       if (!dayMatches) return;
       if (tefilaF && m.tefila !== tefilaF) return;
       if (shulF && m.shulId !== shulF) return;
@@ -3747,6 +3745,11 @@ function daysToLabel(days){
   const weekdays = ['sun','mon','tue','wed','thu','fri'];
   if (days.length===6 && weekdays.every(d=>days.includes(d))) return 'ימי חול';
   return DAY_KEYS.filter(k=>days.includes(k)).map(k=>DAYS_HE_FULL[DAY_KEYS.indexOf(k)]).join(', ');
+}
+// כמו daysToLabel, אבל למניין בתאריך מיוחד מציג את התאריך עצמו במקום רשימת ימים ריקה
+function minyanDaysLabel(m){
+  if (m.specialDate) return new Date(m.specialDate+'T00:00:00').toLocaleDateString('he-IL');
+  return daysToLabel(m.days);
 }
 const DAYS_HE_FULL = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 
@@ -4406,7 +4409,7 @@ function renderShulPage(){
           <span style="display:inline-flex;align-items:center;gap:1px">
             <button class="row-icon-btn" onclick="openMinyanMenuPopover(event, '${shul.id}', '${m.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
           </span>
-          ${daysToLabel(m.days)}
+          ${minyanDaysLabel(m)}
         </span>
       </div>
       ${tempNoteBannerHtml(m)}
@@ -4792,10 +4795,23 @@ function openMinyanForm(shulId, minyanId){
       </select>
     </div>` : ''}
     <div class="field"><label for="f_tefila">תפילה</label>
-      <select id="f_tefila" onchange="onTefilaChange(${m?'true':'false'})">${TEFILA_ORDER.map(t=>`<option ${m&&m.tefila===t?'selected':''}>${t}</option>`).join('')}</select>
+      <select id="f_tefila" onchange="onTefilaChange(${m?'true':'false'})">
+        ${TEFILA_ORDER.map(t=>`<option ${m&&!m.specialDate&&m.tefila===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
+        <option value="__SPECIAL_DATE__" ${m&&m.specialDate?'selected':''}>תפילה בתאריך מיוחד בלוח השנה</option>
+      </select>
     </div>
-    <div class="field"><label id="f_days_label">ימים</label>
+    <div class="field" id="specialTefilaTypeField" style="display:${m&&m.specialDate?'':'none'}">
+      <label for="f_specialTefilaType">סוג התפילה</label>
+      <select id="f_specialTefilaType">
+        ${['שחרית','מנחה','ערבית','מוסף','נעילה','תקיעת שופר'].map(t=>`<option ${m&&m.specialDate&&m.tefila===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field" id="f_daysField"><label id="f_days_label">ימים</label>
       <div class="days" id="f_days" role="group" aria-labelledby="f_days_label">${DAY_KEYS.map((k,i)=>`<span class="daychip ${m&&(m.days||[]).includes(k)?'active':(!m&&i<5?'active':'')}" data-day="${k}" tabindex="0" role="button" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
+    </div>
+    <div class="field" id="specialDateField" style="display:${m&&m.specialDate?'':'none'}">
+      <label for="f_specialDate">תאריך</label>
+      <input id="f_specialDate" type="date" value="${m&&m.specialDate?m.specialDate:''}">
     </div>
     <div class="field"><label for="f_timeType">סוג זמן</label>
       <select id="f_timeType" onchange="toggleTimeFields()">
@@ -4832,24 +4848,6 @@ function openMinyanForm(shulId, minyanId){
         <input id="f_tempNoteUntil" type="date" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
       </div>
     </div>
-    <div class="field optional" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
-      <label for="f_occasionKind">עדכון ייעודי ליום מיוחד בלוח העברי (רשות)</label>
-      <select id="f_occasionKind" onchange="onOccasionKindChange()">
-        <option value="">לא - זהו מניין שגרתי רגיל</option>
-        <option value="roshChodesh" ${m&&m.occasion&&m.occasion.kind==='roshChodesh'?'selected':''}>ראש חודש</option>
-        <option value="cholHamoed" ${m&&m.occasion&&m.occasion.kind==='cholHamoed'?'selected':''}>חול המועד</option>
-        <option value="erevChag" ${m&&m.occasion&&m.occasion.kind==='erevChag'?'selected':''}>ערב חג</option>
-        <option value="chag" ${m&&m.occasion&&m.occasion.kind==='chag'?'selected':''}>חג</option>
-      </select>
-      <div id="occasionFields" style="margin-top:8px;${m&&m.occasion?'':'display:none'}">
-        <div class="field optional"><label for="f_occasionHolidayName">שם החג / החודש העברי (לדוגמה: ראש השנה, סוכות, אלול)</label><input id="f_occasionHolidayName" value="${m&&m.occasion?escapeHtml(m.occasion.holidayName||''):''}"></div>
-        <label id="f_occasionRecurringWrap" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;font-weight:400;font-size:13.5px">
-          <input type="checkbox" id="f_occasionRecurring" ${m&&m.occasion&&m.occasion.recurring?'checked':''}>
-          עדכון קבוע - יחזור אוטומטית כל שנה (לא זמין לעדכוני "חג" - אלה תמיד חד-פעמיים)
-        </label>
-        <p class="muted" style="margin-top:6px;font-size:11.5px">✅ זהו עדכון מאומת - כשיגיע היום המתאים, הוא יוצג לתושבים במקום (או בנוסף ל)הלוח השגרתי, לפי סוג היום שנבחר.</p>
-      </div>
-    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveMinyan('${shulId||''}','${minyanId||''}')">שמירה</button>
@@ -4857,21 +4855,18 @@ function openMinyanForm(shulId, minyanId){
   document.getElementById('overlay').classList.add('show');
   toggleTimeFields();
   onOffsetSignChange();
-  onOccasionKindChange();
+  onTefilaOrSpecialChange();
   const tempNoteInput = document.getElementById('f_tempNote');
   if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
     document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
   });
 }
-// מציג/מסתיר את שדות היום המיוחד, ומסתיר את אפשרות "עדכון קבוע" עבור חג (שם זה תמיד חד-פעמי)
-function onOccasionKindChange(){
-  const kind = document.getElementById('f_occasionKind').value;
-  document.getElementById('occasionFields').style.display = kind ? '' : 'none';
-  const recurringWrap = document.getElementById('f_occasionRecurringWrap');
-  if (recurringWrap){
-    recurringWrap.style.display = kind === 'chag' ? 'none' : 'flex';
-    if (kind === 'chag') document.getElementById('f_occasionRecurring').checked = false;
-  }
+// מציג/מסתיר את שדה סוג התפילה המורחב ואת בורר התאריך, במקום בורר "ימים" - כשבוחרים "תפילה בתאריך מיוחד"
+function onTefilaOrSpecialChange(){
+  const isSpecial = document.getElementById('f_tefila').value === '__SPECIAL_DATE__';
+  document.getElementById('specialTefilaTypeField').style.display = isSpecial ? '' : 'none';
+  document.getElementById('f_daysField').style.display = isSpecial ? 'none' : '';
+  document.getElementById('specialDateField').style.display = isSpecial ? '' : 'none';
 }
 function toggleTimeFields(){
   const isFixed = document.getElementById('f_timeType').value === 'fixed';
@@ -4884,6 +4879,7 @@ function onOffsetSignChange(){
   document.getElementById('offsetMinutesField').style.display = isExact ? 'none' : '';
 }
 function onTefilaChange(isEdit){
+  onTefilaOrSpecialChange();
   if (isEdit) return; // בעריכה לא דורסים שעה שכבר הוזנה
   const tefila = document.getElementById('f_tefila').value;
   const def = TEFILA_DEFAULT_TIME[tefila];
@@ -4933,30 +4929,28 @@ function saveMinyan(shulId, minyanId){
     shulId = sel ? sel.value : '';
   }
   if (!shulId){ alert('יש לבחור בית כנסת'); return; }
-  const days = [...document.querySelectorAll('#f_days .daychip.active')].map(d=>d.dataset.day);
-  if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  const isSpecial = document.getElementById('f_tefila').value === '__SPECIAL_DATE__';
+  let tefila, days, specialDate = null;
+  if (isSpecial){
+    tefila = document.getElementById('f_specialTefilaType').value;
+    specialDate = document.getElementById('f_specialDate').value;
+    if (!specialDate){ alert('יש לבחור תאריך'); return; }
+    days = [];
+  } else {
+    tefila = document.getElementById('f_tefila').value;
+    days = [...document.querySelectorAll('#f_days .daychip.active')].map(d=>d.dataset.day);
+    if (!days.length){ alert('יש לבחור לפחות יום אחד'); return; }
+  }
   const tempNote = document.getElementById('f_tempNote').value.trim();
   const tempNoteUntil = document.getElementById('f_tempNoteUntil').value;
   if (tempNote && !tempNoteUntil){ alert('יש לקבוע עד מתי ההערה הזמנית תוצג'); return; }
-  const occasionKind = document.getElementById('f_occasionKind').value;
-  let occasion = null;
-  if (occasionKind){
-    const holidayName = document.getElementById('f_occasionHolidayName').value.trim();
-    const recurring = occasionKind !== 'chag' && document.getElementById('f_occasionRecurring').checked;
-    if (recurring && !holidayName){ alert('לעדכון קבוע יש לציין שם חג/חודש, כדי שהמערכת תדע להתאים אותו כל שנה'); return; }
-    occasion = {
-      kind: occasionKind,
-      holidayName,
-      recurring,
-      date: (new Date()).getFullYear() + '-' + String((new Date()).getMonth()+1).padStart(2,'0') + '-' + String((new Date()).getDate()).padStart(2,'0')
-    };
-  }
   const id = minyanId || uid();
   const offsetSignVal = document.getElementById('f_offsetSign').value;
   const candidate = {
     shulId,
-    tefila: document.getElementById('f_tefila').value,
+    tefila,
     days,
+    specialDate,
     timeType: document.getElementById('f_timeType').value,
     fixedTime: document.getElementById('f_fixedTime').value,
     anchor: document.getElementById('f_anchor').value,
@@ -4964,8 +4958,7 @@ function saveMinyan(shulId, minyanId){
     offsetMinutes: offsetSignVal === 'exact' ? 0 : (Number(document.getElementById('f_offsetMinutes').value)||0),
     notes: document.getElementById('f_notes').value.trim(),
     tempNote: tempNote,
-    tempNoteUntil: tempNote ? tempNoteUntil : null,
-    occasion: occasion
+    tempNoteUntil: tempNote ? tempNoteUntil : null
   };
   const timeWarning = unusualTimeWarning(candidate);
   if (timeWarning){
@@ -5452,7 +5445,7 @@ const WHATS_NEW = [
     items: [
       '📅 חישוב זמני תפילה משודרג - כולל התאמה לגובה בית אל, לדיוק גבוה יותר בזריחה/שקיעה/צאת הכוכבים.',
       '📅 זיהוי אוטומטי של ימים מיוחדים בלוח העברי (ראש חודש, חול המועד, ערב חג, חג) - עם הודעה בראש דף הבית, והתאמה בתצוגת המניינים (בערב חג מוצגת רק שחרית; בחג מוצגים רק עדכונים ייעודיים).',
-      '⭐ אפשר לסמן מניין כ"עדכון ייעודי" לראש חודש/חול המועד/ערב חג/חג - כברירת מחדל חד-פעמי, עם אפשרות להפוך לקבוע (חוזר כל שנה) חוץ מעדכוני חג.'
+      '⭐ אפשר להוסיף מניין לתאריך מיוחד בלוח השנה (במקום לימי שבוע קבועים) - כולל אפשרות לשחרית/מנחה/ערבית/מוסף/נעילה/תקיעת שופר, עם בורר תאריך במקום ימים.'
     ]
   },
   {
