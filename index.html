@@ -68,6 +68,8 @@
   .info-accordion summary::after{content:'›';font-size:20px;line-height:1;color:var(--ink-soft);transform:rotate(90deg);transition:transform .15s;flex-shrink:0}
   .info-accordion[open] summary::after{transform:rotate(-90deg)}
   .info-accordion .info-accordion-body{padding:0 16px 16px;line-height:1.8;font-size:14px}
+  .special-day-banner{margin-bottom:14px;padding:12px 14px;border-radius:10px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:13.5px;line-height:1.6}
+  .special-day-banner.chag{background:#E7F0EC;border-color:#BFE0CC;color:#2F5D3A}
   .info-link-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;text-decoration:none;color:var(--ink);font-weight:700;font-size:15px}
   .info-link-row .arrow{color:var(--ink-soft);font-size:18px;flex-shrink:0}
   .card h3{font-size:17px}
@@ -276,6 +278,7 @@
   <div id="shul-page" style="display:none"></div>
 
   <div id="tefilot-tab">
+    <div id="specialDayBanner"></div>
     <div class="row" style="margin:10px 0">
       <div class="sub-toggle" style="margin:0">
         <button class="active" data-view="chrono">לפי שעות</button>
@@ -678,6 +681,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/kosher-zmanim@0.9.0/dist/kosher-zmanim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@hebcal/core@6/dist/bundle.min.js"></script>
 <script>
 let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [] };
 let currentView = 'chrono';
@@ -691,8 +697,12 @@ let viewingShulId = null;
 let urlShulChecked = false;
 
 const LAT = 31.9333, LON = 35.2167; // בית אל, ברירת מחדל
+const ELEVATION_METERS = 880; // גובה משוער של בית אל מעל פני הים - להתאמה בחישוב זמנים (ר' הסבר בצ'אט)
 
 // ---------- זמנים הלכתיים ----------
+// גיבוי: הנוסחה הידנית הישנה (US Naval Observatory, ללא התאמת גובה) - משמשת רק אם ספריית
+// Hebcal לא נטענה בהצלחה או שממשק ה-API שלה לא תואם למה שציפינו (רשת/גרסה/דפדפן) - כדי שהאפליקציה
+// לעולם לא תישבר ותמיד תציג משהו, גם אם פחות מדויק.
 function sunTimeUTCHours(date, lat, lon, zenith, rising){
   const rad = Math.PI/180, deg = 180/Math.PI;
   const N1 = Math.floor(275*(date.getMonth()+1)/9);
@@ -723,11 +733,117 @@ function utHoursToDate(baseDate, utHours){
   const h = Math.floor(utHours), m = Math.round((utHours-h)*60);
   return new Date(Date.UTC(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate(), h, m));
 }
-function getZmanim(date){
+function getZmanimLegacyFormula(date){
   const sunrise = utHoursToDate(date, sunTimeUTCHours(date, LAT, LON, 90.833, true));
   const sunset  = utHoursToDate(date, sunTimeUTCHours(date, LAT, LON, 90.833, false));
   const tzeit   = utHoursToDate(date, sunTimeUTCHours(date, LAT, LON, 98.5, false));
   return { sunrise, sunset, tzeit };
+}
+// זיהוי הספרייה החדשה (Hebcal) פעם אחת בלבד, ושמירה במטמון - מנסה כמה שמות אפשריים למשתנה
+// הגלובלי כי לא ניתן היה לוודא בוודאות מוחלטת את שם המשתנה המדויק שהגרסה הטעונה מה-CDN חושפת.
+let _hebcalGlobal = undefined; // undefined = עוד לא נבדק; null = לא נמצא; אחרת - האובייקט עצמו
+function getHebcalGlobal(){
+  if (_hebcalGlobal !== undefined) return _hebcalGlobal;
+  const candidates = [window.hebcal, window.Hebcal, window.HebcalCore];
+  _hebcalGlobal = candidates.find(c => c && c.GeoLocation && c.Zmanim && c.HDate) || null;
+  if (!_hebcalGlobal) console.warn('ספריית Hebcal לא זוהתה - משתמשים בנוסחת הגיבוי לחישוב זמנים, ובלי זיהוי חגים/ראש חודש.');
+  return _hebcalGlobal;
+}
+function getZmanim(date){
+  const hebcal = getHebcalGlobal();
+  if (hebcal){
+    try{
+      const gloc = new hebcal.GeoLocation(null, LAT, LON, ELEVATION_METERS, 'Asia/Jerusalem');
+      const z = new hebcal.Zmanim(gloc, date, true);
+      const sunrise = typeof z.sunrise === 'function' ? z.sunrise() : (typeof z.getSunrise === 'function' ? z.getSunrise() : null);
+      const sunset  = typeof z.sunset  === 'function' ? z.sunset()  : (typeof z.getSunset  === 'function' ? z.getSunset()  : null);
+      let tzeit = null;
+      if (typeof z.tzeit === 'function') tzeit = z.tzeit(8.5);
+      else if (typeof z.tzais === 'function') tzeit = z.tzais(8.5);
+      if (!sunrise || !sunset || !tzeit) throw new Error('לא כל הזמנים חושבו - כנראה חוסר התאמה בממשק הספרייה');
+      return { sunrise: new Date(sunrise), sunset: new Date(sunset), tzeit: new Date(tzeit) };
+    }catch(e){
+      console.error('שגיאה בחישוב זמנים דרך Hebcal - חוזרים לנוסחת הגיבוי הישנה עבור הקריאה הזו', e);
+    }
+  }
+  return getZmanimLegacyFormula(date);
+}
+// ---------- זיהוי יום מיוחד בלוח העברי (ראש חודש / חול המועד / ערב חג / חג) ----------
+// דורש את ספריית Hebcal. אם היא לא זמינה או שיש חוסר התאמה בממשק - מחזיר null בשקט (בלי לשבור
+// שום דבר) והאפליקציה פשוט לא מציגה את הבאנר/הסינון המיוחד, כאילו זה יום רגיל.
+function getSpecialDayInfo(date){
+  const hebcal = getHebcalGlobal();
+  if (!hebcal) return null;
+  try{
+    const hd = new hebcal.HDate(date);
+    const isRoshChodesh = typeof hd.isRoshChodesh === 'function' && hd.isRoshChodesh();
+    const events = (hebcal.HebrewCalendar && typeof hebcal.HebrewCalendar.getHolidaysOnDate === 'function')
+      ? (hebcal.HebrewCalendar.getHolidaysOnDate(hd, true) || []) : [];
+    const F = hebcal.flags || {};
+    let isChag = false, isErev = false, isCholHamoed = false, holidayName = '';
+    events.forEach(ev=>{
+      const flags = typeof ev.getFlags === 'function' ? ev.getFlags() : 0;
+      const name = typeof ev.render === 'function' ? ev.render('he') : (typeof ev.basename === 'function' ? ev.basename() : '');
+      if (F.CHOL_HAMOED && (flags & F.CHOL_HAMOED)){ isCholHamoed = true; holidayName = name; }
+      else if (F.EREV && (flags & F.EREV)){ isErev = true; holidayName = name; }
+      else if (F.CHAG && (flags & F.CHAG)){ isChag = true; holidayName = name; }
+    });
+    if (isCholHamoed) return { kind:'cholHamoed', label:'חול המועד', holidayName };
+    if (isErev) return { kind:'erevChag', label:'ערב חג', holidayName };
+    if (isChag) return { kind:'chag', label:'חג', holidayName };
+    if (isRoshChodesh){
+      const monthName = typeof hd.getMonthName === 'function' ? hd.getMonthName('he') : '';
+      return { kind:'roshChodesh', label:'ראש חודש' + (monthName?' '+monthName:''), holidayName: monthName };
+    }
+    return null;
+  }catch(e){
+    console.error('שגיאה בזיהוי יום מיוחד בלוח העברי', e);
+    return null;
+  }
+}
+// מסנן את רשימת המניינים לפי סוג היום המיוחד (אם יש) - ר' הסבר מלא בשיחה עם המנהל:
+// ראש חודש/חול המועד: לא מסננים כלום, מציגים את השגרה הרגילה (הבאנר כבר מסביר שאלה זמני שגרה).
+// ערב חג: רק שחרית + כל מניין ייעודי שהוגדר לערב החג הזה.
+// חג: רק מניינים ייעודיים שהוגדרו לחג הזה - שום דבר אחר כברירת מחדל.
+function getVisibleMinyanimForDate(allMinyanim, dateObj, info){
+  info = info || getSpecialDayInfo(dateObj);
+  if (!info) return allMinyanim;
+  const dateStr = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0') + '-' + String(dateObj.getDate()).padStart(2,'0');
+  function occasionMatchesToday(m){
+    const occ = m.occasion;
+    if (!occ || occ.kind !== info.kind) return false;
+    if (!occ.recurring) return occ.date === dateStr;
+    return (occ.holidayName || '') === (info.holidayName || '');
+  }
+  if (info.kind === 'roshChodesh' || info.kind === 'cholHamoed'){
+    return allMinyanim; // מציגים את השגרה הרגילה כרגיל
+  }
+  if (info.kind === 'erevChag'){
+    return allMinyanim.filter(m => m.tefila === 'שחרית' || occasionMatchesToday(m));
+  }
+  if (info.kind === 'chag'){
+    return allMinyanim.filter(occasionMatchesToday);
+  }
+  return allMinyanim;
+}
+// הבאנר בראש דף הבית שמציין שהיום יום מיוחד בלוח העברי, ומסביר איך זה משפיע על התצוגה
+function renderSpecialDayBanner(){
+  const el = document.getElementById('specialDayBanner');
+  if (!el) return;
+  const info = getSpecialDayInfo(new Date());
+  if (!info){ el.innerHTML = ''; return; }
+  let text = '', cls = 'special-day-banner';
+  if (info.kind === 'roshChodesh'){
+    text = `⚠️ היום ${info.label} - מוצגים זמני השגרה הרגילים (לא בהכרח מתאימים ליום מיוחד זה).`;
+  } else if (info.kind === 'cholHamoed'){
+    text = `⚠️ היום חול המועד${info.holidayName?' '+info.holidayName:''} - מוצגים זמני השגרה הרגילים (לא בהכרח מתאימים).`;
+  } else if (info.kind === 'erevChag'){
+    text = `🕯️ היום ערב ${info.holidayName||'חג'} - מוצגות רק תפילות שחרית. זמני מנחה/ערבית יופיעו רק אם הגבאים יעדכנו אותם ייעודית ליום הזה.`;
+  } else if (info.kind === 'chag'){
+    cls += ' chag';
+    text = `🎉 היום ${info.holidayName||'חג'} - מוצגים רק עדכונים ייעודיים לחג (אם הוגדרו על ידי הגבאים). מועדי השגרה הרגילים לא מוצגים היום.`;
+  }
+  el.innerHTML = text ? `<div class="${cls}">${escapeHtml(text)}</div>` : '';
 }
 function fmtTime(d){
   if (!d) return '—';
@@ -2698,12 +2814,15 @@ function attachListeners(){
     }
   }, e=>console.error(e));
   db.collection('minyanim').onSnapshot(snap=>{
-    data.minyanim = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    let list = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if (!isSelichotSeasonActive()) list = list.filter(m=>m.tefila !== 'סליחות');
+    data.minyanim = list;
     render();
   }, e=>console.error(e));
   db.collection('config').doc('tefilaTypes').onSnapshot(doc=>{
     const d = doc.exists ? doc.data() : null;
     TEFILA_ORDER = [...TEFILA_BASE, ...((d && d.types) || [])];
+    if (isSelichotSeasonActive() && !TEFILA_ORDER.includes('סליחות')) TEFILA_ORDER.push('סליחות');
     render();
     if (currentTab === 'admin') renderTefilaTypesAdmin();
   }, e=>console.error(e));
@@ -2932,6 +3051,10 @@ function shiurRecordingLinkHtml(s){
   return `<a href="${escapeHtml(s.recordingLink)}" target="_blank" rel="noopener" class="row-icon-btn" style="display:inline-flex;align-items:center" onclick="event.stopPropagation();trackEvent('open_shiur_recording',{shiur_id:'${s.id}'})" title="${p.label}" aria-label="${p.label}">${recordingIconSvg(s.recordingLink, 15)}</a>`;
 }
 const TEFILA_BASE = ['שחרית','מנחה','ערבית','ותיקין'];
+// "סליחות" מוצג כאפשרות רק עד תאריך קבוע (סוכם בשיחה) - אחריו נעלם לגמרי מכל מקום באפליקציה,
+// כולל מניינים שכבר קיימים מהסוג הזה (לא רק מהבורר בטופס).
+const SELICHOT_CUTOFF = new Date('2026-09-18T23:59:59+03:00');
+function isSelichotSeasonActive(){ return new Date() <= SELICHOT_CUTOFF; }
 const TOPIC_BASE = ['הלכה','גמרא','דף יומי','תנ"ך','אמונה','פרשת שבוע','שונות'];
 const TEFILA_COLORS = {'שחרית':'#C6873C', 'מנחה':'#2F5D62', 'ערבית':'#5B4B8A', 'ותיקין':'#B5473A'};
 const TEFILA_COLOR_PALETTE = ['#3E7C6B','#8A5A44','#6B7FB5','#A0684A','#4E8A82'];
@@ -3203,10 +3326,11 @@ function toggleTopicChipsExpand(){
 }
 const TEFILA_DEFAULT_TIME = {'שחרית':'07:00', 'מנחה':'19:00', 'ערבית':'21:00'};
 let TEFILA_ORDER = [...TEFILA_BASE];
+if (isSelichotSeasonActive()) TEFILA_ORDER.push('סליחות');
 function render(){
   updateFooterVisibility();
   if (viewingShulId){ renderShulPage(); return; }
-  if (currentTab === 'tefilot') renderTefilot();
+  if (currentTab === 'tefilot'){ renderSpecialDayBanner(); renderTefilot(); }
   else if (currentTab === 'shiurim') renderShiurim();
   else if (currentTab === 'info') renderInfoTab();
   else if (currentTab === 'admin'){ renderDashboard(); renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); renderRabbanimAdmin(); }
@@ -3358,6 +3482,8 @@ function renderTefilot(){
   const zmanim = getZmanim(today);
   const dk = selectedDayKey || dayKeyOf(now);
   const nowMins = timeMinutesIsrael(now);
+  const specialDayInfoForToday = getSpecialDayInfo(today);
+  const minyanimForDisplay = getVisibleMinyanimForDate(data.minyanim, today, specialDayInfoForToday);
 
   if (currentView === 'byshul'){
     if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל כדי להוסיף.</div>'; return; }
@@ -3371,7 +3497,7 @@ function renderTefilot(){
     }
     if (shulF) shulsOrdered = shulsOrdered.filter(s=>s.id===shulF);
     const cards = shulsOrdered.map(shul=>{
-      let mins = data.minyanim.filter(m=>m.shulId===shul.id);
+      let mins = minyanimForDisplay.filter(m=>m.shulId===shul.id);
       if (tefilaF) mins = mins.filter(m=>m.tefila===tefilaF);
       let minsWithTime = mins.map(m=>{
         const isToday = (m.days||[]).includes(dk);
@@ -3439,8 +3565,9 @@ function renderTefilot(){
     el.innerHTML = cards.length ? cards.join('') : '<div class="empty">אין מניינים מהסוג/מהטווח שנבחר</div>';
   } else {
     let items = [];
-    data.minyanim.forEach(m=>{
-      if (!(m.days||[]).includes(dk)) return;
+    minyanimForDisplay.forEach(m=>{
+      const dayMatches = m.occasion ? true : (m.days||[]).includes(dk);
+      if (!dayMatches) return;
       if (tefilaF && m.tefila !== tefilaF) return;
       if (shulF && m.shulId !== shulF) return;
       const t = computeMinyanTime(m, today, zmanim);
@@ -4705,6 +4832,24 @@ function openMinyanForm(shulId, minyanId){
         <input id="f_tempNoteUntil" type="date" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
       </div>
     </div>
+    <div class="field optional" style="border-top:1px solid var(--border);padding-top:12px;margin-top:4px">
+      <label for="f_occasionKind">עדכון ייעודי ליום מיוחד בלוח העברי (רשות)</label>
+      <select id="f_occasionKind" onchange="onOccasionKindChange()">
+        <option value="">לא - זהו מניין שגרתי רגיל</option>
+        <option value="roshChodesh" ${m&&m.occasion&&m.occasion.kind==='roshChodesh'?'selected':''}>ראש חודש</option>
+        <option value="cholHamoed" ${m&&m.occasion&&m.occasion.kind==='cholHamoed'?'selected':''}>חול המועד</option>
+        <option value="erevChag" ${m&&m.occasion&&m.occasion.kind==='erevChag'?'selected':''}>ערב חג</option>
+        <option value="chag" ${m&&m.occasion&&m.occasion.kind==='chag'?'selected':''}>חג</option>
+      </select>
+      <div id="occasionFields" style="margin-top:8px;${m&&m.occasion?'':'display:none'}">
+        <div class="field optional"><label for="f_occasionHolidayName">שם החג / החודש העברי (לדוגמה: ראש השנה, סוכות, אלול)</label><input id="f_occasionHolidayName" value="${m&&m.occasion?escapeHtml(m.occasion.holidayName||''):''}"></div>
+        <label id="f_occasionRecurringWrap" style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-top:6px;font-weight:400;font-size:13.5px">
+          <input type="checkbox" id="f_occasionRecurring" ${m&&m.occasion&&m.occasion.recurring?'checked':''}>
+          עדכון קבוע - יחזור אוטומטית כל שנה (לא זמין לעדכוני "חג" - אלה תמיד חד-פעמיים)
+        </label>
+        <p class="muted" style="margin-top:6px;font-size:11.5px">✅ זהו עדכון מאומת - כשיגיע היום המתאים, הוא יוצג לתושבים במקום (או בנוסף ל)הלוח השגרתי, לפי סוג היום שנבחר.</p>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveMinyan('${shulId||''}','${minyanId||''}')">שמירה</button>
@@ -4712,10 +4857,21 @@ function openMinyanForm(shulId, minyanId){
   document.getElementById('overlay').classList.add('show');
   toggleTimeFields();
   onOffsetSignChange();
+  onOccasionKindChange();
   const tempNoteInput = document.getElementById('f_tempNote');
   if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
     document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
   });
+}
+// מציג/מסתיר את שדות היום המיוחד, ומסתיר את אפשרות "עדכון קבוע" עבור חג (שם זה תמיד חד-פעמי)
+function onOccasionKindChange(){
+  const kind = document.getElementById('f_occasionKind').value;
+  document.getElementById('occasionFields').style.display = kind ? '' : 'none';
+  const recurringWrap = document.getElementById('f_occasionRecurringWrap');
+  if (recurringWrap){
+    recurringWrap.style.display = kind === 'chag' ? 'none' : 'flex';
+    if (kind === 'chag') document.getElementById('f_occasionRecurring').checked = false;
+  }
 }
 function toggleTimeFields(){
   const isFixed = document.getElementById('f_timeType').value === 'fixed';
@@ -4782,6 +4938,19 @@ function saveMinyan(shulId, minyanId){
   const tempNote = document.getElementById('f_tempNote').value.trim();
   const tempNoteUntil = document.getElementById('f_tempNoteUntil').value;
   if (tempNote && !tempNoteUntil){ alert('יש לקבוע עד מתי ההערה הזמנית תוצג'); return; }
+  const occasionKind = document.getElementById('f_occasionKind').value;
+  let occasion = null;
+  if (occasionKind){
+    const holidayName = document.getElementById('f_occasionHolidayName').value.trim();
+    const recurring = occasionKind !== 'chag' && document.getElementById('f_occasionRecurring').checked;
+    if (recurring && !holidayName){ alert('לעדכון קבוע יש לציין שם חג/חודש, כדי שהמערכת תדע להתאים אותו כל שנה'); return; }
+    occasion = {
+      kind: occasionKind,
+      holidayName,
+      recurring,
+      date: (new Date()).getFullYear() + '-' + String((new Date()).getMonth()+1).padStart(2,'0') + '-' + String((new Date()).getDate()).padStart(2,'0')
+    };
+  }
   const id = minyanId || uid();
   const offsetSignVal = document.getElementById('f_offsetSign').value;
   const candidate = {
@@ -4795,7 +4964,8 @@ function saveMinyan(shulId, minyanId){
     offsetMinutes: offsetSignVal === 'exact' ? 0 : (Number(document.getElementById('f_offsetMinutes').value)||0),
     notes: document.getElementById('f_notes').value.trim(),
     tempNote: tempNote,
-    tempNoteUntil: tempNote ? tempNoteUntil : null
+    tempNoteUntil: tempNote ? tempNoteUntil : null,
+    occasion: occasion
   };
   const timeWarning = unusualTimeWarning(candidate);
   if (timeWarning){
@@ -5276,6 +5446,15 @@ function infoAccordionHtml(icon, title, body){
 }
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
+  {
+    version: '1.8',
+    date: '3.8.2026',
+    items: [
+      '📅 חישוב זמני תפילה משודרג - כולל התאמה לגובה בית אל, לדיוק גבוה יותר בזריחה/שקיעה/צאת הכוכבים.',
+      '📅 זיהוי אוטומטי של ימים מיוחדים בלוח העברי (ראש חודש, חול המועד, ערב חג, חג) - עם הודעה בראש דף הבית, והתאמה בתצוגת המניינים (בערב חג מוצגת רק שחרית; בחג מוצגים רק עדכונים ייעודיים).',
+      '⭐ אפשר לסמן מניין כ"עדכון ייעודי" לראש חודש/חול המועד/ערב חג/חג - כברירת מחדל חד-פעמי, עם אפשרות להפוך לקבוע (חוזר כל שנה) חוץ מעדכוני חג.'
+    ]
+  },
   {
     version: '1.7',
     date: '3.8.2026',
