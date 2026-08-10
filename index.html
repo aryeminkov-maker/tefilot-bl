@@ -325,18 +325,18 @@
   </div>
 
   <div id="shiurim-tab" style="display:none">
-    <div class="sub-toggle" id="shiurDayQuickToggle" style="margin:0 0 10px">
-      <button type="button" data-quickday="all" onclick="setShiurQuickDayFilter('all')">כל השיעורים</button>
-      <button type="button" data-quickday="today" onclick="setShiurQuickDayFilter('today')">היום</button>
-    </div>
     <div style="display:flex;gap:6px;margin-bottom:10px;align-items:center">
       <button class="btn" id="shiurimFiltersToggle" type="button" style="flex-shrink:0;white-space:nowrap" onclick="toggleFiltersPanel('shiurimFiltersPanel','shiurimFiltersToggle')">🔍 סינון</button>
       <button class="icon-btn" style="flex-shrink:0" onclick="shareShiurimFilter()" aria-label="שיתוף" title="שיתוף התצוגה המסוננת">🔗</button>
       <button class="btn primary" id="addShiurBtn" style="flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">+ הוסף שיעור</button>
     </div>
-    <div id="topicChipsRow" class="topic-chips-row"></div>
-    <div id="topicChipsToggleWrap" style="text-align:center;margin-bottom:12px"></div>
     <div id="shiurimFiltersPanel" class="filters-panel">
+      <div class="sub-toggle" id="shiurDayQuickToggle" style="margin:0 0 10px">
+        <button type="button" data-quickday="all" onclick="setShiurQuickDayFilter('all')">כל השיעורים</button>
+        <button type="button" data-quickday="today" onclick="setShiurQuickDayFilter('today')">היום</button>
+      </div>
+      <div id="topicChipsRow" class="topic-chips-row"></div>
+      <div id="topicChipsToggleWrap" style="text-align:center;margin-bottom:12px"></div>
       <div class="filters">
         <select id="filterShiurDay" onchange="render()">
           <option value="all" selected>כל הימים</option>
@@ -3358,6 +3358,9 @@ function toggleFiltersPanel(panelId, btnId){
   const btn = document.getElementById(btnId);
   const showing = panel.classList.toggle('show');
   btn.classList.toggle('active', showing);
+  // תוכן שנמדד לפי scrollHeight (כמו זיהוי הצפת נושאי השיעורים) לא נמדד נכון כשההורה מוסתר (display:none) -
+  // לכן מרעננים את המדידה מיד אחרי שהפאנל נהיה גלוי בפועל.
+  if (showing && panelId === 'shiurimFiltersPanel' && typeof renderTopicChips === 'function') renderTopicChips();
 }
 function onDayFilterChange(){
   selectedDayKey = document.getElementById('filterDay').value;
@@ -3646,6 +3649,9 @@ function renderShiurim(){
   if (quickToggle){
     quickToggle.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.quickday === dayF));
   }
+  const activeFilterCount = (dayF!=='all'?1:0) + selectedTopics.size + (audF?1:0) + (searchF?1:0);
+  const filtersBtn = document.getElementById('shiurimFiltersToggle');
+  if (filtersBtn) filtersBtn.textContent = activeFilterCount ? `🔍 סינון (${activeFilterCount})` : '🔍 סינון';
   const now = new Date();
   const todayKey = DAY_KEYS[now.getDay()];
   const todayDateStr = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-' + String(now.getDate()).padStart(2,'0');
@@ -5459,7 +5465,7 @@ const WHATS_NEW = [
       '📅 חישוב זמני תפילה משודרג - כולל התאמה לגובה בית אל, לדיוק גבוה יותר בזריחה/שקיעה/צאת הכוכבים.',
       '📅 זיהוי אוטומטי של ימים מיוחדים בלוח העברי (ראש חודש, חול המועד, ערב חג, חג) - עם הודעה בראש דף הבית, והתאמה בתצוגת המניינים (בערב חג מוצגת רק שחרית; בחג מוצגים רק עדכונים ייעודיים).',
       '⭐ אפשר להוסיף מניין לתאריך מיוחד בלוח השנה (במקום לימי שבוע קבועים) - כולל אפשרות לשחרית/מנחה/ערבית/מוסף/נעילה/תקיעת שופר, עם בורר תאריך במקום ימים.',
-      '📚 בלשונית "שיעורי תורה": ברירת המחדל השתנתה להצגת כל השיעורים (במקום רק היום). נוסף כפתור מהיר וגלוי "כל השיעורים / היום" - לא בתוך תפריט הסינון - למעבר מיידי בין השניים.'
+      '📚 בלשונית "שיעורי תורה": ברירת המחדל השתנתה להצגת כל השיעורים (במקום רק היום). כל אפשרויות הסינון (יום, נושאים, קהל יעד, חיפוש, מיון) רוכזו תחת כפתור "🔍 סינון" אחד ומקופל, עם מספר שמראה כמה סינונים פעילים - במקום שורות כפתורים קבועות שתופסות מקום.'
     ]
   },
   {
