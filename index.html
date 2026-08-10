@@ -3288,8 +3288,7 @@ function activeTempNote(item){
 function tempNoteBannerHtml(item){
   const note = activeTempNote(item);
   if (!note) return '';
-  const untilStr = item.tempNoteUntil ? ` (עד ${new Date(item.tempNoteUntil+'T00:00:00').toLocaleDateString('he-IL')})` : '';
-  return `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">⚠️ ${escapeHtml(note)}${escapeHtml(untilStr)}</div>`;
+  return `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">⚠️ ${escapeHtml(note)}</div>`;
 }
 let selectedTopics = new Set(); // בחירה מרובה של נושאי שיעורים (במקום בחירה יחידה) - "הכל" = הסט ריק
 function renderTopicChips(){
