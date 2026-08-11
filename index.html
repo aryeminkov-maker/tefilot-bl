@@ -863,14 +863,21 @@ function computeMinyanTime(m, date, zmanim){
   const sign = m.offsetSign === 'before' ? -1 : 1;
   return new Date(anchor.getTime() + sign*(m.offsetMinutes||0)*60000);
 }
+// סדר תצוגה קבוע לפי סוג תפילה (לא רק לפי השעה בפועל) - כך שכל מנייני "מנחה" למשל מוצגים יחד ברצף,
+// ואחריהם כל מנייני "ערבית", גם אם בבית כנסת אחד המנחה מאוחרת משעת הערבית בבית כנסת אחר. הסדר (מעגלי,
+// יום שלם): סליחות < ותיקין/שחרית < מנחה < ערבית - וערבית שחלה אחרי חצות ולפני 3 לפנות בוקר (מייצגת בפועל
+// את סוף הלילה הקודם) מוצגת ראשונה מכל השאר, אפילו לפני הסליחות.
+const TEFILA_ORDER_RANK = { 'סליחות': 1, 'ותיקין': 2, 'שחרית': 2, 'מנחה': 3, 'ערבית': 4 };
 function chronoSortValue(m, t){
-  // ערבית שחל בין חצות ל-3 לפנות בוקר מייצג בפועל את סוף היום (אחרי חצות), לא את תחילתו - ממקמים אותו בסוף הרשימה
   if (!t) return Infinity;
+  let rank = TEFILA_ORDER_RANK[m.tefila];
+  if (rank === undefined) rank = 2.5; // סוג תפילה מותאם אישית שהוסיף מנהל - ממקמים בערך באמצע (בין שחרית למנחה)
   if (m.tefila === 'ערבית'){
     const israelHour = Number(t.toLocaleTimeString('en-GB', {hour:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'}));
-    if (israelHour < 3) return t.getTime() + 24*60*60000;
+    if (israelHour < 3) rank = 0;
   }
-  return t.getTime();
+  // בתוך אותה "שכבת" סוג תפילה, ממיינים לפי השעה בפועל (בדקות מחצות) - השכבה תמיד גוברת על הפרשי שעה
+  return rank * 100000 + timeMinutesIsrael(t);
 }
 function dayKeyOf(date){
   return ['sun','mon','tue','wed','thu','fri','sat'][date.getDay()];
@@ -5221,6 +5228,7 @@ function openAboutModal(){
     <p style="line-height:1.7;margin-bottom:18px">לפניות והערות - ניתן לפנות ב<a href="mailto:m.dat@bet-el.muni.il" style="color:var(--dusk);text-decoration:underline;font-weight:500">מייל</a>, או <a href="#" onclick="openSendAdminMessageForm('');return false" style="color:var(--dusk);text-decoration:underline;font-weight:500">דרך האפליקציה</a>.</p>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button type="button" class="btn primary" onclick="openUserGuide()">📖 מדריך למשתמש</button>
+      <button type="button" class="btn" onclick="openWhatsNewModal()">🆕 מה חדש</button>
       <button type="button" class="btn" onclick="openAccessibilityPanel()">♿ נגישות</button>
       <button type="button" class="btn" onclick="openPrivacyModal()">🔒 מדיניות פרטיות</button>
       <button type="button" class="btn" onclick="shareApp()">🔗 שיתוף</button>
@@ -5460,7 +5468,8 @@ const WHATS_NEW = [
     version: '1.9',
     date: '10.8.2026',
     items: [
-      '📖 מדריך למשתמש עוצב מחדש - מחולק עכשיו לפי לשוניות (תפילות / שיעורי תורה / מידע שימושי / טיפים כלליים), עם הסברים ממוקדים לכל פיצ׳ר.'
+      '📖 מדריך למשתמש עוצב מחדש - מחולק עכשיו לפי לשוניות (תפילות / שיעורי תורה / מידע שימושי / טיפים כלליים), עם הסברים ממוקדים לכל פיצ׳ר.',
+      '🆕 "מה חדש" קיבל כפתור נפרד משלו בחלונית "אודות" - במקום להיות לשונית בתוך מדריך המשתמש.'
     ]
   },
   {
@@ -5570,14 +5579,16 @@ function whatsNewHtml(){
       </ul>
     </div>`).join('');
 }
-function switchGuideTab(tab){
-  document.getElementById('guideTabContent_whatsnew').style.display = tab==='whatsnew' ? '' : 'none';
-  document.getElementById('guideTabContent_guide').style.display = tab==='guide' ? '' : 'none';
-  document.getElementById('guideTabBtn_whatsnew').classList.toggle('active', tab==='whatsnew');
-  document.getElementById('guideTabBtn_guide').classList.toggle('active', tab==='guide');
+function openWhatsNewModal(){
+  document.getElementById('modalBody').innerHTML = `
+    <h3 style="margin-bottom:14px">מה חדש</h3>
+    ${whatsNewHtml()}
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
 }
-function openUserGuide(initialTab, guideSubTab){
-  const activeTab = initialTab === 'whatsnew' ? 'whatsnew' : 'guide';
+function openUserGuide(guideSubTab){
   const activeSub = guideSubTab || 'tefilot';
   const tip = (icon, title, body) => `
     <div class="card" style="display:flex;gap:12px;align-items:flex-start;margin-bottom:10px">
@@ -5621,18 +5632,13 @@ function openUserGuide(initialTab, guideSubTab){
   ];
   const guideHtml = `
     <div class="days" style="margin-bottom:14px">
-      ${subTabs.map(t=>`<span class="daychip ${activeSub===t.key?'active':''}" tabindex="0" role="button" onclick="openUserGuide('guide','${t.key}')">${t.label}</span>`).join('')}
+      ${subTabs.map(t=>`<span class="daychip ${activeSub===t.key?'active':''}" tabindex="0" role="button" onclick="openUserGuide('${t.key}')">${t.label}</span>`).join('')}
     </div>
     ${guideSections[activeSub] || guideSections.tefilot}
   `;
   document.getElementById('modalBody').innerHTML = `
     <h3 style="margin-bottom:14px">מדריך למשתמש</h3>
-    <div class="sub-toggle" style="margin:0 0 16px">
-      <button type="button" id="guideTabBtn_guide" class="${activeTab==='guide'?'active':''}" onclick="switchGuideTab('guide')">מדריך שימוש</button>
-      <button type="button" id="guideTabBtn_whatsnew" class="${activeTab==='whatsnew'?'active':''}" onclick="switchGuideTab('whatsnew')">מה חדש</button>
-    </div>
-    <div id="guideTabContent_guide" style="display:${activeTab==='guide'?'':'none'}">${guideHtml}</div>
-    <div id="guideTabContent_whatsnew" style="display:${activeTab==='whatsnew'?'':'none'}">${whatsNewHtml()}</div>
+    ${guideHtml}
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">סגירה</button>
     </div>`;
