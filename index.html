@@ -202,16 +202,19 @@
     #printArea .print-empty{font-size:12.5px;color:var(--ink-soft);padding:6px 2px}
     #printArea .print-footer{margin-top:24px;font-size:10.5px;color:#999;text-align:center;border-top:1px solid #ddd;padding-top:8px}
   }
-  .cookie-bar{position:fixed;right:0;left:0;bottom:0;z-index:9999;background:var(--ink);color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;box-shadow:0 -2px 12px rgba(0,0,0,.2)}
+  #cookieConsentScreen{display:none;position:fixed;inset:0;z-index:18;background:rgba(34,48,58,.6);align-items:center;justify-content:center;padding:20px}
+  #cookieConsentScreen .cookie-modal{background:var(--surface);border-radius:var(--radius);max-width:440px;width:100%;padding:30px 26px;box-shadow:0 12px 44px rgba(0,0,0,.3);text-align:center;max-height:90vh;overflow-y:auto}
+  #cookieConsentScreen h3{margin:0 0 2px;font-size:19px;color:var(--ink)}
+  #cookieConsentScreen .underline-bar{width:50px;height:3px;background:var(--accent);margin:12px auto 18px;border-radius:2px}
+  #cookieConsentScreen p{color:var(--ink-soft);font-size:14px;line-height:1.8;margin:0 0 22px;text-align:right}
+  #cookieConsentScreen p a{color:var(--dusk);font-weight:600}
+  #cookieConsentScreen .btn.primary{width:100%}
+  @media print{ #cookieConsentScreen{display:none !important} }
   #appLockScreen{display:none;position:fixed;inset:0;z-index:99999;background:var(--bg);align-items:center;justify-content:center;padding:24px;text-align:center}
   #appLockScreen .box{max-width:420px}
   #appLockScreen .icon{font-size:44px;margin-bottom:14px}
   #appLockScreen h2{margin:0 0 10px;font-size:22px}
   #appLockScreen p{color:var(--ink-soft);line-height:1.7;margin:0 0 22px}
-  .cookie-bar-text{font-size:13.5px;line-height:1.6;max-width:640px}
-  .cookie-bar-text a{color:#fff;text-decoration:underline}
-  .cookie-bar .btn.primary{white-space:nowrap;flex-shrink:0}
-  @media print{ .cookie-bar{display:none !important} }
 </style>
 </head>
 <body>
@@ -318,6 +321,7 @@
         </select>
         <input type="time" id="filterTimeFrom" style="display:none">
       </div>
+      <button type="button" class="btn" style="width:100%;margin-top:8px" onclick="openGlobalSearchModal()">🔎 חיפוש בכל האפליקציה (גם בתי כנסת, שיעורים, רבנים ומידע שימושי)</button>
     </div>
     <div class="muted" id="todayLabel" style="margin-bottom:10px"></div>
     <div id="tefilotList"></div>
@@ -369,6 +373,7 @@
           <option value="day">מיון: לפי יום</option>
         </select>
       </div>
+      <button type="button" class="btn" style="width:100%;margin-top:8px" onclick="openGlobalSearchModal()">🔎 חיפוש בכל האפליקציה (גם בתי כנסת, מניינים, רבנים ומידע שימושי)</button>
     </div>
     <div id="topicDescriptionBox"></div>
     <div class="muted" id="shiurDayLabel" style="margin-bottom:10px"></div>
@@ -394,6 +399,11 @@
           <h4 style="margin-bottom:6px">🏆 דירוג עריכות</h4>
           <p class="muted" style="margin-bottom:12px">מי ביצע הכי הרבה עריכות בטווח הזמן שנבחר למעלה (בתי כנסת, מניינים ושיעורים יחד).</p>
           <div id="dashboardLeaderboard"></div>
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <h4 style="margin-bottom:6px">⚕️ בריאות נתונים</h4>
+          <p class="muted" style="margin-bottom:12px">רשימת "דורש תשומת לב" - לא תלויה בטווח הזמן שנבחר למעלה. תוכן ישן שלא עודכן, ובתי כנסת בלי רב/גבאי משויך. לא מתקן כלום אוטומטית - רק מצביע לאן כדאי להסתכל.</p>
+          <div id="dashboardHealthIssues"></div>
         </div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
           <p class="muted" style="margin-bottom:8px">מספר גולשים וצפיות בעמודים נמדדים ב-Google Analytics (לא נשמרים באפליקציה עצמה, כדי לא להעמיס כתיבות נוספות על מכסת השימוש היומית ב-Firestore).</p>
@@ -601,7 +611,7 @@
             <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none">
           </label>
         </div>
-        <p class="muted" style="margin-top:10px">שימו לב: הייבוא תמיד יוצר פריטים חדשים ולא מעדכן קיימים — אם בית כנסת בשם זהה כבר קיים, ייווצר עותק נוסף. מומלץ לבדוק כפילויות אחרי ייבוא גדול.</p>
+        <p class="muted" style="margin-top:10px">בהעלאת הקובץ תוצג בחירה בין מיזוג (מוסיף בנוסף לקיים) לבין החלפה (מוחק קודם את כל המניינים הקיימים בבתי הכנסת שבגליון "מניינים", ואז מייבא את הקובץ במקומם) - שימושי לגבאי שמעדכן לוח זמנים שבועי שלם בבת אחת. שימו לב: בתי כנסת ושיעורים תמיד רק נוספים, אף פעם לא נמחקים אוטומטית - אם בית כנסת בשם זהה כבר קיים, ייווצר עותק נוסף.</p>
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
@@ -688,9 +698,13 @@
 </footer>
 
 <div id="printArea" style="display:none"></div>
-<div id="cookieConsentBar" class="cookie-bar" style="display:none">
-  <span class="cookie-bar-text">האתר משתמש בעוגיות (Cookies) לצורך מעקב סטטיסטי פנימי - כדי שמחלקת דת תדע באילו תחומים באפליקציה כדאי להשקיע ולשפר. <a href="#" onclick="openPrivacyModal();return false">מדיניות פרטיות</a></span>
-  <button type="button" class="btn primary" onclick="acceptCookieConsent()">הבנתי, אישור</button>
+<div id="cookieConsentScreen">
+  <div class="cookie-modal">
+    <h3>הפרטיות שלך חשובה לנו</h3>
+    <div class="underline-bar"></div>
+    <p>האתר משתמש בעוגיות (Cookies) לצורך מעקב סטטיסטי פנימי - כדי שמחלקת דת תדע באילו תחומים באפליקציה כדאי להשקיע ולשפר. ניתן לעיין ב<a href="#" onclick="openPrivacyModal();return false">מדיניות הפרטיות</a>. שימוש באתר מהווה הסכמה לשימוש בעוגיות כמפורט.</p>
+    <button type="button" class="btn primary" onclick="acceptCookieConsent()">אישור</button>
+  </div>
 </div>
 <div class="overlay" id="overlay"><div class="modal" id="modalBody" role="dialog" aria-modal="true"></div></div>
 
@@ -1000,8 +1014,8 @@ function loadAnalytics(){
 }
 function acceptCookieConsent(){
   try{ localStorage.setItem('cookieConsent', 'accepted'); }catch(e){}
-  const bar = document.getElementById('cookieConsentBar');
-  if (bar) bar.style.display = 'none';
+  const screen = document.getElementById('cookieConsentScreen');
+  if (screen) screen.style.display = 'none';
   loadAnalytics();
 }
 function checkCookieConsent(){
@@ -1010,8 +1024,8 @@ function checkCookieConsent(){
   if (consent === 'accepted'){
     loadAnalytics();
   } else {
-    const bar = document.getElementById('cookieConsentBar');
-    if (bar) bar.style.display = 'flex';
+    const screen = document.getElementById('cookieConsentScreen');
+    if (screen) screen.style.display = 'flex';
   }
 }
 // שולח אירוע מותאם אישית ל-Google Analytics (לא עושה כלום אם עדיין לא נטען/לא אושר)
@@ -2680,7 +2694,7 @@ function downloadImportTemplate(){
     {'הנחיה': 'סוג זמן "קבוע": מלאו רק את עמודת שעה, בפורמט 19:00.'},
     {'הנחיה': 'סוג זמן "יחסי": מלאו ביחס_ל (הנץ החמה / שקיעה / צאת הכוכבים), לפני_אחרי (לפני / אחרי / בדיוק), ודקות (מספר - מיותר אם בחרתם "בדיוק").'},
     {'הנחיה': 'קהל יעד (בגליון שיעורים): כולם / גברים / נשים / נוער.'},
-    {'הנחיה': 'הייבוא תמיד יוצר פריטים חדשים - לא מעדכן קיימים. אחרי ייבוא גדול כדאי לעבור ולבדוק כפילויות.'}
+    {'הנחיה': 'הייבוא שואל בזמן ההעלאה אם להוסיף בנוסף לקיים (מיזוג), או למחוק קודם את כל המניינים הקיימים בבתי הכנסת שמופיעים בגליון "מניינים" ולהחליף אותם בתוכן הקובץ (החלפה) - שימושי לעדכון שבועי מרוכז של לוח זמנים שלם לבית כנסת.'}
   ];
   const shulsTemplate = [{
     'שם בית הכנסת': 'לדוגמה: בית הכנסת המרכזי',
@@ -2761,11 +2775,108 @@ function handleImportFile(input){
   reader.onload = async e=>{
     try{
       const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellText:true, cellDates:false});
-      await runImport(wb);
+      openImportModeModal(wb, input);
     }catch(err){
       alert('שגיאה בקריאת הקובץ: ' + err.message);
+      input.value = '';
     }
-    input.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+// שואל את המנהל/גבאי: להוסיף לקיים (מיזוג), או למחוק קודם את כל המניינים הקיימים של בתי הכנסת
+// שמופיעים בגליון "מניינים" ואז לייבא (החלפה) - שימושי לעדכון שבועי מרוכז של לוח זמנים שלם.
+// scopedShulId: אם קיים, זהו ייבוא שגבאי מבצע דרך דף בית הכנסת שלו (לא מתוך פאנל הניהול) - מוגבל
+// לבית כנסת אחד בלבד: שורות שמתייחסות לבית כנסת אחר יידלגו, וגליון "בתי כנסת" מתעלמים ממנו.
+function openImportModeModal(wb, input, scopedShulId){
+  const minyanimSheet = findSheet(wb, 'מניינים');
+  let shulNamesInSheet = [];
+  if (minyanimSheet){
+    XLSX.utils.sheet_to_json(minyanimSheet, {raw:false}).forEach(row=>{
+      const name = cell(row, 'בית כנסת');
+      if (name && !shulNamesInSheet.includes(name)) shulNamesInSheet.push(name);
+    });
+  }
+  const scopedShul = scopedShulId ? data.shuls.find(s=>s.id===scopedShulId) : null;
+  if (scopedShul) shulNamesInSheet = shulNamesInSheet.filter(n=>n===scopedShul.name);
+  document.getElementById('modalBody').innerHTML = `
+    <h3>ייבוא קובץ${scopedShul?' - '+escapeHtml(scopedShul.name):''}</h3>
+    ${scopedShul?`<p class="muted" style="margin-bottom:14px">שורות בגליון "מניינים" ששייכות לבית כנסת אחר יידלגו - הייבוא הזה מוגבל ל"${escapeHtml(scopedShul.name)}" בלבד.</p>` : (shulNamesInSheet.length ? `<p class="muted" style="margin-bottom:14px">גליון "מניינים" בקובץ מתייחס לבית/בתי הכנסת: <b>${shulNamesInSheet.map(escapeHtml).join(', ')}</b></p>` : '')}
+    <div class="field">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:400;margin-bottom:10px">
+        <input type="radio" name="importMode" value="merge" checked style="margin-top:3px">
+        <span><b>מיזוג (מומלץ)</b> - מוסיף את הפריטים מהקובץ בנוסף לקיימים. לא מוחק כלום.</span>
+      </label>
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-weight:400">
+        <input type="radio" name="importMode" value="replace" ${shulNamesInSheet.length?'':'disabled'} style="margin-top:3px">
+        <span><b>החלפה</b> - מוחק קודם את <u>כל</u> המניינים הקיימים בבית/בתי הכנסת שמופיעים בגליון "מניינים" (${shulNamesInSheet.length?escapeHtml(shulNamesInSheet.join(', ')):'לא זוהה בית כנסת בגליון'}), ואז מייבא את הקובץ במקומם. שימושי לעדכון שבועי מרוכז של לוח זמנים שלם.</span>
+      </label>
+    </div>
+    <p style="color:var(--danger);font-weight:500;margin:14px 0">שחזור מלא אינו הפיך. ודאו שהקובץ מכיל את כל המניינים שרוצים לשמור, כי כל השאר יימחק.</p>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal();document.getElementById('${input.id}').value=''">ביטול</button>
+      <button class="btn primary" onclick="confirmRunImport()">המשך</button>
+    </div>`;
+  PENDING_IMPORT_WB = wb;
+  PENDING_IMPORT_INPUT = input;
+  PENDING_IMPORT_SCOPED_SHUL_ID = scopedShulId || null;
+  document.getElementById('overlay').classList.add('show');
+}
+let PENDING_IMPORT_WB = null;
+let PENDING_IMPORT_INPUT = null;
+let PENDING_IMPORT_SCOPED_SHUL_ID = null;
+async function confirmRunImport(){
+  const modeEl = document.querySelector('input[name="importMode"]:checked');
+  const mode = modeEl ? modeEl.value : 'merge';
+  const wb = PENDING_IMPORT_WB;
+  const input = PENDING_IMPORT_INPUT;
+  const scopedShulId = PENDING_IMPORT_SCOPED_SHUL_ID;
+  if (!wb) return;
+  if (mode === 'replace'){
+    const ok = confirm('בטוחים? כל המניינים הקיימים בבתי הכנסת שבקובץ יימחקו לצמיתות ויוחלפו בתוכן הקובץ. הפעולה לא הפיכה.');
+    if (!ok) return;
+  }
+  closeModal();
+  try{
+    await runImport(wb, mode, scopedShulId);
+  }catch(err){
+    alert('שגיאה בייבוא: ' + err.message);
+  }
+  if (input) input.value = '';
+  PENDING_IMPORT_WB = null;
+  PENDING_IMPORT_INPUT = null;
+  PENDING_IMPORT_SCOPED_SHUL_ID = null;
+}
+// נקודת כניסה לגבאי/מנהל מדף בית הכנסת - ייבוא מוגבל לבית כנסת אחד בלבד
+function openShulImportModal(shulId){
+  if (!canManageShul(shulId)) return;
+  const shul = data.shuls.find(s=>s.id===shulId);
+  document.getElementById('modalBody').innerHTML = `
+    <h3>ייבוא מניינים מאקסל${shul?' - '+escapeHtml(shul.name):''}</h3>
+    <p class="muted" style="margin-bottom:14px">מייבאים קובץ בפורמט התבנית הרגילה. עמודת "בית כנסת" (בגליון "מניינים") ו"מיקום" (בגליון "שיעורים") צריכות להיות בדיוק "${escapeHtml(shul?shul.name:'')}" - שורות של בית כנסת אחר יידלגו אוטומטית. גליון "בתי כנסת" מתעלמים ממנו לגמרי (לא ניתן ליצור בתי כנסת דרך הייבוא הזה).</p>
+    <button class="btn" style="margin-bottom:14px" onclick="downloadImportTemplate()">📄 הורדת תבנית</button><br>
+    <label class="btn primary" style="cursor:pointer;display:inline-block">
+      📤 בחירת קובץ
+      <input type="file" id="shulImportFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleShulImportFile(this,'${shulId}')">
+    </label>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function handleShulImportFile(input, shulId){
+  if (!canManageShul(shulId)){ input.value=''; return; }
+  const file = input.files[0];
+  if (!file) return;
+  if (typeof XLSX === 'undefined'){ alert('ספריית האקסל עדיין נטענת, נסו שוב בעוד רגע'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = async e=>{
+    try{
+      const wb = XLSX.read(new Uint8Array(e.target.result), {type:'array', cellText:true, cellDates:false});
+      openImportModeModal(wb, input, shulId);
+    }catch(err){
+      alert('שגיאה בקריאת הקובץ: ' + err.message);
+      input.value = '';
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -2776,13 +2887,16 @@ function findSheet(wb, name){
   const match = wb.SheetNames.find(n => normalizeHeader(n) === nk);
   return match ? wb.Sheets[match] : null;
 }
-async function runImport(wb){
-  if (!isManager()) return;
+async function runImport(wb, mode, scopedShulId){
+  if (scopedShulId ? !canManageShul(scopedShulId) : !isManager()) return;
+  mode = mode || 'merge';
   const results = { shuls:0, minyanim:0, shiurim:0, skipped:[] };
   const nameToId = {};
   data.shuls.forEach(s=>{ nameToId[s.name] = s.id; });
+  const scopedShulName = scopedShulId ? ((data.shuls.find(s=>s.id===scopedShulId)||{}).name || null) : null;
 
-  const shulsSheet = findSheet(wb, 'בתי כנסת');
+  // גליון "בתי כנסת" רלוונטי רק לייבוא כללי דרך פאנל הניהול - ייבוא מוגבל לבית כנסת אחד (גבאי) לא יוצר/נוגע בבתי כנסת
+  const shulsSheet = scopedShulId ? null : findSheet(wb, 'בתי כנסת');
   if (shulsSheet){
     for (const row of XLSX.utils.sheet_to_json(shulsSheet, {raw:false})){
       const name = cell(row, 'שם בית הכנסת');
@@ -2799,10 +2913,26 @@ async function runImport(wb){
 
   const minyanimSheet = findSheet(wb, 'מניינים');
   if (minyanimSheet){
-    for (const row of XLSX.utils.sheet_to_json(minyanimSheet, {raw:false})){
+    const sheetRows = XLSX.utils.sheet_to_json(minyanimSheet, {raw:false});
+    // מצב "החלפה": מוחקים קודם את כל המניינים הקיימים בבתי הכנסת שמופיעים בגליון, לפני שמייבאים את התוכן החדש
+    if (mode === 'replace'){
+      let shulNamesInSheet = [...new Set(sheetRows.map(row=>cell(row,'בית כנסת')).filter(Boolean))];
+      if (scopedShulName) shulNamesInSheet = shulNamesInSheet.filter(n=>n===scopedShulName);
+      const shulIdsToReplace = shulNamesInSheet.map(name=>nameToId[name]).filter(Boolean);
+      for (const shulId of shulIdsToReplace){
+        const toDelete = data.minyanim.filter(m=>m.shulId===shulId);
+        for (let i=0; i<toDelete.length; i+=450){
+          const batch = db.batch();
+          toDelete.slice(i,i+450).forEach(m=>batch.delete(db.collection('minyanim').doc(m.id)));
+          await batch.commit();
+        }
+      }
+    }
+    for (const row of sheetRows){
       const shulName = cell(row, 'בית כנסת');
       const tefila = cell(row, 'תפילה');
       if (!shulName && !tefila) continue;
+      if (scopedShulName && shulName !== scopedShulName){ results.skipped.push(`מניין "${tefila}" ב"${shulName}" - דולג, הייבוא הזה מוגבל ל"${scopedShulName}" בלבד`); continue; }
       const shulId = nameToId[shulName];
       if (!shulId){ results.skipped.push(`מניין "${tefila}" - בית כנסת "${shulName}" לא נמצא`); continue; }
       if (!TEFILA_ORDER.includes(tefila)){ results.skipped.push(`מניין ב"${shulName}" - תפילה "${tefila}" לא מוכרת`); continue; }
@@ -2836,9 +2966,10 @@ async function runImport(wb){
     for (const row of XLSX.utils.sheet_to_json(shiurimSheet, {raw:false})){
       const title = cell(row, 'כותרת');
       if (!title) continue;
+      const locationRaw = cell(row, 'מיקום');
+      if (scopedShulName && locationRaw !== scopedShulName){ results.skipped.push(`שיעור "${title}" - דולג, הייבוא הזה מוגבל ל"${scopedShulName}" בלבד`); continue; }
       const days = parseDaysInput(getVal(row, 'ימים'));
       if (!days.length){ results.skipped.push(`שיעור "${title}" - שדה ימים ריק/לא תקין`); continue; }
-      const locationRaw = cell(row, 'מיקום');
       if (!locationRaw){ results.skipped.push(`שיעור "${title}" - חסר מיקום`); continue; }
       let location = locationRaw, lat = null, lng = null, locationShulId = null;
       if (nameToId[locationRaw]){
@@ -3251,6 +3382,7 @@ function renderDashboard(){
 
   const leaderboardEl = document.getElementById('dashboardLeaderboard');
   if (leaderboardEl) renderEditLeaderboard(leaderboardEl, leaderboard);
+  renderDataHealthIssues();
 }
 // רשימת דירוג משתמשים לפי מספר עריכות בטווח הנבחר, עם אפשרות לשלוח הודעה אישית לשיאן
 function renderEditLeaderboard(el, leaderboard){
@@ -3274,6 +3406,49 @@ function renderEditLeaderboard(el, leaderboard){
         : `<p class="muted" style="font-size:12.5px">שיאן העריכות בטווח זה ביצע עריכות ללא התחברות, ולכן אי אפשר לשלוח לו הודעה אישית.</p>`
       }
     </div>`;
+}
+// ---------- בריאות נתונים: רשימת "דורש תשומת לב" - לא תלויה בטווח הזמן, בודקת את כל התוכן ----------
+function computeDataHealthIssues(){
+  const issues = [];
+  const staleDate = new Date();
+  staleDate.setMonth(staleDate.getMonth() - 6);
+  data.minyanim.forEach(m=>{
+    if (m.updatedAt && new Date(m.updatedAt) < staleDate){
+      const shul = data.shuls.find(s=>s.id===m.shulId);
+      issues.push({
+        icon: '🕍',
+        text: `מניין "${escapeHtml(m.tefila)}${shul?' · '+escapeHtml(shul.name):''}" לא עודכן מאז ${new Date(m.updatedAt).toLocaleDateString('he-IL')}`,
+        action: `closeModal();openMinyanForm('${m.shulId}','${m.id}')`
+      });
+    }
+  });
+  data.shiurim.forEach(s=>{
+    if (s.updatedAt && new Date(s.updatedAt) < staleDate && !isShiurExpired(s)){
+      issues.push({
+        icon: '📖',
+        text: `שיעור "${escapeHtml(s.title)}" לא עודכן מאז ${new Date(s.updatedAt).toLocaleDateString('he-IL')}`,
+        action: `closeModal();openShiurForm('${s.id}')`
+      });
+    }
+  });
+  data.shuls.forEach(s=>{
+    const hasRabbi = (s.rabbiNames && s.rabbiNames.length) || (s.assignedRabbanim && s.assignedRabbanim.length);
+    const hasGabai = (s.gabaiNames && s.gabaiNames.length) || (s.assignedGabaim && s.assignedGabaim.length);
+    if (!hasRabbi) issues.push({ icon:'🏠', text:`בית הכנסת "${escapeHtml(s.name)}" ללא רב משויך`, action:`closeModal();openShulForm('${s.id}')` });
+    if (!hasGabai) issues.push({ icon:'🏠', text:`בית הכנסת "${escapeHtml(s.name)}" ללא גבאי משויך`, action:`closeModal();openShulForm('${s.id}')` });
+  });
+  return issues;
+}
+function renderDataHealthIssues(){
+  const el = document.getElementById('dashboardHealthIssues');
+  if (!el) return;
+  const issues = computeDataHealthIssues();
+  if (!issues.length){ el.innerHTML = '<p class="muted">✅ הכל נראה תקין - שום דבר לא דורש תשומת לב כרגע.</p>'; return; }
+  el.innerHTML = issues.map(iss=>`
+    <div class="row" style="padding:8px 10px;border-radius:8px;cursor:pointer" onclick="${iss.action}">
+      <span>${iss.icon} ${iss.text}</span>
+      <span class="muted">›</span>
+    </div>`).join('');
 }
 function renderActivityLog(){
   const el = document.getElementById('activityLogList');
@@ -3902,6 +4077,83 @@ function minyanDaysLabel(m){
   return daysToLabel(m.days);
 }
 const DAYS_HE_FULL = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+
+// ---------- חיפוש כללי בכל האפליקציה (מניינים, בתי כנסת, שיעורים, רבנים, מידע שימושי) ----------
+// אינדקס קבוע למידע השימושי (תוכן טקסטואלי סטטי) - כל נושא עם כמה מילות מפתח, כדי שהחיפוש הכללי ימצא אותו
+const USEFUL_INFO_SEARCH_INDEX = [
+  { title: 'מקוואות נשים', keywords: ['מקווה','מקוואות','נשים','בלנית','טבילה'] },
+  { title: 'מקווה גברים', keywords: ['מקווה','גברים','טבילה','צ\'יפ'] },
+  { title: 'גניזה', keywords: ['גניזה','שקית','ספרים'] },
+  { title: 'עירוב', keywords: ['עירוב','גדר'] },
+  { title: 'הנחיות הלכתיות למועדים', keywords: ['הנחיות','הלכתיות','מועדים','חג','חוברת'] },
+  { title: 'מפת בית העלמין', keywords: ['בית עלמין','קבר','קברים','הלוויה'] },
+  { title: 'הכנה עצמית של מודעת אבל', keywords: ['אבל','מודעת אבל','הלוויה'] },
+  { title: 'רישום לנישואין', keywords: ['נישואין','חתונה','רבנות'] }
+];
+let globalSearchResults = [];
+function openGlobalSearchModal(){
+  ensureShiurimLoaded(); ensureRabbanimLoaded(); ensureHalachicGuidesLoaded();
+  document.getElementById('modalBody').innerHTML = `
+    <h3 style="margin-bottom:10px">🔎 חיפוש בכל האפליקציה</h3>
+    <input id="globalSearchInput" placeholder="מניינים, בתי כנסת, שיעורים, רבנים, מידע שימושי..." style="width:100%;padding:10px 12px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:15px" oninput="renderGlobalSearchResults()">
+    <div id="globalSearchResultsList" style="margin-top:14px;max-height:50vh;overflow-y:auto"></div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">סגירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+  setTimeout(()=>{ const el = document.getElementById('globalSearchInput'); if (el) el.focus(); }, 50);
+}
+function computeGlobalSearchResults(query){
+  const q = query.trim().toLowerCase();
+  const results = [];
+  data.shuls.forEach(s=>{
+    const hay = [s.name, s.address, s.description, s.nusach].filter(Boolean).join(' ').toLowerCase();
+    if (hay.includes(q)) results.push({ icon:'🏠', title: s.name, subtitle: s.address||'', action:()=>{ closeModal(); openShulPage(s.id); } });
+  });
+  data.minyanim.forEach(m=>{
+    const shul = data.shuls.find(s=>s.id===m.shulId);
+    const hay = [m.tefila, m.notes, shul?shul.name:''].filter(Boolean).join(' ').toLowerCase();
+    if (hay.includes(q)) results.push({ icon:'🕍', title:`${m.tefila}${shul?' · '+shul.name:''}`, subtitle: minyanDaysLabel(m), action:()=>{ closeModal(); if (shul) openShulPage(shul.id); } });
+  });
+  data.shiurim.forEach(s=>{
+    const topics = getShiurTopics(s);
+    const hay = [s.title, topics.join(' '), s.teacherName, s.location].filter(Boolean).join(' ').toLowerCase();
+    if (hay.includes(q)) results.push({ icon:'📖', title: s.title, subtitle: [s.teacherName, s.location].filter(Boolean).join(' · '), action:()=>{ closeModal(); document.querySelector('.tab-btn[data-tab="shiurim"]').click(); } });
+  });
+  data.rabbanim.forEach(r=>{
+    const hay = [r.name, r.role, r.responseAreas].filter(Boolean).join(' ').toLowerCase();
+    if (hay.includes(q)) results.push({ icon:'👳', title: r.name, subtitle: r.role||'', action:()=>{ closeModal(); openRabbiInfoModal(r.id); } });
+  });
+  data.halachicGuides.forEach(g=>{
+    if ((g.title||'').toLowerCase().includes(q)) results.push({ icon:'📄', title: g.title, subtitle:'הנחיות הלכתיות למועדים', action:()=>{ window.open(g.link, '_blank'); } });
+  });
+  USEFUL_INFO_SEARCH_INDEX.forEach(item=>{
+    if (item.title.toLowerCase().includes(q) || item.keywords.some(k=>k.includes(q))){
+      results.push({ icon:'ℹ️', title: item.title, subtitle:'מידע שימושי', action:()=>{ closeModal(); document.querySelector('.tab-btn[data-tab="info"]').click(); } });
+    }
+  });
+  return results;
+}
+function renderGlobalSearchResults(){
+  const input = document.getElementById('globalSearchInput');
+  const el = document.getElementById('globalSearchResultsList');
+  if (!input || !el) return;
+  const q = input.value.trim();
+  if (q.length < 2){ el.innerHTML = '<p class="muted">הקלידו לפחות 2 תווים כדי לחפש.</p>'; globalSearchResults = []; return; }
+  globalSearchResults = computeGlobalSearchResults(q);
+  if (!globalSearchResults.length){ el.innerHTML = '<p class="empty">לא נמצאו תוצאות</p>'; return; }
+  el.innerHTML = globalSearchResults.map((r,i)=>`
+    <div class="card row" style="cursor:pointer;margin-bottom:8px" tabindex="0" role="button" onclick="globalSearchResultClick(${i})">
+      <div>
+        <div style="font-weight:600">${r.icon} ${escapeHtml(r.title)}</div>
+        ${r.subtitle?`<div class="muted" style="font-size:12.5px">${escapeHtml(r.subtitle)}</div>`:''}
+      </div>
+    </div>`).join('');
+}
+function globalSearchResultClick(i){
+  const r = globalSearchResults[i];
+  if (r && typeof r.action === 'function') r.action();
+}
 
 function haversineKm(lat1, lng1, lat2, lng2){
   const R = 6371;
@@ -4659,6 +4911,7 @@ function renderShulPage(){
         <button class="icon-btn" onclick="printShulSchedule('${shul.id}')" aria-label="גרסת הדפסה" title="גרסת הדפסה">🖨️</button>
         <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(shul.name)}')" aria-label="שליחת הודעה למנהל" title="שליחת הודעה למנהל">✉️</button>
         ${editable?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>`:''}
+        ${editable?`<button class="btn" onclick="openShulImportModal('${shul.id}')" title="עדכון מרוכז של המניינים מקובץ אקסל">📤 ייבוא מניינים מאקסל</button>`:''}
       </div>
       <div style="display:flex;justify-content:center;margin-top:4px">${navLinksHtml(shul)}</div>
       ${shul.description?`<p style="margin-top:12px;line-height:1.7">${escapeHtml(shul.description)}</p>`:''}
@@ -5525,6 +5778,7 @@ function renderInfoTab(){
   }
 
   el.innerHTML = `
+    <button type="button" class="btn" style="width:100%;margin-bottom:16px" onclick="openGlobalSearchModal()">🔎 חיפוש בכל האפליקציה (גם מניינים, בתי כנסת ושיעורים)</button>
     <h2 style="margin-bottom:12px">📚 רבנים בישוב</h2>
     ${rabbanimHtml}
     <div style="margin:26px 0;border-top:1px solid var(--border)"></div>
@@ -5596,6 +5850,23 @@ function halachicGuidesListHtml(){
 }
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
 const WHATS_NEW = [
+  {
+    version: '2.1',
+    date: '13.8.2026',
+    items: [
+      '🕍 לחיצה על שם התפילה (בתצוגה "לפי שעות") פותחת עכשיו את תפריט המידע המלא - ניווט, שיתוף, עריכה ועוד - במקום רק אישור בודד לעריכה.',
+      '⏱️ תוקן סדר התצוגה הכרונולוגית: מנחה תמיד מוצגת לפני ערבית (וכן הלאה לפי סדר התפילות), גם אם בבית כנסת אחר יש ערבית שמתחילה מוקדם יותר. וערבית מאוחרת שחלה אחרי חצות מוצגת בסוף אותו יום, לא בתחילתו.',
+      '🎯 שופר שטח הלחיצה על אייקוני המידע (ⓘ) ליד מניינים ושיעורים - אמור להיות קל ואמין יותר ללחוץ עליהם, בעיקר במובייל.',
+      '🍪 אישור השימוש בעוגיות הפך לחלונית קופצת שצריך לאשר לפני המשך השימוש באפליקציה.'
+    ]
+  },
+  {
+    version: '2.0',
+    date: '12.8.2026',
+    items: [
+      '🔎 חיפוש כללי חדש - זמין מתוך כפתור הסינון בתפילות ובשיעורי תורה, וגם בלשונית "מידע שימושי". מחפש בבת אחת בכל האפליקציה: מניינים, בתי כנסת, שיעורים, רבנים, ומידע שימושי - ולוחצים על תוצאה כדי לקפוץ ישר אליה.'
+    ]
+  },
   {
     version: '1.9',
     date: '10.8.2026',
