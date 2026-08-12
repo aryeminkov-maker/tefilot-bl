@@ -84,7 +84,6 @@
   .minyan-line:first-of-type{border-top:none}
   .ml-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:14px}
   .ml-bottom{margin-top:1px;font-size:13px}
-  .ml-bottom .row-icon-btn{margin:0 2px}
   .time{font-weight:700;font-family:'Rubik'}
   .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;background:var(--surface-2);color:var(--ink-soft);border:1px solid var(--border)}
   .badge.all{background:#E7F0EC;color:#2F5D3A}
@@ -3742,7 +3741,7 @@ function renderTefilot(){
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
-        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="confirmEditMinyanFromChrono('${it.m.shulId}','${it.m.id}')">${it.m.tefila}</span> · <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
+        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openMinyanMenuPopover(event, '${it.m.shulId}', '${it.m.id}')">${it.m.tefila}</span> · <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
         ${tempNoteBannerHtml(it.m)}
       </div>`;
@@ -4926,16 +4925,6 @@ function removeShulEditor(shulId, uidToRemove){
 // ---------- טפסים: מניין ----------
 const DAY_KEYS = ['sun','mon','tue','wed','thu','fri','sat'];
 const DAY_LABELS = ['א','ב','ג','ד','ה','ו','ש'];
-function confirmEditMinyanFromChrono(shulId, minyanId){
-  document.getElementById('modalBody').innerHTML = `
-    <h3>עריכת מניין</h3>
-    <p style="line-height:1.7;margin-bottom:18px">האם ברצונך לערוך את המניין הזה?</p>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">לא</button>
-      <button class="btn primary" onclick="closeModal();openMinyanForm('${shulId}','${minyanId}')">כן, עריכה</button>
-    </div>`;
-  document.getElementById('overlay').classList.add('show');
-}
 function openMinyanForm(shulId, minyanId){
   if (!requireEditPermission()) return;
   const m = minyanId ? data.minyanim.find(x=>x.id===minyanId) : null;
