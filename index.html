@@ -5541,7 +5541,6 @@ function renderInfoTab(){
     <div style="margin:26px 0;border-top:1px solid var(--border)"></div>
     <h2 style="margin-bottom:6px">ℹ️ מידע שימושי</h2>
     <p class="muted" style="margin-bottom:14px">מידע נבחר מאתר המועצה, לנוחיותכם. לחצו על כל כותרת לפרטים המלאים. לעדכונים ותשלומים - תמיד עדיף להיכנס לקישור המקורי.</p>
-    ${infoAccordionHtml('📄', 'הנחיות הלכתיות למועדים', halachicGuidesListHtml())}
     ${infoAccordionHtml('🚿', 'מקוואות נשים', `
       ביישוב שלושה מקוואות נשים:<br><br>
       <b>מקווה שכונה א'</b> - שביל שבות סיני 1 (ליד גן הפיל) · טלפון: <a href="tel:029975234" style="color:var(--dusk)">02-9975234</a><br>
@@ -5575,6 +5574,10 @@ function renderInfoTab(){
     ${infoAccordionHtml('🧵', 'עירוב', `
       העירוב בבית אל מבוסס על גדר שעוברת בדיקה תמידית על ידי סייר מחלקת הביטחון. מעל שערי הכניסה והיציאה מהיישוב פרוסה צורת הפתח.<br><br>
       <a href="https://www.bet-el.muni.il/עירוב/" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">לעמוד המקורי באתר המועצה (כולל מפה) ←</a>
+    `)}
+    ${infoAccordionHtml('📄', 'הנחיות הלכתיות למועדים', `
+      <p style="margin:0 0 14px">לקראת מועדי ישראל, מחלקת דת הוציאה לאור חוברות של הנחיות הלכתיות למועדים. החוברות נכתבות על ידי הרב דביר אזולאי, מרבני הישוב, בשיתוף עם הרב אריאל בראלי שליט"א, רב הישוב.</p>
+      ${halachicGuidesListHtml()}
     `)}
     <a href="https://cemetery.bet-el.muni.il/" target="_blank" rel="noopener" class="info-link-row"><span>🗺️ מפת בית העלמין</span><span class="arrow">←</span></a>
     <a href="https://obit.bet-el.muni.il/" target="_blank" rel="noopener" class="info-link-row"><span>📝 הכנה עצמית של מודעת אבל</span><span class="arrow">←</span></a>
