@@ -110,6 +110,9 @@
   .filters-panel .filters:last-child{margin-bottom:0}
   .filters select,.filters input{padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);font-family:'Rubik';font-size:13px}
   .empty{text-align:center;padding:30px 10px;color:var(--ink-soft)}
+  .loading-spinner-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:36px 10px;color:var(--ink-soft);font-size:13px}
+  .loading-spinner{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--dusk);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
   .overlay{position:fixed;inset:0;background:rgba(34,48,58,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
   .overlay.show{display:flex}
   .modal{background:var(--surface);border-radius:var(--radius);padding:20px;max-width:440px;width:100%;max-height:85vh;overflow:auto}
@@ -3931,6 +3934,11 @@ function renderTefilot(){
 // ---------- רינדור: שיעורים ----------
 const AUDIENCE_LABEL = {all:'כולם', men:'גברים', women:'נשים', youth:'נוער', kids:'ילדים'};
 function renderShiurim(){
+  if (!shiurimLoaded){
+    const el = document.getElementById('shiurimList');
+    if (el) el.innerHTML = '<div class="loading-spinner-wrap"><div class="loading-spinner"></div>טוען שיעורים...</div>';
+    return;
+  }
   const audF = document.getElementById('filterAudience').value;
   const searchF = document.getElementById('filterSearch').value.trim().toLowerCase();
 
@@ -4910,13 +4918,13 @@ function renderShulPage(){
         <button class="icon-btn" onclick="shareShulLink('${shul.id}')" aria-label="שיתוף" title="שיתוף">🔗</button>
         <button class="icon-btn" onclick="printShulSchedule('${shul.id}')" aria-label="גרסת הדפסה" title="גרסת הדפסה">🖨️</button>
         <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(shul.name)}')" aria-label="שליחת הודעה למנהל" title="שליחת הודעה למנהל">✉️</button>
-        ${editable?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>`:''}
+        ${shul.donationLink?`<a href="${escapeHtml(shul.donationLink)}" target="_blank" rel="noopener" class="icon-btn" style="color:var(--ink);text-decoration:none" aria-label="תרומה לבית הכנסת" title="תרומה לבית הכנסת">${DONATION_ICON_SVG}</a>`:''}
+        ${(()=>{ const links = getNavLinks(shul); return links ? `<button type="button" class="icon-btn" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)" aria-label="ניווט" title="ניווט">${NAV_PIN_ICON_SVG}</button>` : ''; })()}
       </div>
-      <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
-        ${(()=>{ const links = getNavLinks(shul); return links ? `<button type="button" class="badge" style="cursor:pointer;border:1px solid var(--border);font-family:'Rubik'" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)">📍 ניווט</button>` : ''; })()}
-        ${shul.donationLink?`<a href="${escapeHtml(shul.donationLink)}" target="_blank" rel="noopener" class="btn primary" style="text-decoration:none">💙 תרומה לבית הכנסת</a>`:''}
-        ${editable?`<button class="btn" onclick="openShulImportModal('${shul.id}')" title="עדכון מרוכז של המניינים מקובץ אקסל">📤 ייבוא מניינים מאקסל</button>`:''}
-      </div>
+      ${editable?`<div style="display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>
+        <button class="btn" onclick="openShulImportModal('${shul.id}')" title="עדכון מרוכז של המניינים מקובץ אקסל">📤 ייבוא מניינים מאקסל</button>
+      </div>`:''}
       ${shul.description?`<p style="margin-top:12px;line-height:1.7">${escapeHtml(shul.description)}</p>`:''}
     </div>
 
@@ -5595,6 +5603,9 @@ const MAIL_ICON_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="non
 const GOOGLE_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-4px"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"/><path fill="#FBBC05" d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>';
 // אייקון וואטסאפ (לוגו אמיתי - ריבוע ירוק מעוגל + בועת שיחה עם שפופרת - לא אימוג'י)
 const WHATSAPP_ICON_SVG = '<svg width="17" height="17" viewBox="0 0 24 24" style="vertical-align:-4px"><rect x="1" y="1" width="22" height="22" rx="6" fill="#25D366"/><path d="M12 5.8c-3.4 0-6.2 2.8-6.2 6.2 0 1.1.3 2.2.8 3.1l-.9 3.3 3.4-.9c.9.5 1.9.7 2.9.7h0c3.4 0 6.2-2.8 6.2-6.2s-2.8-6.2-6.2-6.2z" fill="#fff"/><path d="M9.3 8.6c-.2 0-.4.1-.5.3-.2.2-.6.7-.6 1.5s.6 1.5.7 1.6c.1.1 1.4 2.3 3.4 3.1 1.7.7 2 .6 2.4.5.4-.1 1.1-.5 1.3-.9.2-.4.2-.8.1-.9-.1-.1-.2-.2-.4-.3-.3-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.5.1-.2.2-.6.8-.7.9-.1.1-.3.2-.5.1-.3-.1-1-.4-2-1.2-.7-.6-1.2-1.4-1.4-1.7-.1-.2 0-.3.1-.4.1-.1.2-.3.3-.4.1-.1.2-.2.2-.4 0-.1 0-.3-.1-.4-.1-.2-.5-1.1-.7-1.5-.2-.4-.3-.3-.5-.3z" fill="#25D366"/></svg>';
+// אייקון תרומה (ערמת מטבעות) ואייקון ניווט (סיכת מיקום מלאה) - במקום אימוג'ים, לעקביות עם שאר אייקוני ה-icon-btn
+const DONATION_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5.5" rx="6.5" ry="2.6"/><path d="M5.5 5.5v4.7c0 1.44 2.91 2.6 6.5 2.6s6.5-1.16 6.5-2.6V5.5"/><path d="M5.5 10.2v4.7c0 1.44 2.91 2.6 6.5 2.6s6.5-1.16 6.5-2.6v-4.7"/><path d="M5.5 14.9v3.6c0 1.44 2.91 2.6 6.5 2.6s6.5-1.16 6.5-2.6v-3.6"/></svg>';
+const NAV_PIN_ICON_SVG = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C7.58 2 4 5.58 4 10c0 5.5 7 11.5 7.3 11.75a1 1 0 0 0 1.4 0C13 21.5 20 15.5 20 10c0-4.42-3.58-8-8-8zm0 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6z"/></svg>';
 function openAboutModal(){
   document.getElementById('modalBody').innerHTML = `
     <h3>אודות <span class="muted" style="font-weight:400;font-size:14px">· גרסה ${escapeHtml(CURRENT_APP_VERSION)}</span></h3>
@@ -5759,6 +5770,10 @@ function rabbiCardHtml(r){
 function renderInfoTab(){
   const el = document.getElementById('infoTabContent');
   if (!el) return;
+  if (!rabbanimLoaded){
+    el.innerHTML = '<div class="loading-spinner-wrap"><div class="loading-spinner"></div>טוען...</div>';
+    return;
+  }
   const rabbanimSorted = [...data.rabbanim].sort((a,b)=> (a.name||'').localeCompare(b.name||'', 'he'));
   const featuredRabbanim = rabbanimSorted.filter(r=>r.isFeatured);
   const otherRabbanim = rabbanimSorted.filter(r=>!r.isFeatured);
@@ -5859,7 +5874,8 @@ const WHATS_NEW = [
       '🕍 לחיצה על שם התפילה (בתצוגה "לפי שעות") פותחת עכשיו את תפריט המידע המלא - ניווט, שיתוף, עריכה ועוד - במקום רק אישור בודד לעריכה.',
       '⏱️ תוקן סדר התצוגה הכרונולוגית: מנחה תמיד מוצגת לפני ערבית (וכן הלאה לפי סדר התפילות), גם אם בבית כנסת אחר יש ערבית שמתחילה מוקדם יותר. וערבית מאוחרת שחלה אחרי חצות מוצגת בסוף אותו יום, לא בתחילתו.',
       '🎯 שופר שטח הלחיצה על אייקוני המידע (ⓘ) ליד מניינים ושיעורים - אמור להיות קל ואמין יותר ללחוץ עליהם, בעיקר במובייל.',
-      '📤 גבאים יכולים עכשיו לעדכן במרוכז מקובץ אקסל את כל המניינים בבית הכנסת שלהם - שימושי לעדכון שבועי של לוח זמנים שלם בבת אחת, במקום לערוך כל מניין בנפרד.'
+      '📤 גבאים יכולים עכשיו לעדכן במרוכז מקובץ אקסל את כל המניינים בבית הכנסת שלהם - שימושי לעדכון שבועי של לוח זמנים שלם בבת אחת, במקום לערוך כל מניין בנפרד.',
+      '⏳ נוספה חיווי טעינה (ספינר) בכניסה ללשוניות "שיעורי תורה" ו"מידע שימושי", במקום שירגישו ריקות לרגע עד שהתוכן נטען.'
     ]
   },
   {
