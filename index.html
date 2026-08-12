@@ -4911,11 +4911,13 @@ function renderShulPage(){
         <button class="icon-btn" onclick="printShulSchedule('${shul.id}')" aria-label="גרסת הדפסה" title="גרסת הדפסה">🖨️</button>
         <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(shul.name)}')" aria-label="שליחת הודעה למנהל" title="שליחת הודעה למנהל">✉️</button>
         ${editable?`<button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>`:''}
+      </div>
+      <div style="display:flex;justify-content:center;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap">
+        ${(()=>{ const links = getNavLinks(shul); return links ? `<button type="button" class="badge" style="cursor:pointer;border:1px solid var(--border);font-family:'Rubik'" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)">📍 ניווט</button>` : ''; })()}
+        ${shul.donationLink?`<a href="${escapeHtml(shul.donationLink)}" target="_blank" rel="noopener" class="btn primary" style="text-decoration:none">💙 תרומה לבית הכנסת</a>`:''}
         ${editable?`<button class="btn" onclick="openShulImportModal('${shul.id}')" title="עדכון מרוכז של המניינים מקובץ אקסל">📤 ייבוא מניינים מאקסל</button>`:''}
       </div>
-      <div style="display:flex;justify-content:center;margin-top:4px">${navLinksHtml(shul)}</div>
       ${shul.description?`<p style="margin-top:12px;line-height:1.7">${escapeHtml(shul.description)}</p>`:''}
-      ${shul.donationLink?`<a href="${escapeHtml(shul.donationLink)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-top:10px">💙 תרומה לבית הכנסת</a>`:''}
     </div>
 
     <div class="card" style="margin-top:18px">
@@ -5857,7 +5859,7 @@ const WHATS_NEW = [
       '🕍 לחיצה על שם התפילה (בתצוגה "לפי שעות") פותחת עכשיו את תפריט המידע המלא - ניווט, שיתוף, עריכה ועוד - במקום רק אישור בודד לעריכה.',
       '⏱️ תוקן סדר התצוגה הכרונולוגית: מנחה תמיד מוצגת לפני ערבית (וכן הלאה לפי סדר התפילות), גם אם בבית כנסת אחר יש ערבית שמתחילה מוקדם יותר. וערבית מאוחרת שחלה אחרי חצות מוצגת בסוף אותו יום, לא בתחילתו.',
       '🎯 שופר שטח הלחיצה על אייקוני המידע (ⓘ) ליד מניינים ושיעורים - אמור להיות קל ואמין יותר ללחוץ עליהם, בעיקר במובייל.',
-      '🍪 אישור השימוש בעוגיות הפך לחלונית קופצת שצריך לאשר לפני המשך השימוש באפליקציה.'
+      '📤 גבאים יכולים עכשיו לעדכן במרוכז מקובץ אקסל את כל המניינים בבית הכנסת שלהם - שימושי לעדכון שבועי של לוח זמנים שלם בבת אחת, במקום לערוך כל מניין בנפרד.'
     ]
   },
   {
