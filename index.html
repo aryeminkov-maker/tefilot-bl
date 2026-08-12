@@ -43,7 +43,7 @@
   header.top p{margin:4px 0 0;color:var(--ink-soft);font-size:13px}
   .demo-banner{background:var(--accent);color:var(--accent-ink);font-size:12.5px;padding:8px 16px;text-align:center}
   .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;background:transparent;border:none;padding:0;cursor:pointer;font-size:17px;line-height:1;flex-shrink:0}
-  .row-icon-btn{background:transparent;border:none;cursor:pointer;font-size:14px;padding:3px 5px;opacity:.7;line-height:1}
+  .row-icon-btn{background:transparent;border:none;cursor:pointer;font-size:14px;padding:12px;margin:-10px -8px;opacity:.7;line-height:1;position:relative}
   .notif-badge{position:absolute;top:-4px;left:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--surface);pointer-events:none}
   .shiur-recording-btn{width:64px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-decoration:none;border-right:1px solid var(--border);border-top-left-radius:9px;border-bottom-left-radius:9px;transition:filter .15s;padding:6px 4px;text-align:center}
   .shiur-recording-btn:hover{filter:brightness(.95)}
@@ -151,7 +151,7 @@
     .idbar{gap:8px}
     .idbar #userNameLabel{display:none}
     .icon-btn{width:38px;height:38px;font-size:22px}
-    .row-icon-btn{font-size:17px;padding:6px 8px}
+    .row-icon-btn{font-size:17px;padding:14px;margin:-12px -10px}
     .google-icon-svg{width:26px;height:26px}
     .wrap{padding:0 12px}
     .tabs{
@@ -391,6 +391,11 @@
         <div id="dashboardRangeButtons" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px"></div>
         <div id="dashboardStats"></div>
         <p class="muted" style="margin-top:6px;font-size:11.5px">"עריכות" סופר פריטים קיימים שעודכנו בטווח (לא כולל פריטים חדשים, וגם לא סופר כפול עריכות חוזרות לאותו פריט). פריטים ישנים שנוצרו לפני התכונה הזו ייספרו כ"עריכה" בכל פעם שהם מתעדכנים, כי אין להם תאריך יצירה שמור.</p>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <h4 style="margin-bottom:6px">🏆 דירוג עריכות</h4>
+          <p class="muted" style="margin-bottom:12px">מי ביצע הכי הרבה עריכות בטווח הזמן שנבחר למעלה (בתי כנסת, מניינים ושיעורים יחד).</p>
+          <div id="dashboardLeaderboard"></div>
+        </div>
         <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
           <p class="muted" style="margin-bottom:8px">מספר גולשים וצפיות בעמודים נמדדים ב-Google Analytics (לא נשמרים באפליקציה עצמה, כדי לא להעמיס כתיבות נוספות על מכסת השימוש היומית ב-Firestore).</p>
           <a href="https://analytics.google.com/" target="_blank" rel="noopener" class="btn">📈 פתיחת Google Analytics</a>
@@ -671,7 +676,7 @@
 
 <div id="printArea" style="display:none"></div>
 <div id="cookieConsentBar" class="cookie-bar" style="display:none">
-  <span class="cookie-bar-text">האתר משתמש בעוגיות (Cookies) לצורך ניתוח סטטיסטי אנונימי ושיפור השירות. <a href="#" onclick="openPrivacyModal();return false">מדיניות פרטיות</a></span>
+  <span class="cookie-bar-text">האתר משתמש בעוגיות (Cookies) לצורך מעקב סטטיסטי פנימי - כדי שמחלקת דת תדע באילו תחומים באפליקציה כדאי להשקיע ולשפר. <a href="#" onclick="openPrivacyModal();return false">מדיניות פרטיות</a></span>
   <button type="button" class="btn primary" onclick="acceptCookieConsent()">הבנתי, אישור</button>
 </div>
 <div class="overlay" id="overlay"><div class="modal" id="modalBody" role="dialog" aria-modal="true"></div></div>
@@ -864,20 +869,22 @@ function computeMinyanTime(m, date, zmanim){
   return new Date(anchor.getTime() + sign*(m.offsetMinutes||0)*60000);
 }
 // סדר תצוגה קבוע לפי סוג תפילה (לא רק לפי השעה בפועל) - כך שכל מנייני "מנחה" למשל מוצגים יחד ברצף,
-// ואחריהם כל מנייני "ערבית", גם אם בבית כנסת אחד המנחה מאוחרת משעת הערבית בבית כנסת אחר. הסדר (מעגלי,
-// יום שלם): סליחות < ותיקין/שחרית < מנחה < ערבית - וערבית שחלה אחרי חצות ולפני 3 לפנות בוקר (מייצגת בפועל
-// את סוף הלילה הקודם) מוצגת ראשונה מכל השאר, אפילו לפני הסליחות.
+// ואחריהם כל מנייני "ערבית", גם אם בבית כנסת אחד המנחה מאוחרת משעת הערבית בבית כנסת אחר. הסדר (יום שלם):
+// סליחות < ותיקין/שחרית < מנחה < ערבית. ערבית שחלה אחרי חצות ולפני 3 לפנות בוקר (מייצגת בפועל את סוף
+// הערב הקודם, לא תחילת מחר) עדיין שייכת לקבוצת ה"ערבית" - ומוצגת בסוף אותה קבוצה (אחרי הערביות ה"רגילות"
+// של אותו ערב), לא בתחילת הרשימה.
 const TEFILA_ORDER_RANK = { 'סליחות': 1, 'ותיקין': 2, 'שחרית': 2, 'מנחה': 3, 'ערבית': 4 };
 function chronoSortValue(m, t){
   if (!t) return Infinity;
   let rank = TEFILA_ORDER_RANK[m.tefila];
   if (rank === undefined) rank = 2.5; // סוג תפילה מותאם אישית שהוסיף מנהל - ממקמים בערך באמצע (בין שחרית למנחה)
+  let minutes = timeMinutesIsrael(t);
   if (m.tefila === 'ערבית'){
     const israelHour = Number(t.toLocaleTimeString('en-GB', {hour:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'}));
-    if (israelHour < 3) rank = 0;
+    if (israelHour < 3) minutes += 1440; // "עברה" חצות - דוחפים לסוף קבוצת הערבית, לא לתחילת הרשימה
   }
   // בתוך אותה "שכבת" סוג תפילה, ממיינים לפי השעה בפועל (בדקות מחצות) - השכבה תמיד גוברת על הפרשי שעה
-  return rank * 100000 + timeMinutesIsrael(t);
+  return rank * 100000 + minutes;
 }
 function dayKeyOf(date){
   return ['sun','mon','tue','wed','thu','fri','sat'][date.getDay()];
@@ -3116,6 +3123,25 @@ function dashboardRangeStartDate(){
   if (dashboardRange === 'month') return new Date(now.getTime() - 30*24*60*60000);
   return null; // 'all' - כל הזמנים
 }
+// מחשב טבלת "כמה עריכות ביצע כל משתמש" בטווח הנבחר, על פני בתי כנסת/מניינים/שיעורים יחד.
+// משמש גם לכרטיס "משתמשים שערכו" בדשבורד וגם לדירוג המלא - כדי לא לחשב פעמיים.
+function computeEditLeaderboard(){
+  const start = dashboardRangeStartDate();
+  const inRange = ts => { if (!ts) return false; return !start || new Date(ts) >= start; };
+  const counts = {};
+  function tally(arr){
+    arr.forEach(x=>{
+      if (!inRange(x.updatedAt)) return;
+      const key = x.updatedByUid || ('name:' + (x.updatedBy || 'לא ידוע'));
+      if (!counts[key]) counts[key] = { name: x.updatedBy || 'לא ידוע', uid: x.updatedByUid || null, count: 0 };
+      counts[key].count++;
+    });
+  }
+  tally(data.shuls);
+  tally(data.minyanim);
+  tally(data.shiurim);
+  return Object.values(counts).sort((a,b)=>b.count-a.count);
+}
 function renderDashboard(){
   const btnsEl = document.getElementById('dashboardRangeButtons');
   const statsEl = document.getElementById('dashboardStats');
@@ -3132,10 +3158,11 @@ function renderDashboard(){
     const editedCount = arr.filter(x=> inRange(x.updatedAt) && !isNewItem(x)).length;
     return { newCount, editedCount };
   }
-  const shulsStats = itemStats(data.shuls);
   const minyanimStats = itemStats(data.minyanim);
   const shiurimStats = itemStats(data.shiurim);
+  const shulsStats = itemStats(data.shuls);
   const totalEdited = shulsStats.editedCount + minyanimStats.editedCount + shiurimStats.editedCount;
+  const leaderboard = computeEditLeaderboard();
 
   const card = (num, label) => `
     <div class="card" style="flex:1;min-width:120px;text-align:center;padding:14px;margin-bottom:0">
@@ -3146,8 +3173,34 @@ function renderDashboard(){
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       ${card(minyanimStats.newCount, 'מניינים חדשים')}
       ${card(shiurimStats.newCount, 'שיעורים חדשים')}
-      ${card(shulsStats.newCount, 'בתי כנסת חדשים')}
+      ${card(leaderboard.length, 'משתמשים שביצעו עריכות')}
       ${card(totalEdited, 'עריכות לתוכן קיים')}
+    </div>`;
+
+  const leaderboardEl = document.getElementById('dashboardLeaderboard');
+  if (leaderboardEl) renderEditLeaderboard(leaderboardEl, leaderboard);
+}
+// רשימת דירוג משתמשים לפי מספר עריכות בטווח הנבחר, עם אפשרות לשלוח הודעה אישית לשיאן
+function renderEditLeaderboard(el, leaderboard){
+  if (!leaderboard.length){
+    el.innerHTML = '<div class="empty">אין עדיין עריכות בטווח הזמן הזה</div>';
+    return;
+  }
+  const top10 = leaderboard.slice(0, 10);
+  const champion = leaderboard[0];
+  el.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${top10.map((u,i)=>`
+        <div class="row" style="padding:8px 10px;border-radius:8px;${i===0?'background:var(--surface-2)':''}">
+          <span>${i===0?'🏆':(i+1)+'.'} ${escapeHtml(u.name)}</span>
+          <span class="muted">${u.count} עריכות</span>
+        </div>`).join('')}
+    </div>
+    <div style="margin-top:12px">
+      ${champion.uid
+        ? `<button class="btn" onclick="openSendMessageForm('${champion.uid}')">✉️ שליחת הודעה אישית לשיאן העריכות (${escapeHtml(champion.name)})</button>`
+        : `<p class="muted" style="font-size:12.5px">שיאן העריכות בטווח זה ביצע עריכות ללא התחברות, ולכן אי אפשר לשלוח לו הודעה אישית.</p>`
+      }
     </div>`;
 }
 function renderActivityLog(){
@@ -3982,6 +4035,7 @@ function keepPopoverInViewport(pop, rect){
 function openMinyanMenuPopover(e, shulId, minyanId){
   e.stopPropagation();
   closeNavPopover();
+  try{
   const m = data.minyanim.find(x=>x.id===minyanId);
   const shul = data.shuls.find(x=>x.id===shulId);
   if (!m) return;
@@ -4013,6 +4067,10 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   document.body.appendChild(pop);
   keepPopoverInViewport(pop, rect);
   setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
+  }catch(err){
+    alert('שגיאה בפתיחת תפריט המניין: ' + err.message + '\n\nאנא צלמו מסך של ההודעה הזו ושלחו כדי שנוכל לתקן.');
+    console.error('openMinyanMenuPopover error:', err);
+  }
 }
 function openShiurMenuPopover(e, shiurId){
   e.stopPropagation();
