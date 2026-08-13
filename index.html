@@ -3011,6 +3011,7 @@ async function runImport(wb, mode, scopedShulId){
 function attachListeners(){
   db.collection('shuls').onSnapshot(snap=>{
     data.shuls = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    shulsLoaded = true;
     render();
     updateMyShulHeaderBtn();
     if (!urlShulChecked){
@@ -3026,6 +3027,7 @@ function attachListeners(){
     let list = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if (!isSelichotSeasonActive()) list = list.filter(m=>m.tefila !== 'סליחות');
     data.minyanim = list;
+    minyanimLoaded = true;
     render();
   }, e=>console.error(e));
   db.collection('config').doc('tefilaTypes').onSnapshot(doc=>{
@@ -3070,6 +3072,8 @@ function attachListeners(){
 // להוריד את כל השיעורים והרבנים בכל טעינה. האוספים האלה נטענים בפועל רק כשבאמת צריך אותם - ראו כל
 // קריאה ל-ensureShiurimLoaded/ensureRabbanimLoaded באפליקציה (מעבר ללשונית הרלוונטית, פתיחת דף בית
 // כנסת, כניסה לניהול, וכו'). הדגל מונע חיבור כפול של אותה האזנה.
+let shulsLoaded = false;
+let minyanimLoaded = false;
 let shiurimLoaded = false;
 function ensureShiurimLoaded(){
   if (shiurimLoaded) return;
@@ -3762,6 +3766,11 @@ function timeInRange(t, fromStr, toStr){
   return true;
 }
 function renderTefilot(){
+  if (!shulsLoaded || !minyanimLoaded){
+    const el = document.getElementById('tefilotList');
+    if (el) el.innerHTML = '<div class="loading-spinner-wrap"><div class="loading-spinner"></div>טוען זמני תפילות...</div>';
+    return;
+  }
   renderDayLetterBar();
   const dayLabelEl = document.getElementById('todayLabel');
   const specificDateInput = document.getElementById('filterSpecificDate');
