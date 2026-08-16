@@ -112,6 +112,27 @@
   .empty{text-align:center;padding:30px 10px;color:var(--ink-soft)}
   .loading-spinner-wrap{display:flex;flex-direction:column;align-items:center;gap:10px;padding:36px 10px;color:var(--ink-soft);font-size:13px}
   .loading-spinner{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--dusk);border-radius:50%;animation:spin .7s linear infinite}
+  /* בורר תאריך עברי מותאם אישית (במקום/בנוסף לבורר הלועזי הרגיל של הדפדפן) */
+  .cal-overlay{position:fixed;inset:0;background:rgba(34,48,58,.55);z-index:60;display:none;align-items:center;justify-content:center;padding:16px}
+  .cal-overlay.open{display:flex}
+  .cal-box{background:var(--surface);border-radius:var(--radius);width:300px;max-width:100%;box-shadow:0 8px 40px rgba(0,0,0,.35);overflow:hidden}
+  .cal-header{background:var(--dusk);color:var(--dusk-ink);padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
+  .cal-header h3{font-family:'Rubik',sans-serif;font-size:15px;font-weight:700;margin:0}
+  .cal-nav{background:none;border:none;color:var(--dusk-ink);font-size:18px;cursor:pointer;padding:2px 10px;border-radius:6px;line-height:1}
+  .cal-nav:hover{background:rgba(255,255,255,.2)}
+  .cal-selects{display:flex;gap:6px;padding:9px 12px;border-bottom:1px solid var(--border)}
+  .cal-selects select{flex:1;font-family:'Rubik',sans-serif;font-size:13px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)}
+  .cal-grid{padding:8px 10px 10px}
+  .cal-dow{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:4px}
+  .cal-dow span{text-align:center;font-size:10px;font-weight:600;color:var(--ink-soft);padding:3px 0}
+  .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+  .cal-day{text-align:center;padding:6px 2px;font-size:12px;font-family:'Rubik',sans-serif;cursor:pointer;border-radius:6px;border:none;background:none;color:var(--ink);font-weight:500;width:100%}
+  .cal-day:hover{background:var(--surface-2)}
+  .cal-day.today{border:2px solid var(--accent)}
+  .cal-day.selected{background:var(--dusk);color:var(--dusk-ink)}
+  .cal-day.empty{visibility:hidden;pointer-events:none}
+  .cal-footer{padding:9px 12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+  .cal-trigger-btn{width:100%;text-align:right;font-family:'Rubik',sans-serif;font-size:13px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--ink);cursor:pointer}
   @keyframes spin{to{transform:rotate(360deg)}}
   .overlay{position:fixed;inset:0;background:rgba(34,48,58,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
   .overlay.show{display:flex}
@@ -314,10 +335,10 @@
           <option value="fri">שישי</option>
           <option value="sat">שבת</option>
         </select>
-        <input type="date" id="filterSpecificDate" onchange="onSpecificDateChange()" title="או בחרו תאריך מדויק">
+        <button type="button" class="cal-trigger-btn" id="filterSpecificDate_trigger" onclick="openHebrewCal('filterSpecificDate')" title="בחרו תאריך מדויק">📅 בחרו תאריך</button>
+        <input type="hidden" id="filterSpecificDate" onchange="onSpecificDateChange()">
         <button class="btn ghost" id="clearSpecificDateBtn" type="button" onclick="clearSpecificDate()" style="display:none">✕ תאריך מדויק</button>
       </div>
-      <div class="muted" id="filterSpecificDate_he" style="font-size:11.5px;margin:-6px 0 8px"></div>
       <div class="filters">
         <select id="filterTimeMode" onchange="onTimeModeChange()">
           <option value="all">כל השעות</option>
@@ -722,6 +743,27 @@
 </footer>
 
 <div id="printArea" style="display:none"></div>
+<div class="cal-overlay" id="cal-overlay" role="dialog" aria-modal="true" aria-label="בחירת תאריך עברי" onclick="if(event.target===this)closeHebrewCal()">
+  <div class="cal-box">
+    <div class="cal-header">
+      <button type="button" class="cal-nav" onclick="calHebNext()" aria-label="חודש הבא">&#x276E;</button>
+      <h3 id="cal-title"></h3>
+      <button type="button" class="cal-nav" onclick="calHebPrev()" aria-label="חודש קודם">&#x276F;</button>
+    </div>
+    <div class="cal-selects">
+      <select id="cal-msel" onchange="calHebGoM()"></select>
+      <select id="cal-ysel" onchange="calHebGoY()"></select>
+    </div>
+    <div class="cal-grid">
+      <div class="cal-dow"><span>א׳</span><span>ב׳</span><span>ג׳</span><span>ד׳</span><span>ה׳</span><span>ו׳</span><span>ש׳</span></div>
+      <div class="cal-days" id="cal-days"></div>
+    </div>
+    <div class="cal-footer">
+      <button type="button" class="btn" onclick="closeHebrewCal()">ביטול</button>
+      <button type="button" class="btn primary" onclick="confirmHebrewCal()">אישור</button>
+    </div>
+  </div>
+</div>
 <div id="cookieConsentScreen">
   <div class="cookie-modal">
     <h3>הפרטיות שלך חשובה לנו</h3>
@@ -804,32 +846,194 @@ function getHebcalGlobal(){
   if (!_hebcalGlobal) console.warn('ספריית Hebcal לא זוהתה - משתמשים בנוסחת הגיבוי לחישוב זמנים, ובלי זיהוי חגים/ראש חודש.');
   return _hebcalGlobal;
 }
-// ---------- הצגת תאריכים בלוח עברי בכל האתר ----------
-// לא נוגע באחסון בכלל - כל השדות ממשיכים להישמר כתאריך לועזי כרגיל (וכך גם ה-input type="date" הרגיל
-// של הדפדפן, כי דפדפנים לא תומכים בבורר תאריך עברי באופן טבעי). זו רק שכבת תצוגה: מוסיפה את התאריך
-// העברי לצד הלועזי בכל מקום שתאריך מוצג. נופלת בחזרה ללועזי בלבד אם Hebcal לא זמינה.
+// ---------- לוח עברי - חישוב עצמאי, בלי תלות בספריית Hebcal ----------
+// אלגוריתם המרה בין תאריך לועזי לעברי, עצמאי לגמרי (לא תלוי בטעינה מוצלחת של ספרייה חיצונית) -
+// משמש גם להצגת תאריכים עבריים לצד הלועזיים בכל מקום באתר, וגם לבורר התאריך העברי המלא (למטה).
+const HN_ = ['','ניסן','אייר','סיון','תמוז','אב','אלול','תשרי','חשון','כסלו','טבת','שבט','אדר','אדר ב׳'];
+const HD_ = ['','א','ב','ג','ד','ה','ו','ז','ח','ט','י','יא','יב','יג','יד','טו','טז','יז','יח','יט','כ','כא','כב','כג','כד','כה','כו','כז','כח','כט','ל'];
+const HEP_ = -1373427;
+function hLeap_(y){ return ((7*y)+1)%19<7; }
+function hEl_(y){
+  const me=Math.floor((235*y-234)/19), pe=204+793*(me%1080);
+  const he=5+12*me+793*Math.floor(me/1080)+Math.floor(pe/1080);
+  const cj=1+29*me+Math.floor(he/24), cp=1080*(he%24)+(pe%1080);
+  let a;
+  if (cp>=19440||(cj%7===2&&cp>=9924&&!hLeap_(y))||(cj%7===1&&cp>=16789&&hLeap_(y-1))) a=cj+1; else a=cj;
+  return (a%7===0||a%7===3||a%7===5) ? a+1 : a;
+}
+function hYD_(y){ return hEl_(y+1)-hEl_(y); }
+function hMD_(m,y){
+  if (m===1||m===3||m===5||m===7||m===11) return 30;
+  if (m===4||m===6||m===10||m===13) return 29;
+  if (m===8) return hYD_(y)%10===5 ? 30 : 29;
+  if (m===9) return hYD_(y)%10===3 ? 29 : 30;
+  if (m===2) return 29;
+  if (m===12) return hLeap_(y) ? 30 : 29;
+  return 29;
+}
+function hEF_(y){ return HEP_-1+hEl_(y); }
+function gLeap_(y){ return y%4===0 && !(y%100===0 && y%400!==0); }
+function fG_(y,m,d){
+  return 365*(y-1)+Math.floor((y-1)/4)-Math.floor((y-1)/100)+Math.floor((y-1)/400)+
+    Math.floor((367*m-362)/12)+(m<=2?0:(gLeap_(y)?-1:-2))+d;
+}
+function fH_(y,m,d){
+  const ml=hLeap_(y)?13:12; let el=hEF_(y)+d-1;
+  if (m<7){ for(let i=7;i<=ml;i++) el+=hMD_(i,y); for(let i=1;i<m;i++) el+=hMD_(i,y); }
+  else { for(let i=7;i<m;i++) el+=hMD_(i,y); }
+  return el;
+}
+function h2g_(f){
+  const d0=f-1, n4=Math.floor(d0/146097), r1=d0%146097, n1=Math.floor(r1/36524), r2=r1%36524, n01=Math.floor(r2/1461), r3=r2%1461, n001=Math.floor(r3/365);
+  let y=400*n4+100*n1+4*n01+n001+1;
+  if (n1===4||n001===4) return {y:y-1,m:12,d:31};
+  const mc=[0,31,gLeap_(y)?29:28,31,30,31,30,31,31,30,31,30,31];
+  let yd=f-fG_(y,1,1)+1, mo=1;
+  while (yd>mc[mo]){ yd-=mc[mo]; mo++; }
+  return {y:y,m:mo,d:yd};
+}
+function g2h_(f){
+  let y=Math.round((f-HEP_)/365.25);
+  while (hEF_(y)>f) y--; while (hEF_(y+1)<=f) y++;
+  const sm=f>=fH_(y,1,1) ? 1 : 7; let m=sm;
+  while (f>fH_(y,m,hMD_(m,y))) m = m===13 ? 1 : m+1;
+  return {year:y, month:m, day:f-fH_(y,m,1)+1};
+}
+function hYS_(n){
+  const r=n%1000, H=['','ק','ר','ש','ת'], T=['','י','כ','ל','מ','נ','ס','ע','פ','צ'], O=['','א','ב','ג','ד','ה','ו','ז','ח','ט'];
+  let s='', rem=Math.floor(r/100); while (rem>=4){ s+='ת'; rem-=4; } if (rem>0) s+=H[rem];
+  const t=Math.floor((r%100)/10), o=r%10;
+  if (t===1&&o===5) s+='טו'; else if (t===1&&o===6) s+='טז'; else { if(t) s+=T[t]; if(o) s+=O[o]; }
+  return s.length===1 ? 'ה'+s+'׳' : 'ה'+s.slice(0,-1)+'"'+s.slice(-1);
+}
+function hMonths_(y){
+  const b=[7,8,9,10,11,12,1,2,3,4,5,6];
+  return hLeap_(y) ? [7,8,9,10,11,12,13,1,2,3,4,5,6] : b;
+}
+function todayF_(){ const n=new Date(); return fG_(n.getFullYear(), n.getMonth()+1, n.getDate()); }
+// ISO string ("YYYY-MM-DD") -> תאריך עברי מלא, לתצוגה
+function isoToHebrewStr(iso){
+  if (!iso) return '';
+  const p = iso.split('-');
+  const h = g2h_(fG_(+p[0], +p[1], +p[2]));
+  return HD_[h.day] + ' ' + HN_[h.month] + ' ' + hYS_(h.year);
+}
 function formatHebrewDate(date){
   const gregorian = date.toLocaleDateString('he-IL');
-  const hebcal = getHebcalGlobal();
-  if (!hebcal) return gregorian;
   try{
-    const hd = new hebcal.HDate(date);
-    const heStr = typeof hd.render === 'function' ? hd.render('he') : '';
-    return heStr ? `${heStr} (${gregorian})` : gregorian;
+    const h = g2h_(fG_(date.getFullYear(), date.getMonth()+1, date.getDate()));
+    return `${HD_[h.day]} ${HN_[h.month]} ${hYS_(h.year)} (${gregorian})`;
   }catch(e){
     return gregorian;
   }
 }
-// דפדפנים לא תומכים בבורר תאריך עברי טבעי (ה-input type="date" תמיד לועזי) - אז משאירים את הבורר
-// הרגיל, ומוסיפים לידו תווית קטנה שמראה את התאריך העברי המקביל, ומתעדכנת בזמן אמת עם כל בחירה.
+
+// ---------- בורר תאריך עברי מלא (לוח חודשי אינטראקטיבי, במקום בורר הלועזי הרגיל) ----------
+let CAL_Y_ = 5786, CAL_M_ = 7, CAL_SF_ = null, CAL_TF_ = null, CAL_TARGET_ = null;
+function openHebrewCal(inputId){
+  CAL_TARGET_ = inputId;
+  CAL_TF_ = todayF_();
+  const th = g2h_(CAL_TF_);
+  CAL_Y_ = th.year; CAL_M_ = th.month;
+  const input = document.getElementById(inputId);
+  const existing = input ? input.value : '';
+  if (existing){
+    const p = existing.split('-');
+    const f = fG_(+p[0], +p[1], +p[2]);
+    const h = g2h_(f);
+    CAL_Y_ = h.year; CAL_M_ = h.month; CAL_SF_ = f;
+  } else {
+    CAL_SF_ = null;
+  }
+  renderHebrewCal();
+  document.getElementById('cal-overlay').classList.add('open');
+}
+function closeHebrewCal(){
+  document.getElementById('cal-overlay').classList.remove('open');
+}
+function confirmHebrewCal(){
+  if (CAL_SF_ === null || !CAL_TARGET_){ closeHebrewCal(); return; }
+  const g = h2g_(CAL_SF_);
+  const iso = g.y + '-' + String(g.m).padStart(2,'0') + '-' + String(g.d).padStart(2,'0');
+  const input = document.getElementById(CAL_TARGET_);
+  if (input){
+    input.value = iso;
+    input.dispatchEvent(new Event('change'));
+  }
+  const trigger = document.getElementById(CAL_TARGET_ + '_trigger');
+  if (trigger) trigger.textContent = '📅 ' + isoToHebrewStr(iso) + ' (' + new Date(iso+'T00:00:00').toLocaleDateString('he-IL') + ')';
+  closeHebrewCal();
+}
+function renderHebrewCal(){
+  const ms = hMonths_(CAL_Y_);
+  document.getElementById('cal-title').textContent = HN_[CAL_M_] + ' ' + hYS_(CAL_Y_);
+  const msel = document.getElementById('cal-msel');
+  msel.innerHTML = '';
+  ms.forEach(m=>{
+    const o = document.createElement('option');
+    o.value = m; o.textContent = HN_[m]; if (m===CAL_M_) o.selected = true;
+    msel.appendChild(o);
+  });
+  const ysel = document.getElementById('cal-ysel');
+  ysel.innerHTML = '';
+  for (let y=5780; y<=5800; y++){
+    const o = document.createElement('option');
+    o.value = y; o.textContent = hYS_(y); if (y===CAL_Y_) o.selected = true;
+    ysel.appendChild(o);
+  }
+  const firstF = fH_(CAL_Y_, CAL_M_, 1);
+  const dow = firstF % 7;
+  const total = hMD_(CAL_M_, CAL_Y_);
+  const grid = document.getElementById('cal-days');
+  grid.innerHTML = '';
+  for (let i=0; i<dow; i++){
+    const e = document.createElement('button');
+    e.type = 'button'; e.className = 'cal-day empty';
+    grid.appendChild(e);
+  }
+  for (let d=1; d<=total; d++){
+    const f = firstF + d - 1;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'cal-day';
+    btn.textContent = HD_[d];
+    if (f === CAL_TF_) btn.classList.add('today');
+    if (CAL_SF_ !== null && f === CAL_SF_) btn.classList.add('selected');
+    btn.onclick = ()=>{ CAL_SF_ = f; renderHebrewCal(); };
+    grid.appendChild(btn);
+  }
+}
+function calHebPrev(){
+  const ms = hMonths_(CAL_Y_), i = ms.indexOf(CAL_M_);
+  if (i>0) CAL_M_ = ms[i-1]; else { CAL_Y_--; CAL_M_ = hMonths_(CAL_Y_).slice(-1)[0]; }
+  renderHebrewCal();
+}
+function calHebNext(){
+  const ms = hMonths_(CAL_Y_), i = ms.indexOf(CAL_M_);
+  if (i<ms.length-1) CAL_M_ = ms[i+1]; else { CAL_Y_++; CAL_M_ = hMonths_(CAL_Y_)[0]; }
+  renderHebrewCal();
+}
+function calHebGoM(){
+  CAL_M_ = parseInt(document.getElementById('cal-msel').value);
+  renderHebrewCal();
+}
+function calHebGoY(){
+  CAL_Y_ = parseInt(document.getElementById('cal-ysel').value);
+  const ms = hMonths_(CAL_Y_);
+  if (ms.indexOf(CAL_M_)===-1) CAL_M_ = ms[0];
+  renderHebrewCal();
+}
+// מפעיל כפתור-בורר על שדה תאריך קיים (input type="date" מוסתר, שממשיך לשמור ISO רגיל לצורך שמירה/השוואות)
 function attachHebrewDateLabel(inputId, labelId){
   const input = document.getElementById(inputId);
-  const label = document.getElementById(labelId);
-  if (!input || !label) return;
+  const trigger = document.getElementById(inputId + '_trigger');
+  if (!input || !trigger) return;
   const update = () => {
-    label.textContent = input.value ? 'בעברית: ' + formatHebrewDate(new Date(input.value+'T00:00:00')) : '';
+    trigger.textContent = input.value
+      ? '📅 ' + isoToHebrewStr(input.value) + ' (' + new Date(input.value+'T00:00:00').toLocaleDateString('he-IL') + ')'
+      : '📅 בחרו תאריך';
   };
-  input.addEventListener('input', update);
+  input.addEventListener('change', update);
   update();
 }
 function getZmanim(date){
@@ -5555,8 +5759,8 @@ function openMinyanForm(shulId, minyanId){
     </div>
     <div class="field" id="specialDateField" style="display:${m&&m.specialDate?'':'none'}">
       <label for="f_specialDate">תאריך</label>
-      <input id="f_specialDate" type="date" value="${m&&m.specialDate?m.specialDate:''}">
-      <div class="muted" id="f_specialDate_he" style="font-size:11.5px;margin-top:4px"></div>
+      <button type="button" class="cal-trigger-btn" id="f_specialDate_trigger" onclick="openHebrewCal('f_specialDate')">📅 בחרו תאריך</button>
+      <input type="hidden" id="f_specialDate" value="${m&&m.specialDate?m.specialDate:''}">
     </div>
     <div class="field"><label for="f_timeType">סוג זמן</label>
       <select id="f_timeType" onchange="toggleTimeFields()">
@@ -5590,8 +5794,8 @@ function openMinyanForm(shulId, minyanId){
       <input id="f_tempNote" value="${m?escapeHtml(m.tempNote||''):''}" placeholder="תוצג בבליטות עד התאריך שתקבעו">
       <div id="f_tempNoteUntilField" style="margin-top:6px;${m&&m.tempNote?'':'display:none'}">
         <label for="f_tempNoteUntil" style="font-weight:400;font-size:12.5px">בתוקף עד (כולל)</label>
-        <input id="f_tempNoteUntil" type="date" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
-        <div class="muted" id="f_tempNoteUntil_he" style="font-size:11.5px;margin-top:4px"></div>
+        <button type="button" class="cal-trigger-btn" id="f_tempNoteUntil_trigger" onclick="openHebrewCal('f_tempNoteUntil')">📅 בחרו תאריך</button>
+        <input type="hidden" id="f_tempNoteUntil" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
       </div>
     </div>
     <div class="modal-actions">
@@ -5764,7 +5968,7 @@ function openShiurForm(shiurId){
     <div class="field" id="recurringDaysField"><label id="f_shiurDays_label">ימי השיעור</label>
       <div class="days" id="f_shiurDays" role="group" aria-labelledby="f_shiurDays_label">${DAY_KEYS.map((k,i)=>`<span class="daychip ${s&&s.days&&s.days.includes(k)?'active':''}" data-day="${k}" tabindex="0" role="button" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
     </div>
-    <div class="field" id="oneTimeDateField" style="display:none"><label for="f_oneTimeDate">תאריך השיעור</label><input type="date" id="f_oneTimeDate" value="${s&&s.oneTimeDate?s.oneTimeDate:''}"><div class="muted" id="f_oneTimeDate_he" style="font-size:11.5px;margin-top:4px"></div></div>
+    <div class="field" id="oneTimeDateField" style="display:none"><label for="f_oneTimeDate">תאריך השיעור</label><button type="button" class="cal-trigger-btn" id="f_oneTimeDate_trigger" onclick="openHebrewCal('f_oneTimeDate')">📅 בחרו תאריך</button><input type="hidden" id="f_oneTimeDate" value="${s&&s.oneTimeDate?s.oneTimeDate:''}"></div>
     <div class="inline2">
       <div class="field"><label for="f_time">שעה</label><input id="f_time" type="time" value="${s?s.time:'20:30'}"></div>
       <div class="field"><label for="f_locationSelect">מיקום השיעור</label>
@@ -5817,8 +6021,8 @@ function openShiurForm(shiurId){
       <input id="f_shiurTempNote" value="${s?escapeHtml(s.tempNote||''):''}" placeholder="תוצג בבליטות עד התאריך שתקבעו">
       <div id="f_shiurTempNoteUntilField" style="margin-top:6px;${s&&s.tempNote?'':'display:none'}">
         <label for="f_shiurTempNoteUntil" style="font-weight:400;font-size:12.5px">בתוקף עד (כולל)</label>
-        <input id="f_shiurTempNoteUntil" type="date" value="${s&&s.tempNoteUntil?s.tempNoteUntil:''}">
-        <div class="muted" id="f_shiurTempNoteUntil_he" style="font-size:11.5px;margin-top:4px"></div>
+        <button type="button" class="cal-trigger-btn" id="f_shiurTempNoteUntil_trigger" onclick="openHebrewCal('f_shiurTempNoteUntil')">📅 בחרו תאריך</button>
+        <input type="hidden" id="f_shiurTempNoteUntil" value="${s&&s.tempNoteUntil?s.tempNoteUntil:''}">
       </div>
     </div>
     <div class="modal-actions">
@@ -6218,7 +6422,8 @@ const WHATS_NEW = [
     version: '2.5',
     date: '16.8.2026',
     items: [
-      '📅 תאריכים עבריים - בכל מקום שמוצג תאריך (עדכון אחרון, אימות מניין, הודעות, הדפסה ועוד) מוצג עכשיו גם התאריך העברי המקביל. בבוררי תאריך (כמו תאריך מדויק בסינון, או תאריך לשיעור חד-פעמי) מוצג התאריך העברי המקביל לצד הבורר, ומתעדכן בזמן אמת.'
+      '📅 תאריכים עבריים - בכל מקום שמוצג תאריך (עדכון אחרון, אימות מניין, הודעות, הדפסה ועוד) מוצג עכשיו גם התאריך העברי המקביל.',
+      '📅 בוררי תאריך (תאריך מדויק בסינון, תאריך למניין/שיעור מיוחד, הערה זמנית) הפכו ללוח שנה עברי מלא ואינטראקטיבי - בחירה ישירה בתאריך עברי, במקום בורר לועזי בלבד.'
     ]
   },
   {
