@@ -46,9 +46,7 @@
   .row-icon-btn{background:transparent;border:none;cursor:pointer;font-size:14px;padding:12px;margin:-10px -8px;opacity:.7;line-height:1;position:relative}
   .notif-badge{position:absolute;top:-4px;left:-4px;background:var(--danger);color:#fff;font-size:10px;font-weight:700;min-width:16px;height:16px;border-radius:8px;display:flex;align-items:center;justify-content:center;padding:0 4px;line-height:1;box-shadow:0 0 0 2px var(--surface);pointer-events:none}
   .shiur-recording-btn{width:64px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-decoration:none;border-right:1px solid var(--border);border-top-left-radius:9px;border-bottom-left-radius:9px;transition:filter .15s;padding:6px 4px;text-align:center}
-  .shiur-recording-btn:hover{filter:brightness(.95)}
   .shiur-recording-btn .rec-caption{font-size:9px;line-height:1.25;color:var(--ink-soft);font-weight:500}
-  .row-icon-btn:hover{opacity:1}
   .google-icon-svg{width:20px;height:20px}
   .info-popover{display:none;position:absolute;top:calc(100% + 8px);right:0;width:230px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6;z-index:30}
   .info-popover.show{display:block}
@@ -119,7 +117,6 @@
   .cal-header{background:var(--dusk);color:var(--dusk-ink);padding:12px 14px;display:flex;align-items:center;justify-content:space-between}
   .cal-header h3{font-family:'Rubik',sans-serif;font-size:15px;font-weight:700;margin:0}
   .cal-nav{background:none;border:none;color:var(--dusk-ink);font-size:18px;cursor:pointer;padding:2px 10px;border-radius:6px;line-height:1}
-  .cal-nav:hover{background:rgba(255,255,255,.2)}
   .cal-selects{display:flex;gap:6px;padding:9px 12px;border-bottom:1px solid var(--border)}
   .cal-selects select{flex:1;font-family:'Rubik',sans-serif;font-size:13px;padding:5px 6px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2)}
   .cal-grid{padding:8px 10px 10px}
@@ -127,12 +124,11 @@
   .cal-dow span{text-align:center;font-size:10px;font-weight:600;color:var(--ink-soft);padding:3px 0}
   .cal-days{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
   .cal-day{text-align:center;padding:6px 2px;font-size:12px;font-family:'Rubik',sans-serif;cursor:pointer;border-radius:6px;border:none;background:none;color:var(--ink);font-weight:500;width:100%}
-  .cal-day:hover{background:var(--surface-2)}
   .cal-day.today{border:2px solid var(--accent)}
   .cal-day.selected{background:var(--dusk);color:var(--dusk-ink)}
   .cal-day.empty{visibility:hidden;pointer-events:none}
   .cal-footer{padding:9px 12px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
-  .cal-trigger-btn{width:100%;text-align:right;font-family:'Rubik',sans-serif;font-size:13px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--ink);cursor:pointer}
+  .cal-trigger-btn{text-align:right;font-family:'Rubik',sans-serif;font-size:13px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2);color:var(--ink);cursor:pointer;white-space:nowrap}
   @keyframes spin{to{transform:rotate(360deg)}}
   .overlay{position:fixed;inset:0;background:rgba(34,48,58,.5);display:none;align-items:center;justify-content:center;padding:16px;z-index:20}
   .overlay.show{display:flex}
@@ -152,7 +148,7 @@
   .day-letter-btn{width:26px;height:26px;min-width:26px;border-radius:50%;border:1px solid var(--border);background:var(--surface);font-size:12px;font-weight:700;color:var(--ink-soft);cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;font-family:'Rubik'}
   .day-letter-btn.active{background:var(--dusk);color:var(--dusk-ink);border-color:var(--dusk)}
   .expand-toggle-btn{width:32px;height:32px;min-width:32px;border-radius:50%;border:1.5px solid var(--dusk);background:var(--surface-2);color:var(--dusk);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;padding:0}
-  .expand-toggle-btn:hover, .expand-toggle-btn:focus-visible{background:var(--dusk);color:var(--dusk-ink)}
+  .expand-toggle-btn:focus-visible{background:var(--dusk);color:var(--dusk-ink)}
   .admin-section-header{display:flex;align-items:center;justify-content:space-between;width:100%;background:none;border:none;padding:0;margin:0;cursor:pointer;font-family:'Rubik'}
   .admin-section-header h3{margin:0}
   .admin-section-header .chevron{transition:transform .15s;flex-shrink:0;color:var(--ink-soft)}
@@ -239,6 +235,18 @@
   #appLockScreen .icon{font-size:44px;margin-bottom:14px}
   #appLockScreen h2{margin:0 0 10px;font-size:22px}
   #appLockScreen p{color:var(--ink-soft);line-height:1.7;margin:0 0 22px}
+  /* אפקטי hover רק במכשירים שבאמת תומכים בהם (עכבר) - במגע (טלפון/טאבלט), CSS :hover גורם לעיתים
+     לדפדפן "לפרש" את הנגיעה הראשונה כסימולציית hover בלבד, ורק נגיעה שנייה מפעילה בפועל את הלחיצה -
+     בדיוק כמו הבאג שדווח: לחיצה ראשונה על אייקון המידע (ⓘ) לא מגיבה, שנייה כן. הגבלת ה-hover-ים האלה
+     ל-hover:hover מונעת את זה לגמרי במכשירי מגע.
+  */
+  @media (hover: hover) and (pointer: fine){
+    .shiur-recording-btn:hover{filter:brightness(.95)}
+    .row-icon-btn:hover{opacity:1}
+    .cal-nav:hover{background:rgba(255,255,255,.2)}
+    .cal-day:hover{background:var(--surface-2)}
+    .expand-toggle-btn:hover{background:var(--dusk);color:var(--dusk-ink)}
+  }
 </style>
 </head>
 <body>
@@ -335,7 +343,7 @@
           <option value="fri">שישי</option>
           <option value="sat">שבת</option>
         </select>
-        <button type="button" class="cal-trigger-btn" id="filterSpecificDate_trigger" onclick="openHebrewCal('filterSpecificDate')" title="בחרו תאריך מדויק">📅 בחרו תאריך</button>
+        <button type="button" class="cal-trigger-btn" id="filterSpecificDate_trigger" onclick="openHebrewCal('filterSpecificDate')" title="בחרו תאריך מדויק" style="flex:1">📅 בחרו תאריך</button>
         <input type="hidden" id="filterSpecificDate" onchange="onSpecificDateChange()">
         <button class="btn ghost" id="clearSpecificDateBtn" type="button" onclick="clearSpecificDate()" style="display:none">✕ תאריך מדויק</button>
       </div>
@@ -3906,7 +3914,21 @@ function toggleTopicChipsExpand(){
 const TEFILA_DEFAULT_TIME = {'שחרית':'07:00', 'מנחה':'19:00', 'ערבית':'21:00'};
 let TEFILA_ORDER = [...TEFILA_BASE];
 if (isSelichotSeasonActive()) TEFILA_ORDER.push('סליחות');
+// יש 17 מאזיני Firestore נפרדים, וכל אחד קורא ל-render() בעצמו - כשכמה מהם "יורים" קרוב אחד לשני
+// (נפוץ מאוד עם סנכרון חי), זה יוצר כמה בנייה-מחדש רצופות של ה-DOM. אם בנייה-מחדש כזו קורית בדיוק
+// באמצע לחיצה (למשל על אייקון ⓘ), הדפדפן "מאבד" את הלחיצה כי האלמנט שהאצבע נגעה בו כבר לא קיים -
+// בדיוק התופעה של "לחיצה ראשונה לא מגיבה, שנייה כן". render() עכשיו "ממתין" רגע קצר ומאחד כמה
+// קריאות שמגיעות צמודות זו לזו לבנייה-מחדש אחת בלבד, כדי לצמצם את החלון הבעייתי הזה.
+let _renderPending = false;
 function render(){
+  if (_renderPending) return;
+  _renderPending = true;
+  setTimeout(()=>{
+    _renderPending = false;
+    renderImmediate();
+  }, 60);
+}
+function renderImmediate(){
   updateFooterVisibility();
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot'){ renderSpecialDayBanner(); renderTefilot(); }
@@ -5759,7 +5781,7 @@ function openMinyanForm(shulId, minyanId){
     </div>
     <div class="field" id="specialDateField" style="display:${m&&m.specialDate?'':'none'}">
       <label for="f_specialDate">תאריך</label>
-      <button type="button" class="cal-trigger-btn" id="f_specialDate_trigger" onclick="openHebrewCal('f_specialDate')">📅 בחרו תאריך</button>
+      <button type="button" class="cal-trigger-btn" id="f_specialDate_trigger" onclick="openHebrewCal('f_specialDate')" style="width:100%">📅 בחרו תאריך</button>
       <input type="hidden" id="f_specialDate" value="${m&&m.specialDate?m.specialDate:''}">
     </div>
     <div class="field"><label for="f_timeType">סוג זמן</label>
@@ -5794,7 +5816,7 @@ function openMinyanForm(shulId, minyanId){
       <input id="f_tempNote" value="${m?escapeHtml(m.tempNote||''):''}" placeholder="תוצג בבליטות עד התאריך שתקבעו">
       <div id="f_tempNoteUntilField" style="margin-top:6px;${m&&m.tempNote?'':'display:none'}">
         <label for="f_tempNoteUntil" style="font-weight:400;font-size:12.5px">בתוקף עד (כולל)</label>
-        <button type="button" class="cal-trigger-btn" id="f_tempNoteUntil_trigger" onclick="openHebrewCal('f_tempNoteUntil')">📅 בחרו תאריך</button>
+        <button type="button" class="cal-trigger-btn" id="f_tempNoteUntil_trigger" onclick="openHebrewCal('f_tempNoteUntil')" style="width:100%">📅 בחרו תאריך</button>
         <input type="hidden" id="f_tempNoteUntil" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
       </div>
     </div>
@@ -5968,7 +5990,7 @@ function openShiurForm(shiurId){
     <div class="field" id="recurringDaysField"><label id="f_shiurDays_label">ימי השיעור</label>
       <div class="days" id="f_shiurDays" role="group" aria-labelledby="f_shiurDays_label">${DAY_KEYS.map((k,i)=>`<span class="daychip ${s&&s.days&&s.days.includes(k)?'active':''}" data-day="${k}" tabindex="0" role="button" onclick="this.classList.toggle('active')">${DAY_LABELS[i]}</span>`).join('')}</div>
     </div>
-    <div class="field" id="oneTimeDateField" style="display:none"><label for="f_oneTimeDate">תאריך השיעור</label><button type="button" class="cal-trigger-btn" id="f_oneTimeDate_trigger" onclick="openHebrewCal('f_oneTimeDate')">📅 בחרו תאריך</button><input type="hidden" id="f_oneTimeDate" value="${s&&s.oneTimeDate?s.oneTimeDate:''}"></div>
+    <div class="field" id="oneTimeDateField" style="display:none"><label for="f_oneTimeDate">תאריך השיעור</label><button type="button" class="cal-trigger-btn" id="f_oneTimeDate_trigger" onclick="openHebrewCal('f_oneTimeDate')" style="width:100%">📅 בחרו תאריך</button><input type="hidden" id="f_oneTimeDate" value="${s&&s.oneTimeDate?s.oneTimeDate:''}"></div>
     <div class="inline2">
       <div class="field"><label for="f_time">שעה</label><input id="f_time" type="time" value="${s?s.time:'20:30'}"></div>
       <div class="field"><label for="f_locationSelect">מיקום השיעור</label>
@@ -6021,7 +6043,7 @@ function openShiurForm(shiurId){
       <input id="f_shiurTempNote" value="${s?escapeHtml(s.tempNote||''):''}" placeholder="תוצג בבליטות עד התאריך שתקבעו">
       <div id="f_shiurTempNoteUntilField" style="margin-top:6px;${s&&s.tempNote?'':'display:none'}">
         <label for="f_shiurTempNoteUntil" style="font-weight:400;font-size:12.5px">בתוקף עד (כולל)</label>
-        <button type="button" class="cal-trigger-btn" id="f_shiurTempNoteUntil_trigger" onclick="openHebrewCal('f_shiurTempNoteUntil')">📅 בחרו תאריך</button>
+        <button type="button" class="cal-trigger-btn" id="f_shiurTempNoteUntil_trigger" onclick="openHebrewCal('f_shiurTempNoteUntil')" style="width:100%">📅 בחרו תאריך</button>
         <input type="hidden" id="f_shiurTempNoteUntil" value="${s&&s.tempNoteUntil?s.tempNoteUntil:''}">
       </div>
     </div>
@@ -6416,37 +6438,21 @@ function halachicGuidesListHtml(){
     ${sorted.map(g=>`<li><a href="${escapeHtml(g.link)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">${escapeHtml(g.title)}</a></li>`).join('')}
   </ul>`;
 }
-// רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן)
+// רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן).
+// כלל חשוב: כמה שינויים שנעשים באותו יום מתווספים כ"items" נוספים לאותה גרסה (לא כל שינוי מקבל
+// מספר גרסה משלו) - מספר גרסה חדש נפתח רק ביום עבודה חדש.
 const WHATS_NEW = [
-  {
-    version: '2.5',
-    date: '16.8.2026',
-    items: [
-      '📅 תאריכים עבריים - בכל מקום שמוצג תאריך (עדכון אחרון, אימות מניין, הודעות, הדפסה ועוד) מוצג עכשיו גם התאריך העברי המקביל.',
-      '📅 בוררי תאריך (תאריך מדויק בסינון, תאריך למניין/שיעור מיוחד, הערה זמנית) הפכו ללוח שנה עברי מלא ואינטראקטיבי - בחירה ישירה בתאריך עברי, במקום בורר לועזי בלבד.'
-    ]
-  },
-  {
-    version: '2.4',
-    date: '16.8.2026',
-    items: [
-      '📜 כפתור "דבר תורה" חדש בראש העמוד - מציג דבר תורה קצר, עם אפשרות לעבור לדבר תורה נוסף. הסדר מתחלף בכל כניסה, בלי לחזור על אותו אחד עד שעוברים על כל הרשימה.'
-    ]
-  },
-  {
-    version: '2.3',
-    date: '16.8.2026',
-    items: [
-      '🧭 "עוזר אישי באיתור שיעור" חדש בלשונית שיעורי תורה - כמה שאלות קצרות (קהל יעד, נושא, שיעור בודד או מסגרת קבועה, תדירות, וקרבה לתפילה) ומקבלים המלצה על השיעורים המתאימים ביותר. אם אין התאמה מדויקת, מוצגים השיעורים הקרובים ביותר.'
-    ]
-  },
   {
     version: '2.2',
     date: '16.8.2026',
     items: [
       '✅ נוסף כפתור "אמת פרטי מניין" בתפריט המידע (ⓘ) - מיועד למי שבדק ורוצה לאשר שהזמנים עדיין נכונים, בלי לבצע עריכה בפועל. מוצג לצד תאריך העדכון האחרון.',
       '🧭 כפתורי "פתח בוייז" ו"פתח ב-Google Maps" בתפריט המניין אוחדו לכפתור אחד "ניווט למניין" - לחיצה עליו נותנת לבחור בין השניים.',
-      '📋 סדר האפשרויות בתפריט המניין סודר מחדש: עריכה, אמת פרטי מניין, ניווט, ואז דיווח למנהל.'
+      '📋 סדר האפשרויות בתפריט המניין סודר מחדש: עריכה, אמת פרטי מניין, ניווט, ואז דיווח למנהל.',
+      '🧭 "עוזר אישי באיתור שיעור" חדש בלשונית שיעורי תורה - כמה שאלות קצרות (קהל יעד, נושא, שיעור בודד או מסגרת קבועה, תדירות, וקרבה לתפילה) ומקבלים המלצה על השיעורים המתאימים ביותר. אם אין התאמה מדויקת, מוצגים השיעורים הקרובים ביותר.',
+      '📜 כפתור "דבר תורה" חדש בראש העמוד - מציג דבר תורה קצר, עם אפשרות לעבור לדבר תורה נוסף. הסדר מתחלף בכל כניסה, בלי לחזור על אותו אחד עד שעוברים על כל הרשימה.',
+      '📅 תאריכים עבריים - בכל מקום שמוצג תאריך (עדכון אחרון, אימות מניין, הודעות, הדפסה ועוד) מוצג עכשיו גם התאריך העברי המקביל.',
+      '📅 בוררי תאריך (תאריך מדויק בסינון, תאריך למניין/שיעור מיוחד, הערה זמנית) הפכו ללוח שנה עברי מלא ואינטראקטיבי - בחירה ישירה בתאריך עברי, במקום בורר לועזי בלבד.'
     ]
   },
   {
