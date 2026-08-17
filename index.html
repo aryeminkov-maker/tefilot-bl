@@ -595,6 +595,7 @@
             📤 ייבוא מאקסל
             <input type="file" id="divreiTorahImportFileInput" accept=".xlsx,.xls" style="display:none" onchange="handleDivreiTorahImportFile(this)">
           </label>
+          <button class="btn danger" onclick="deleteAllDvreiTorah()">🗑️ מחיקת כל דברי התורה</button>
         </div>
         <div id="divreiTorahAdminList"></div>
       </div>
@@ -4822,6 +4823,28 @@ function handleDivreiTorahImportFile(input){
     input.value = '';
   };
   reader.readAsArrayBuffer(file);
+}
+// מחיקה מרוכזת של כל דברי התורה - לצורך ניקוי לפני ייבוא מחדש, למשל אחרי תיקון כפילויות בקובץ המקור.
+// כפולת אישור בכוונה (זו פעולה הרסנית שלא ניתנת לביטול) - קודם מספר הפריטים בפועל, ואז אישור נוסף מפורש.
+function deleteAllDvreiTorah(){
+  if (!isManager()) return;
+  const count = data.divreiTorah.length;
+  if (!count){ alert('אין דברי תורה למחיקה'); return; }
+  if (!confirm(`בטוחים? פעולה זו תמחק את כל ${count} דברי התורה במערכת, לצמיתות.`)) return;
+  if (!confirm('אישור אחרון: המחיקה אינה ניתנת לביטול. להמשיך?')) return;
+  (async ()=>{
+    try{
+      const ids = data.divreiTorah.map(d=>d.id);
+      for (let i=0; i<ids.length; i+=450){
+        const batch = db.batch();
+        ids.slice(i, i+450).forEach(id=>batch.delete(db.collection('divreiTorah').doc(id)));
+        await batch.commit();
+      }
+      alert(`נמחקו ${ids.length} דברי תורה.`);
+    }catch(e){
+      alert('שגיאה במחיקה: ' + e.message);
+    }
+  })();
 }
 
 function haversineKm(lat1, lng1, lat2, lng2){
