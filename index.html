@@ -5299,7 +5299,7 @@ function openNavPopover(e){
   `;
   document.body.appendChild(pop);
   keepPopoverInViewport(pop, rect);
-  setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
+  setTimeout(()=>document.addEventListener('click', closeNavPopover), 80);
 }
 function closeNavPopover(){
   const el = document.getElementById('navPopoverDynamic');
@@ -5370,7 +5370,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   pop.innerHTML = html;
   document.body.appendChild(pop);
   keepPopoverInViewport(pop, rect);
-  setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
+  setTimeout(()=>document.addEventListener('click', closeNavPopover), 80);
   }catch(err){
     alert('שגיאה בפתיחת תפריט המניין: ' + err.message + '\n\nאנא צלמו מסך של ההודעה הזו ושלחו כדי שנוכל לתקן.');
     console.error('openMinyanMenuPopover error:', err);
@@ -5438,7 +5438,7 @@ function openShiurMenuPopover(e, shiurId){
   pop.innerHTML = html;
   document.body.appendChild(pop);
   keepPopoverInViewport(pop, rect);
-  setTimeout(()=>document.addEventListener('click', closeNavPopover), 0);
+  setTimeout(()=>document.addEventListener('click', closeNavPopover), 80);
   }catch(err){
     alert('שגיאה בפתיחת תפריט השיעור: ' + err.message + '\n\nאנא צלמו מסך של ההודעה הזו ושלחו כדי שנוכל לתקן.');
     console.error('openShiurMenuPopover error:', err);
