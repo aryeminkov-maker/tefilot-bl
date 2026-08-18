@@ -290,8 +290,10 @@
     </div>
     <div class="idbar">
       <span id="userInfo" style="display:none;align-items:center;gap:8px">
-        <img id="userPhoto" alt="תמונת הפרופיל שלך" style="width:26px;height:26px;border-radius:50%">
-        <span id="userNameLabel"></span>
+        <span tabindex="0" role="button" onclick="openMyProfile()" aria-label="האזור האישי שלי" title="האזור האישי שלי" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer">
+          <img id="userPhoto" alt="תמונת הפרופיל שלך" style="width:26px;height:26px;border-radius:50%">
+          <span id="userNameLabel"></span>
+        </span>
         <span style="position:relative;display:inline-flex">
           <button type="button" class="row-icon-btn" id="myMessagesBtn" style="display:none;font-size:16px" onclick="onMessagesBtnClick()" aria-label="הודעות" title="הודעות">✉️</button>
           <span id="myMessagesBadge" class="notif-badge" style="display:none"></span>
@@ -516,6 +518,23 @@
           <input id="appLockReason" placeholder="לדוגמה: האפליקציה בתחזוקה זמנית ותחזור בקרוב">
         </div>
         <button class="btn primary" onclick="saveAppLockConfig()">שמירה</button>
+      </div>
+    </div>
+    <div class="card admin-section" style="margin-top:14px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_notifications" aria-expanded="false" onclick="toggleAdminSection('notifications')">
+        <h3>🔔 מערך התראות Push <span class="badge" id="notificationsDisabledBadge" style="display:none;background:var(--danger);color:#fff;border-color:var(--danger)">מושבת</span></h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_notifications" style="display:none">
+        <p class="muted" style="margin-bottom:12px">מתג חירום למקרה תקלה במערך ההתראות (למשל התראות שלא נשלחות, נשלחות בזמן שגוי, וכו'). כשמסומן "מערך ההתראות מושבת", כל המשתמשים לא יראו יותר את אפשרות הפעלת ההתראות (לא באזור האישי ולא בתפריטי המניינים/שיעורים) - עד שיבוטל כאן.</p>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:12px">
+          <input type="checkbox" id="notificationsDisabledEnabled">
+          מערך ההתראות מושבת
+        </label>
+        <div class="field optional"><label for="notificationsDisabledReason">הודעה שתוצג למשתמשים (אופציונלי)</label>
+          <input id="notificationsDisabledReason" placeholder="לדוגמה: יש תקלה זמנית בהתראות, אנחנו בודקים">
+        </div>
+        <button class="btn primary" onclick="saveNotificationsConfig()">שמירה</button>
       </div>
     </div>
     <div class="card admin-section" style="margin-top:14px">
@@ -808,6 +827,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-app-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-auth-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-firestore-compat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/firebase/10.12.2/firebase-messaging-compat.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/luxon@3/build/global/luxon.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/kosher-zmanim@0.9.0/dist/kosher-zmanim.min.js"></script>
@@ -1227,6 +1247,19 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// מפתח VAPID ציבורי - נדרש למערך ההתראות (Push). לייצר ב-Firebase Console:
+// הגדרות פרויקט > Cloud Messaging > Web configuration > "Generate key pair", ולהדביק כאן במקום המחרוזת הריקה.
+// כל עוד זה ריק, כפתור "הפעלת התראות" יציג הודעת שגיאה ברורה במקום לנסות ולהיכשל בשקט.
+const FCM_VAPID_KEY = 'BCUk8Q7KrSdD-ffM6wCuY024Lz7_HZiWR0OLKSQFiojxgcfkqFSlUDFDiDHi0r-DvPFp0htfDp1kTO-qBGC-evU';
+function getMessagingSafe(){
+  try{
+    if (!('Notification' in window) || !('serviceWorker' in navigator)) return null;
+    return firebase.messaging();
+  }catch(e){
+    console.warn('Firebase Messaging לא נתמך בדפדפן הזה:', e);
+    return null;
+  }
+}
 // מטמון מקומי (IndexedDB): בכניסה חוזרת מאותו דפדפן, Firestore קורא מהמטמון המקומי ומביא מהשרת
 // רק את מה שהשתנה מאז - במקום את כל האוסף מחדש בכל טעינה. מצמצם משמעותית קריאות במכסה היומית.
 // synchronizeTabs מאפשר כמה טאבים פתוחים של האתר בו-זמנית בלי שהמטמון "יתנגש" ביניהם.
@@ -1245,8 +1278,13 @@ let currentUserFollowedShiurSnapshots = {};
 let shownShiurChangeKeys = new Set(); // מונע הצגה כפולה של אותה התראת שינוי באותה טעינת עמוד
 let lastShownMessageKey = null;
 let currentUserName = '';
+let currentUserFcmToken = null;
+let currentUserNotifyLeadMinutes = 10;
+let currentUserNotifyMinyanIds = [];
+let currentUserNotifyShiurIds = [];
 let unsubUserDoc;
 let APP_LOCK_CONFIG = null;
+let NOTIFICATIONS_CONFIG = null; // מתג כיבוי חירום למערך ההתראות - config/notifications, {enabled:false} מסתיר מכולם את אפשרות ההתראות
 let authResolved = false; // הופך true אחרי הקריאה הראשונה ל-onAuthStateChanged (עם או בלי משתמש מחובר)
 let roleResolved = false; // הופך true אחרי שידוע גם התפקיד (מיד אם אין משתמש, או אחרי טעינת מסמך המשתמש)
 
@@ -1354,6 +1392,10 @@ auth.onAuthStateChanged(async user=>{
     roleResolved = true;
     currentUserFollowedShiurIds = [];
     currentUserFollowedShiurSnapshots = {};
+    currentUserFcmToken = null;
+    currentUserNotifyLeadMinutes = 10;
+    currentUserNotifyMinyanIds = [];
+    currentUserNotifyShiurIds = [];
     document.getElementById('signInBtn').style.display = '';
     document.getElementById('userInfo').style.display = 'none';
     document.getElementById('adminTabBtn').style.display = 'none';
@@ -1397,6 +1439,11 @@ auth.onAuthStateChanged(async user=>{
     if (currentUserFollowedShiurIds.length) ensureShiurimLoaded();
     currentUserFollowedShiurSnapshots = (d && d.followedShiurSnapshots) ? d.followedShiurSnapshots : {};
     currentUserName = (d && d.name) ? d.name : (user.displayName || user.email);
+    currentUserFcmToken = (d && d.fcmToken) ? d.fcmToken : null;
+    currentUserNotifyLeadMinutes = (d && d.notifyLeadMinutes) ? d.notifyLeadMinutes : 10;
+    currentUserNotifyMinyanIds = (d && Array.isArray(d.notifyMinyanIds)) ? d.notifyMinyanIds : [];
+    currentUserNotifyShiurIds = (d && Array.isArray(d.notifyShiurIds)) ? d.notifyShiurIds : [];
+    if (document.getElementById('myProfileModalBody')) renderMyProfileNotifications(); // המודל פתוח כרגע - לרענן מיד (למשל אחרי הפעלה/ביטול)
     document.getElementById('userNameLabel').textContent = currentUserName;
     const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל'};
     document.getElementById('userRoleBadge').textContent = labels[currentRole] || currentRole;
@@ -1999,6 +2046,168 @@ async function bulkDeleteUserContent(targetUid){
     alert('שגיאה במחיקה: ' + e.message);
   }
 }
+// ============ האזור האישי ============
+const NOTIFY_LEAD_OPTIONS = [5, 10, 15, 20];
+const NOTIFY_MAX_SUBSCRIPTIONS = 4; // ר' אפיון - מגבילים מספר מנויים פעילים ולא ספירת שליחות בפועל ביום, כי FCM עצמו חינמי וללא הגבלת כמות
+function openMyProfile(){
+  if (!currentUser){ doSignIn(); return; }
+  document.getElementById('modalBody').innerHTML = `
+    <div id="myProfileModalBody">
+      <h3>האזור האישי שלי</h3>
+      <div class="field">
+        <label for="myProfileName">שם התצוגה שלי</label>
+        <input id="myProfileName" value="${escapeHtml(currentUserName||'')}" maxlength="60">
+      </div>
+      <button class="btn" onclick="saveMyProfileName()">שמירת שם</button>
+
+      <h3 style="margin-top:22px">🔔 התראות</h3>
+      <div id="myProfileNotifications"></div>
+
+      <h3 style="margin-top:22px">העריכות האחרונות שלי</h3>
+      <div id="myProfileEdits"></div>
+
+      <div class="modal-actions">
+        <button class="btn" onclick="closeModal()">סגירה</button>
+      </div>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+  renderMyProfileNotifications();
+  renderMyProfileEdits();
+}
+function saveMyProfileName(){
+  if (!currentUser) return;
+  const name = document.getElementById('myProfileName').value.trim();
+  if (!name){ alert('יש להזין שם - לא ניתן להשאיר שדה זה ריק.'); return; }
+  db.collection('users').doc(currentUser.uid).update({ name }).then(()=>{
+    alert('השם עודכן בהצלחה.');
+  }).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
+function renderMyProfileEdits(){
+  const el = document.getElementById('myProfileEdits');
+  if (!el || !currentUser) return;
+  const myMinyanim = data.minyanim.filter(m=>m.updatedByUid===currentUser.uid);
+  const myShiurim = data.shiurim.filter(s=>s.updatedByUid===currentUser.uid);
+  if (!myMinyanim.length && !myShiurim.length){
+    el.innerHTML = `<div class="empty">לא נמצאו פריטים שהעדכון האחרון שלהם בוצע על ידך</div>`;
+    return;
+  }
+  let html = '';
+  if (myMinyanim.length){
+    html += myMinyanim.map(m=>{
+      const shul = getMinyanLocation(m);
+      return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openMinyanForm('${m.shulId}','${m.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(m.tefila)} · ${escapeHtml(shul?shul.name:'')}</a></span></div>`;
+    }).join('');
+  }
+  if (myShiurim.length){
+    html += myShiurim.map(s=>{
+      return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openShiurForm('${s.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(s.title)}</a></span></div>`;
+    }).join('');
+  }
+  el.innerHTML = html;
+}
+// מרנדר מחדש רק את חלק ההתראות במסך האזור האישי - נקרא גם מהמאזין בזמן אמת של מתג הכיבוי (config/notifications),
+// כדי שאם מנהל מכבה את המערך בזמן שהמסך הזה כבר פתוח אצל מישהו, זה ייעלם אצלו מיד ולא רק בכניסה הבאה.
+function renderMyProfileNotifications(){
+  const el = document.getElementById('myProfileNotifications');
+  if (!el || !currentUser) return;
+  if (!notificationsSystemEnabled()){
+    el.innerHTML = `<div class="empty">מערך ההתראות מושבת זמנית${NOTIFICATIONS_CONFIG&&NOTIFICATIONS_CONFIG.reason?(' - '+escapeHtml(NOTIFICATIONS_CONFIG.reason)):' עקב תקלה'}. ננסה להחזיר בהקדם.</div>`;
+    return;
+  }
+  const active = !!currentUserFcmToken;
+  let html = `<p class="muted" style="margin-bottom:10px">⚠️ ההתראות בתקופת הרצה ראשונית - ייתכנו תקלות, כמו התראות שמגיעות באיחור או לא מגיעות בזמן הייעודי.</p>`;
+  html += `<label style="display:flex;align-items:center;gap:6px;margin-bottom:12px">
+      <span>${active ? '✅ התראות פעילות' : 'התראות כבויות'}</span>
+      <button class="btn ${active?'':'primary'}" style="margin-inline-start:auto" onclick="${active?'disablePushNotifications()':'enablePushNotifications()'}">${active?'ביטול התראות':'הפעלת התראות'}</button>
+    </label>`;
+  if (active){
+    html += `<div class="field" style="margin-bottom:14px"><label for="myProfileLeadMinutes">כמה זמן לפני לקבל תזכורת</label>
+      <select id="myProfileLeadMinutes" onchange="saveNotifyLeadMinutes(this.value)">
+        ${NOTIFY_LEAD_OPTIONS.map(n=>`<option value="${n}" ${Number(currentUserNotifyLeadMinutes)===n?'selected':''}>${n} דקות לפני</option>`).join('')}
+      </select>
+    </div>`;
+    const subs = [
+      ...currentUserNotifyMinyanIds.map(id=>({type:'minyan', id, item:data.minyanim.find(m=>m.id===id)})),
+      ...currentUserNotifyShiurIds.map(id=>({type:'shiur', id, item:data.shiurim.find(s=>s.id===id)}))
+    ].filter(s=>s.item);
+    html += `<h3 style="margin:14px 0 8px;font-size:15px">התראות שביקשתי (${subs.length}/${NOTIFY_MAX_SUBSCRIPTIONS})</h3>`;
+    if (!subs.length){
+      html += `<div class="empty">עדיין לא ביקשת התראות. אפשר להוסיף מהתפריט (⋮) של כל מניין או שיעור.</div>`;
+    } else {
+      html += subs.map(s=>{
+        const label = s.type==='minyan' ? `${escapeHtml(s.item.tefila)} · ${escapeHtml((getMinyanLocation(s.item)||{}).name||'')}` : escapeHtml(s.item.title);
+        return `<div class="minyan-line"><span>${label}</span><button class="btn" onclick="toggleNotifySubscription('${s.type}','${s.id}')">ביטול</button></div>`;
+      }).join('');
+    }
+  }
+  el.innerHTML = html;
+}
+async function enablePushNotifications(){
+  if (!currentUser || !notificationsSystemEnabled()) return;
+  if (!FCM_VAPID_KEY){ alert('מערך ההתראות עדיין לא הוגדר סופית באתר (חסר מפתח VAPID) - זו הודעה למפתח האתר, לא תקלה אצלך.'); return; }
+  const messaging = getMessagingSafe();
+  if (!messaging){ alert('הדפדפן הזה לא תומך בהתראות Push. בדפדפן Safari באייפון, צריך קודם להתקין את האפליקציה למסך הבית.'); return; }
+  try{
+    const permission = await Notification.requestPermission();
+    if (permission !== 'granted'){ alert('לא אושרה הרשאה להתראות. אפשר לאשר בהמשך דרך הגדרות הדפדפן/המכשיר.'); return; }
+    const reg = await navigator.serviceWorker.ready;
+    const token = await messaging.getToken({ vapidKey: FCM_VAPID_KEY, serviceWorkerRegistration: reg });
+    if (!token) throw new Error('לא התקבל טוקן התראות מהדפדפן');
+    await db.collection('users').doc(currentUser.uid).update({ fcmToken: token, notificationsEnabledAt: new Date().toISOString() });
+  }catch(e){
+    alert('שגיאה בהפעלת התראות: ' + e.message);
+  }
+}
+async function disablePushNotifications(){
+  if (!currentUser) return;
+  try{
+    const messaging = getMessagingSafe();
+    if (messaging){ try{ await messaging.deleteToken(); }catch(e){ /* לא קריטי אם נכשל - עדיין מוחקים את הטוקן מהמסמך שלנו */ } }
+    await db.collection('users').doc(currentUser.uid).update({ fcmToken: null });
+  }catch(e){
+    alert('שגיאה בביטול התראות: ' + e.message);
+  }
+}
+function saveNotifyLeadMinutes(mins){
+  if (!currentUser) return;
+  db.collection('users').doc(currentUser.uid).update({ notifyLeadMinutes: Number(mins) }).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
+// מפעילה/מכבה מנוי להתראה על מניין או שיעור ספציפי. נקראת גם מהאזור האישי (ביטול) וגם מתפריטי המניין/שיעור (⋮).
+async function toggleNotifySubscription(type, id){
+  if (!currentUser) return;
+  const field = type === 'minyan' ? 'notifyMinyanIds' : 'notifyShiurIds';
+  const list = type === 'minyan' ? currentUserNotifyMinyanIds : currentUserNotifyShiurIds;
+  const isSubscribed = list.includes(id);
+  if (!isSubscribed){
+    const totalActive = currentUserNotifyMinyanIds.length + currentUserNotifyShiurIds.length;
+    if (totalActive >= NOTIFY_MAX_SUBSCRIPTIONS){
+      alert(`הגעת למקסימום ${NOTIFY_MAX_SUBSCRIPTIONS} התראות פעילות. אפשר לבטל אחת מהאזור האישי כדי להוסיף חדשה.`);
+      return;
+    }
+  }
+  try{
+    await db.collection('users').doc(currentUser.uid).update({
+      [field]: isSubscribed ? firebase.firestore.FieldValue.arrayRemove(id) : firebase.firestore.FieldValue.arrayUnion(id)
+    });
+  }catch(e){
+    alert('שגיאה: ' + e.message);
+  }
+}
+// מחזירה את פריט התפריט "🔔 קבל התראה" עבור מניין/שיעור, בהתאם למצב המשתמש - ר' אפיון מערכת ההתראות, חלק ג'.2.
+// מוסתר לגמרי אם מתג הכיבוי החירומי כבוי.
+function notifyMenuItemHtml(type, id){
+  if (!notificationsSystemEnabled()) return '';
+  if (!currentUser){
+    return `<a href="#" onclick="closeNavPopover();doSignIn();return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🔔 קבל התראה (יש להתחבר)</a>`;
+  }
+  if (!currentUserFcmToken){
+    return `<a href="#" onclick="closeNavPopover();openMyProfile();return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🔔 קבל התראה (יש לאשר קודם באזור האישי)</a>`;
+  }
+  const list = type === 'minyan' ? currentUserNotifyMinyanIds : currentUserNotifyShiurIds;
+  const isSubscribed = list.includes(id);
+  return `<a href="#" onclick="closeNavPopover();toggleNotifySubscription('${type}','${id}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">${isSubscribed?'🔕 ביטול התראה':'🔔 קבל התראה'}</a>`;
+}
+// ============ סוף האזור האישי ============
 function jumpToUserInAdmin(targetUid){
   if (!isManager() || !targetUid) return;
   closeModal();
@@ -3411,6 +3620,11 @@ function attachListeners(){
     updateAppLockScreen();
     if (currentTab === 'admin') populateAppLockAdmin();
   }, e=>console.error(e));
+  db.collection('config').doc('notifications').onSnapshot(doc=>{
+    NOTIFICATIONS_CONFIG = doc.exists ? doc.data() : null;
+    if (currentTab === 'admin') populateNotificationsAdmin();
+    if (document.getElementById('myProfileModalBody')) renderMyProfileNotifications(); // אם המודל פתוח כרגע, לרענן מיד אם מנהל כיבה/הפעיל תוך כדי
+  }, e=>console.error(e));
 }
 // --- טעינה עצלה (lazy) לאוספי shiurim ו-rabbanim ---
 // כדי לצמצם קריאות ל-Firestore: מי שנכנס לאפליקציה רק כדי לבדוק תפילות (הלשונית הכי נפוצה) לא צריך
@@ -3531,6 +3745,10 @@ function isEditLockActive(){
   if (!EDIT_LOCK_CONFIG || !EDIT_LOCK_CONFIG.enabled) return false;
   if (EDIT_LOCK_CONFIG.until && new Date(EDIT_LOCK_CONFIG.until) < new Date()) return false; // הנעילה פגה
   return true;
+}
+// ברירת המחדל היא "פעיל" - רק config/notifications עם enabled:false במפורש מכבה. כך שאם המסמך לא קיים בכלל, המערכת פעילה כרגיל.
+function notificationsSystemEnabled(){
+  return !NOTIFICATIONS_CONFIG || NOTIFICATIONS_CONFIG.enabled !== false;
 }
 function showEditLockedGate(){
   const untilStr = EDIT_LOCK_CONFIG && EDIT_LOCK_CONFIG.until ? ('עד ' + new Date(EDIT_LOCK_CONFIG.until).toLocaleString('he-IL')) : 'עד הודעה חדשה';
@@ -3921,6 +4139,25 @@ function saveAppLockConfig(){
     setAt: new Date().toISOString()
   }).then(()=>alert('ההגדרה נשמרה')).catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
+function populateNotificationsAdmin(){
+  const enabledEl = document.getElementById('notificationsDisabledEnabled');
+  if (!enabledEl) return; // הטופס לא בתצוגה כרגע (לא בטאב ניהול)
+  const cfg = NOTIFICATIONS_CONFIG || {};
+  enabledEl.checked = cfg.enabled === false;
+  document.getElementById('notificationsDisabledReason').value = cfg.reason || '';
+  const badge = document.getElementById('notificationsDisabledBadge');
+  badge.style.display = cfg.enabled === false ? '' : 'none';
+}
+function saveNotificationsConfig(){
+  if (!isManager()) return;
+  const disabled = document.getElementById('notificationsDisabledEnabled').checked;
+  const reason = document.getElementById('notificationsDisabledReason').value.trim();
+  db.collection('config').doc('notifications').set({
+    enabled: !disabled, reason,
+    setBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '',
+    setAt: new Date().toISOString()
+  }).then(()=>alert('ההגדרה נשמרה')).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
 function toggleShulExpand(shulId){
   if (expandedShulIds.has(shulId)) expandedShulIds.delete(shulId); else expandedShulIds.add(shulId);
   render();
@@ -4017,7 +4254,7 @@ function renderImmediate(){
   if (currentTab === 'tefilot'){ renderSpecialDayBanner(); renderTefilot(); }
   else if (currentTab === 'shiurim') renderShiurim();
   else if (currentTab === 'info') renderInfoTab();
-  else if (currentTab === 'admin'){ renderDashboard(); renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); renderRabbanimAdmin(); renderHalachicGuidesAdmin(); ensureDivreiTorahLoaded(); renderDivreiTorahAdmin(); }
+  else if (currentTab === 'admin'){ renderDashboard(); renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); populateNotificationsAdmin(); renderRabbanimAdmin(); renderHalachicGuidesAdmin(); ensureDivreiTorahLoaded(); renderDivreiTorahAdmin(); }
 }
 // הפוטר התחתון (זמנים משוערים + קרדיט) מוצג רק בדפי תפילות ובית כנסת - לא בשיעורים ולא במידע שימושי
 function updateFooterVisibility(){
@@ -5124,6 +5361,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   if (links){
     html += `<a href="#" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event);return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 ניווט למניין</a>`;
   }
+  html += notifyMenuItemHtml('minyan', minyanId);
   html += `<a href="#" onclick="closeNavPopover();openSendAdminMessageForm('${escapeHtml(m.tefila+' - '+(shul?shul.name:''))}','minyan','${minyanId}','${shulId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">✉️ דיווח למנהל (למשל מניין שבוטל)</a>`;
   html += `<a href="${whatsappShareUrl(minyanShareText(m, shul))}" target="_blank" rel="noopener" onclick="trackEvent('share_whatsapp',{type:'minyan'})" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none${canDeleteInShul(shulId)?';border-bottom:1px solid var(--border)':''}">💬 שיתוף בוואטסאפ</a>`;
   if (canDeleteInShul(shulId)){
@@ -5191,6 +5429,7 @@ function openShiurMenuPopover(e, shiurId){
     html += `<a href="${links.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>`;
     html += `<a href="${links.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח ב-Google Maps</a>`;
   }
+  html += notifyMenuItemHtml('shiur', shiurId);
   html += `<a href="#" onclick="closeNavPopover();openSendAdminMessageForm('${escapeHtml(s.title)}','shiur','${shiurId}','${s.locationShulId||''}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">✉️ דיווח למנהל</a>`;
   html += `<a href="#" onclick="closeNavPopover();openShiurForm('${shiurId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none${canDeleteShiur(s)?';border-bottom:1px solid var(--border)':''}">✏️ עריכה</a>`;
   if (canDeleteShiur(s)){
