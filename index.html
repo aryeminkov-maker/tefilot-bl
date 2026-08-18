@@ -3562,11 +3562,24 @@ async function runImport(wb, mode, scopedShulId){
   alert(msg);
 }
 
+// רינדור מחדש עם השהיה קטנה (debounce) - מיועד למאזינים בזמן אמת של Firestore (onSnapshot), לא
+// לפעולות ישירות של המשתמש (שם render() הרגיל, המיידי, נשאר כמו שהיה - כדי לא להוסיף עיכוב מיותר
+// אחרי שמירה/מחיקה יזומה). הסיבה: Firestore מפעיל onSnapshot פעמיים לכל כתיבה (עדכון מקומי מיידי,
+// ואז אישור מהשרת) - ובנוסף, כל שינוי של כל משתמש אחר במערכת (למשל גבאי שמעדכן מניין) מפעיל render()
+// אצל כולם באותו רגע. render() בונה מחדש את כל ה-HTML של הרשימה (כולל כפתורי התפריט) - אם זה קורה
+// בדיוק תוך כדי שמישהו באמצע לחיצה פיזית על כפתור, הכפתור "מוחלף" מתחת לאצבע/לעכבר שלו והלחיצה
+// הולכת לאיבוד בלי שגיאה. השהיה של כמה מאות מילישניות מאחדת עדכונים סמוכים לרינדור אחד ומצמצמת
+// דרמטית את הסיכוי לזה, בלי להשפיע מורגש על מהירות התגובה של האפליקציה.
+let _renderDebounceTimer = null;
+function renderDebounced(){
+  if (_renderDebounceTimer) clearTimeout(_renderDebounceTimer);
+  _renderDebounceTimer = setTimeout(()=>{ _renderDebounceTimer = null; render(); }, 300);
+}
 function attachListeners(){
   db.collection('shuls').onSnapshot(snap=>{
     data.shuls = snap.docs.map(d=>({id:d.id, ...d.data()}));
     shulsLoaded = true;
-    render();
+    renderDebounced();
     updateMyShulHeaderBtn();
     if (!urlShulChecked){
       urlShulChecked = true;
@@ -3582,7 +3595,7 @@ function attachListeners(){
     if (!isSelichotSeasonActive()) list = list.filter(m=>m.tefila !== 'סליחות');
     data.minyanim = list;
     minyanimLoaded = true;
-    render();
+    renderDebounced();
   }, e=>console.error(e));
   db.collection('config').doc('tefilaTypes').onSnapshot(doc=>{
     const d = doc.exists ? doc.data() : null;
@@ -3640,7 +3653,7 @@ function ensureShiurimLoaded(){
   db.collection('shiurim').onSnapshot(snap=>{
     data.shiurim = snap.docs.map(d=>({id:d.id, ...d.data()}));
     checkFollowedShiurimChanges();
-    render();
+    renderDebounced();
   }, e=>console.error(e));
 }
 let rabbanimLoaded = false;
@@ -3649,7 +3662,7 @@ function ensureRabbanimLoaded(){
   rabbanimLoaded = true;
   db.collection('rabbanim').onSnapshot(snap=>{
     data.rabbanim = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    render();
+    renderDebounced();
   }, e=>console.error(e));
 }
 let halachicGuidesLoaded = false;
