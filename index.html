@@ -396,6 +396,14 @@
           <option value="youth">נוער</option>
           <option value="kids">ילדים</option>
         </select>
+        <select id="filterLanguage">
+          <option value="">כל השפות</option>
+          <option value="he">עברית</option>
+          <option value="en">אנגלית</option>
+          <option value="es">ספרדית</option>
+          <option value="fr">צרפתית</option>
+          <option value="hi">הודית</option>
+        </select>
         <input id="filterSearch" placeholder="חיפוש חופשי...">
       </div>
       <div class="filters">
@@ -524,6 +532,11 @@
             <option value="resident">תושב</option>
             <option value="gabai">גבאי</option>
             <option value="manager">מנהל</option>
+          </select>
+          <select id="userSortFilter" onchange="renderUsers()">
+            <option value="createdAt">מיון: ותק (הצטרפות)</option>
+            <option value="alpha">מיון: לפי א-ב</option>
+            <option value="role">מיון: לפי רמת הרשאה</option>
           </select>
         </div>
         <div id="usersList"></div>
@@ -1809,12 +1822,23 @@ function renderUsers(){
   const primaryUid = effectivePrimaryManagerUid();
   const searchF = (document.getElementById('userSearchFilter').value||'').trim().toLowerCase();
   const roleF = document.getElementById('userRoleFilter').value;
+  const sortF = document.getElementById('userSortFilter').value;
+  const roleOrder = {manager:0, gabai:1, resident:2};
   const filtered = data.users.filter(u=>{
     if (roleF && u.role !== roleF) return false;
     if (searchF && !((u.name||'')+' '+(u.email||'')).toLowerCase().includes(searchF)) return false;
     return true;
   }).sort((a,b)=>{
-    // מהחדש לישן; משתמשים ותיקים בלי תאריך הצטרפות רשום (מלפני התכונה הזו) מוצגים בסוף
+    if (sortF === 'alpha'){
+      return (a.name||a.email||'').localeCompare(b.name||b.email||'', 'he');
+    }
+    if (sortF === 'role'){
+      const ra = roleOrder[a.role]!==undefined ? roleOrder[a.role] : 3;
+      const rb = roleOrder[b.role]!==undefined ? roleOrder[b.role] : 3;
+      if (ra !== rb) return ra - rb;
+      return (a.name||a.email||'').localeCompare(b.name||b.email||'', 'he');
+    }
+    // ברירת מחדל: ותק - מהחדש לישן; משתמשים ותיקים בלי תאריך הצטרפות רשום (מלפני התכונה הזו) מוצגים בסוף
     if (!a.createdAt && !b.createdAt) return 0;
     if (!a.createdAt) return 1;
     if (!b.createdAt) return -1;
@@ -1936,7 +1960,7 @@ function showUserEdits(targetUid){
     if (myMinyanim.length){
       html += `<h3 style="margin:14px 0 8px;font-size:15px">מניינים (${myMinyanim.length})</h3>`;
       html += myMinyanim.map(m=>{
-        const shul = data.shuls.find(s=>s.id===m.shulId);
+        const shul = getMinyanLocation(m);
         return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openMinyanForm('${m.shulId}','${m.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(m.tefila)} · ${escapeHtml(shul?shul.name:'')}</a></span></div>`;
       }).join('');
     }
@@ -2941,7 +2965,7 @@ function exportToExcel(){
   }));
 
   const minyanimSheet = data.minyanim.map(m=>{
-    const shul = data.shuls.find(s=>s.id===m.shulId);
+    const shul = getMinyanLocation(m);
     return {
       'בית כנסת': xs(shul ? shul.name : ''),
       'תפילה': xs(m.tefila),
@@ -2959,6 +2983,7 @@ function exportToExcel(){
     'כותרת': xs(s.title),
     'נושא': xs(getShiurTopics(s).join(', ')),
     'קהל יעד': AUDIENCE_LABEL[s.audience||'all'],
+    'שפה': LANGUAGE_LABEL[s.language||'he'],
     'ימים': shiurScheduleLabel(s),
     'שעה': xs(s.time),
     'מיקום': xs(s.location),
@@ -3752,7 +3777,7 @@ function computeDataHealthIssues(){
   staleDate.setMonth(staleDate.getMonth() - 6);
   data.minyanim.forEach(m=>{
     if (m.updatedAt && new Date(m.updatedAt) < staleDate){
-      const shul = data.shuls.find(s=>s.id===m.shulId);
+      const shul = getMinyanLocation(m);
       issues.push({
         icon: '🕍',
         text: `מניין "${escapeHtml(m.tefila)}${shul?' · '+escapeHtml(shul.name):''}" לא עודכן מאז ${formatHebrewDate(new Date(m.updatedAt))}`,
@@ -3799,7 +3824,7 @@ function renderActivityLog(){
   });
   data.minyanim.forEach(m=>{
     if (!m.updatedAt || !inRange(m.updatedAt)) return;
-    const shul = data.shuls.find(s=>s.id===m.shulId);
+    const shul = getMinyanLocation(m);
     entries.push({ time: m.updatedAt, by: m.updatedBy, icon: '🕍', label: 'מניין', name: `${m.tefila}${shul?' · '+shul.name:''}`, type:'minyan', id:m.id, shulId:m.shulId||'' });
   });
   data.shiurim.forEach(s=>{
@@ -4245,7 +4270,7 @@ function renderTefilot(){
       const t = computeMinyanTime(m, today, zmanim);
       if (!t) return;
       if ((timeFrom || timeTo) && !timeInRange(t, timeFrom, timeTo)) return;
-      const shul = data.shuls.find(s=>s.id===m.shulId);
+      const shul = getMinyanLocation(m);
       items.push({t, m, shul});
     });
     items.sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
@@ -4272,7 +4297,7 @@ function renderTefilot(){
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
-        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openMinyanMenuPopover(event, '${it.m.shulId}', '${it.m.id}')">${it.m.tefila}</span> · <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul?it.shul.id:''}')">${escapeHtml(it.shul?it.shul.name:'')}</span>
+        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openMinyanMenuPopover(event, '${it.m.shulId}', '${it.m.id}')">${it.m.tefila}</span> · ${it.shul && it.shul.id ? `<span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul.id}')">${escapeHtml(it.shul.name)}</span>` : `<span style="font-weight:500">${it.shul&&it.shul.custom?'📍 ':''}${escapeHtml(it.shul?it.shul.name:'')}</span>`}
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
         ${tempNoteBannerHtml(it.m)}
       </div>`;
@@ -4286,6 +4311,7 @@ function renderTefilot(){
 
 // ---------- רינדור: שיעורים ----------
 const AUDIENCE_LABEL = {all:'כולם', men:'גברים', women:'נשים', youth:'נוער', kids:'ילדים'};
+const LANGUAGE_LABEL = {he:'עברית', en:'אנגלית', es:'ספרדית', fr:'צרפתית', hi:'הודית'};
 function renderShiurim(){
   if (!shiurimLoaded){
     const el = document.getElementById('shiurimList');
@@ -4293,6 +4319,7 @@ function renderShiurim(){
     return;
   }
   const audF = document.getElementById('filterAudience').value;
+  const langF = document.getElementById('filterLanguage').value;
   const searchF = document.getElementById('filterSearch').value.trim().toLowerCase();
 
   const descBox = document.getElementById('topicDescriptionBox');
@@ -4316,7 +4343,7 @@ function renderShiurim(){
   if (quickToggle){
     quickToggle.querySelectorAll('button').forEach(b=>b.classList.toggle('active', b.dataset.quickday === dayF));
   }
-  const activeFilterCount = (dayF!=='all'?1:0) + selectedTopics.size + (audF?1:0) + (searchF?1:0);
+  const activeFilterCount = (dayF!=='all'?1:0) + selectedTopics.size + (audF?1:0) + (langF?1:0) + (searchF?1:0);
   const filtersBtn = document.getElementById('shiurimFiltersToggle');
   if (filtersBtn) filtersBtn.textContent = activeFilterCount ? `🔍 סינון (${activeFilterCount})` : '🔍 סינון';
   const now = new Date();
@@ -4337,6 +4364,7 @@ function renderShiurim(){
     const sTopics = getShiurTopics(s);
     if (selectedTopics.size && !sTopics.some(t=>selectedTopics.has(t))) return false;
     if (audF && (s.audience||'all') !== audF) return false;
+    if (langF && (s.language||'he') !== langF) return false;
     if (searchF && !(s.title+' '+sTopics.join(' ')+' '+(s.location||'')).toLowerCase().includes(searchF)) return false;
     return true;
   });
@@ -4392,6 +4420,7 @@ function renderShiurim(){
     const secondaryBits = [];
     if (topics.length) secondaryBits.push(escapeHtml(topics.join(', ')));
     if (s.teacherName) secondaryBits.push(escapeHtml(s.teacherName));
+    if (s.language && s.language!=='he') secondaryBits.push('🌐 '+(LANGUAGE_LABEL[s.language]||s.language));
     return `
     <div class="card" style="${s.recordingLink?'display:flex;align-items:stretch;padding:0':''}">
       <div style="${s.recordingLink?'flex:1;min-width:0;padding:16px':''}">
@@ -4472,9 +4501,9 @@ function computeGlobalSearchResults(query){
     if (hay.includes(q)) results.push({ icon:'🏠', title: s.name, subtitle: s.address||'', action:()=>{ closeModal(); openShulPage(s.id); } });
   });
   data.minyanim.forEach(m=>{
-    const shul = data.shuls.find(s=>s.id===m.shulId);
+    const shul = getMinyanLocation(m);
     const hay = [m.tefila, m.notes, shul?shul.name:''].filter(Boolean).join(' ').toLowerCase();
-    if (hay.includes(q)) results.push({ icon:'🕍', title:`${m.tefila}${shul?' · '+shul.name:''}`, subtitle: minyanDaysLabel(m), action:()=>{ closeModal(); if (shul) openShulPage(shul.id); } });
+    if (hay.includes(q)) results.push({ icon:'🕍', title:`${m.tefila}${shul?' · '+shul.name:''}`, subtitle: minyanDaysLabel(m), action:()=>{ closeModal(); if (shul && shul.id) openShulPage(shul.id); } });
   });
   data.shiurim.forEach(s=>{
     const topics = getShiurTopics(s);
@@ -4925,6 +4954,15 @@ function nextOccurrenceTimestamp(s){
   return Infinity;
 }
 
+// מחזיר את "מיקום" המניין לצורך תצוגה/ניווט/שיתוף: בית כנסת רגיל מתוך data.shuls,
+// או במניין חד-פעמי שהוסיף מנהל במיקום מיוחד (customLocation) - אובייקט מדומה עם השם/כתובת שהוזנו.
+// אין ל-shul.id ערך אמיתי במקרה הזה (אין "דף בית כנסת" למיקום כזה) - קוד קורא צריך לבדוק זאת לפני קישור.
+function getMinyanLocation(m){
+  if (m && m.customLocation){
+    return { id: null, name: m.customLocationName || 'מיקום מיוחד', address: m.customLocationAddress || '', custom: true };
+  }
+  return data.shuls.find(s=>s.id===(m&&m.shulId));
+}
 function getNavLinks(shul){
   if (shul.lat && shul.lng){
     return {
@@ -4954,7 +4992,7 @@ function minyanShareText(m, shul){
   const t = computeMinyanTime(m, new Date(), getZmanim(new Date()));
   return `${m.tefila}${shul?(' ב'+shul.name):''} - ${daysToLabel(m.days)}, בשעה ${fmtTime(t)}${m.notes?(' ('+m.notes+')'):''}
 
-מתוך אפליקציית תפילות ושיעורי תורה בבית אל: ${window.location.origin + window.location.pathname}${shul?('?shul='+shul.id):''}`;
+מתוך אפליקציית תפילות ושיעורי תורה בבית אל: ${window.location.origin + window.location.pathname}${shul&&shul.id?('?shul='+shul.id):''}`;
 }
 function shiurShareText(s){
   return `${s.title} - ${shiurScheduleLabel(s)}, בשעה ${s.time||''}, ב${s.location||''}
@@ -5062,7 +5100,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   closeNavPopover();
   try{
   const m = data.minyanim.find(x=>x.id===minyanId);
-  const shul = data.shuls.find(x=>x.id===shulId);
+  const shul = m ? getMinyanLocation(m) : null;
   if (!m) return;
   const btn = e.currentTarget;
   const rect = btn.getBoundingClientRect();
@@ -5493,9 +5531,11 @@ function shareShiurimFilter(){
     url.searchParams.delete('shul');
     const topicF = [...selectedTopics].join(',');
     const audF = document.getElementById('filterAudience').value;
+    const langF = document.getElementById('filterLanguage').value;
     const searchF = document.getElementById('filterSearch').value.trim();
     if (topicF) url.searchParams.set('shiurTopic', topicF); else url.searchParams.delete('shiurTopic');
     if (audF) url.searchParams.set('shiurAudience', audF); else url.searchParams.delete('shiurAudience');
+    if (langF) url.searchParams.set('shiurLanguage', langF); else url.searchParams.delete('shiurLanguage');
     if (searchF) url.searchParams.set('shiurSearch', searchF); else url.searchParams.delete('shiurSearch');
     url.searchParams.set('tab', 'shiurim');
     link = url.toString();
@@ -5566,7 +5606,7 @@ function renderShulPage(){
             <button class="row-icon-btn" onclick="openShiurMenuPopover(event, '${s.id}')" title="מידע, ניווט, עריכה ומחיקה" aria-label="מידע, ניווט, עריכה ומחיקה">${INFO_ICON_SVG}</button>
             ${shiurRecordingLinkHtml(s)}
           </span>
-          ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}
+          ${topics.length?escapeHtml(topics.join(', '))+' · ':''}${s.teacherName?escapeHtml(s.teacherName)+' · ':''}${(s.language&&s.language!=='he')?'🌐 '+(LANGUAGE_LABEL[s.language]||s.language)+' · ':''}${shiurScheduleLabel(s)} · ${escapeHtml(s.time||'')}
         </span>
       </div>
       ${tempNoteBannerHtml(s)}
@@ -5908,7 +5948,8 @@ const DAY_LABELS = ['א','ב','ג','ד','ה','ו','ש'];
 function openMinyanForm(shulId, minyanId){
   if (!requireEditPermission()) return;
   const m = minyanId ? data.minyanim.find(x=>x.id===minyanId) : null;
-  const needsShulSelect = !shulId;
+  const isCustomLocation = !!(m && m.customLocation);
+  const needsShulSelect = !shulId && !isCustomLocation; // בעריכת מניין במיקום חד-פעמי shulId ריק בכוונה - לא לפתוח שוב את בורר בית הכנסת
   document.getElementById('modalBody').innerHTML = `
     <h3>${m?'עריכת מניין':'הוספת מניין'}</h3>
     ${updatedByLineHtml(m)}
@@ -5918,7 +5959,21 @@ function openMinyanForm(shulId, minyanId){
         <option value="">בחרו בית כנסת...</option>
         ${data.shuls.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('')}
       </select>
-    </div>` : ''}
+    </div>
+    ${isManager() ? `
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:-4px 0 12px;font-size:13px">
+      <input type="checkbox" id="f_customLocation" onchange="onCustomLocationToggle()">
+      📍 מניין חד-פעמי במיקום שאינו בית כנסת קבוע (למנהלים בלבד)
+    </label>
+    <div id="customLocationFields" style="display:none">
+      <div class="field"><label for="f_customLocationName">שם/תיאור המיקום</label><input id="f_customLocationName" placeholder="לדוגמה: אולם אירועים, בית משפחת כהן, טיול משפחתי"></div>
+      <div class="field optional"><label for="f_customLocationAddress">כתובת (לניווט, לא חובה)</label><input id="f_customLocationAddress" placeholder="כתובת מלאה"></div>
+      <p class="muted" style="margin-top:-8px">מניין כזה חייב להיות מסוג "תפילה בתאריך מיוחד" (למטה) - הוא לא יופיע בתצוגה "לפי בית כנסת", רק ברשימת המניינים ליום הרלוונטי.</p>
+    </div>` : ''}` : ''}
+    ${isCustomLocation ? `
+    <div class="field"><label for="f_customLocationName">שם/תיאור המיקום</label><input id="f_customLocationName" value="${escapeHtml(m.customLocationName||'')}"></div>
+    <div class="field optional"><label for="f_customLocationAddress">כתובת (לניווט, לא חובה)</label><input id="f_customLocationAddress" value="${escapeHtml(m.customLocationAddress||'')}"></div>
+    <input type="hidden" id="f_customLocation" value="1">` : ''}
     <div class="field"><label for="f_tefila">תפילה</label>
       <select id="f_tefila" onchange="onTefilaChange(${m?'true':'false'})">
         ${TEFILA_ORDER.map(t=>`<option ${m&&!m.specialDate&&m.tefila===t?'selected':''}>${escapeHtml(t)}</option>`).join('')}
@@ -5983,12 +6038,23 @@ function openMinyanForm(shulId, minyanId){
   toggleTimeFields();
   onOffsetSignChange();
   onTefilaOrSpecialChange();
+  onCustomLocationToggle();
   attachHebrewDateLabel('f_specialDate', 'f_specialDate_he');
   attachHebrewDateLabel('f_tempNoteUntil', 'f_tempNoteUntil_he');
   const tempNoteInput = document.getElementById('f_tempNote');
   if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
     document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
   });
+}
+// מציג/מסתיר את בורר בית הכנסת מול שדות המיקום החד-פעמי, לפי מצב תיבת הסימון (רלוונטי רק בהוספה חדשה - במנהל)
+function onCustomLocationToggle(){
+  const checkbox = document.getElementById('f_customLocation');
+  const shulSelect = document.getElementById('f_shulId');
+  const fields = document.getElementById('customLocationFields');
+  if (!checkbox || checkbox.type !== 'checkbox' || !shulSelect || !fields) return; // בעריכת מניין קיים במיקום חד-פעמי, f_customLocation הוא input מוסתר קבוע - אין מה להחליף
+  const checked = checkbox.checked;
+  shulSelect.closest('.field').style.display = checked ? 'none' : '';
+  fields.style.display = checked ? '' : 'none';
 }
 // מציג/מסתיר את שדה סוג התפילה המורחב ואת בורר התאריך, במקום בורר "ימים" - כשבוחרים "תפילה בתאריך מיוחד"
 function onTefilaOrSpecialChange(){
@@ -6053,12 +6119,24 @@ function isDuplicateMinyan(candidate, excludeId){
   });
 }
 function saveMinyan(shulId, minyanId){
-  if (!shulId){
-    const sel = document.getElementById('f_shulId');
-    shulId = sel ? sel.value : '';
+  const customLocationEl = document.getElementById('f_customLocation');
+  const isCustomLocation = !!(customLocationEl && (customLocationEl.type === 'checkbox' ? customLocationEl.checked : customLocationEl.value === '1'));
+  if (isCustomLocation && !isManager()){ alert('רק מנהל יכול להוסיף מניין במיקום חד-פעמי מחוץ לבתי הכנסת'); return; }
+  let customLocationName = '', customLocationAddress = '';
+  if (isCustomLocation){
+    customLocationName = document.getElementById('f_customLocationName').value.trim();
+    if (!customLocationName){ alert('יש להזין שם או תיאור למיקום'); return; }
+    customLocationAddress = document.getElementById('f_customLocationAddress').value.trim();
+    shulId = '';
+  } else {
+    if (!shulId){
+      const sel = document.getElementById('f_shulId');
+      shulId = sel ? sel.value : '';
+    }
+    if (!shulId){ alert('יש לבחור בית כנסת'); return; }
   }
-  if (!shulId){ alert('יש לבחור בית כנסת'); return; }
   const isSpecial = document.getElementById('f_tefila').value === '__SPECIAL_DATE__';
+  if (isCustomLocation && !isSpecial){ alert('מניין במיקום חד-פעמי מיועד רק לתפילה בתאריך מיוחד - יש לבחור "תפילה בתאריך מיוחד בלוח השנה"'); return; }
   let tefila, days, specialDate = null;
   if (isSpecial){
     tefila = document.getElementById('f_specialTefilaType').value;
@@ -6080,6 +6158,9 @@ function saveMinyan(shulId, minyanId){
     tefila,
     days,
     specialDate,
+    customLocation: isCustomLocation,
+    customLocationName: isCustomLocation ? customLocationName : null,
+    customLocationAddress: isCustomLocation ? customLocationAddress : null,
     timeType: document.getElementById('f_timeType').value,
     fixedTime: document.getElementById('f_fixedTime').value,
     anchor: document.getElementById('f_anchor').value,
@@ -6094,7 +6175,7 @@ function saveMinyan(shulId, minyanId){
     const proceed = confirm(timeWarning + '\n\nלשמור בכל זאת?');
     if (!proceed) return;
   }
-  if (isDuplicateMinyan(candidate, id)){
+  if (!isCustomLocation && isDuplicateMinyan(candidate, id)){
     const proceed = confirm('כבר קיים בבית הכנסת הזה מניין דומה - אותה תפילה, עם ימים חופפים ואותו זמן בדיוק. לשמור בכל זאת?');
     if (!proceed) return;
   }
@@ -6102,7 +6183,7 @@ function saveMinyan(shulId, minyanId){
   if (isNew) candidate.createdAt = new Date().toISOString();
   const obj = stamp(candidate);
   db.collection('minyanim').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
-  trackEvent(isNew ? 'add_minyan' : 'edit_minyan', { tefila: candidate.tefila, shul_id: shulId });
+  trackEvent(isNew ? 'add_minyan' : 'edit_minyan', { tefila: candidate.tefila, shul_id: shulId, custom_location: isCustomLocation });
   closeModal();
 
 }
@@ -6134,6 +6215,11 @@ function openShiurForm(shiurId){
         <option value="women" ${s&&s.audience==='women'?'selected':''}>נשים</option>
         <option value="youth" ${s&&s.audience==='youth'?'selected':''}>נוער</option>
         <option value="kids" ${s&&s.audience==='kids'?'selected':''}>ילדים</option>
+      </select>
+    </div>
+    <div class="field"><label for="f_language">שפת השיעור</label>
+      <select id="f_language">
+        ${Object.keys(LANGUAGE_LABEL).map(k=>`<option value="${k}" ${(s?(s.language||'he'):'he')===k?'selected':''}>${LANGUAGE_LABEL[k]}</option>`).join('')}
       </select>
     </div>
     <div class="field">
@@ -6272,6 +6358,7 @@ function saveShiur(shiurId){
     title,
     topics,
     audience: document.getElementById('f_audience').value,
+    language: document.getElementById('f_language').value || 'he',
     oneTime: isOneTime,
     days,
     oneTimeDate,
@@ -6889,6 +6976,7 @@ document.getElementById('filterTimeMode').addEventListener('change', render);
 document.getElementById('filterTimeFrom').addEventListener('change', render);
 document.getElementById('addShiurBtn').addEventListener('click', ()=>openShiurForm());
 document.getElementById('filterAudience').addEventListener('change', render);
+document.getElementById('filterLanguage').addEventListener('change', render);
 document.getElementById('filterSearch').addEventListener('input', render);
 document.getElementById('overlay').addEventListener('click', e=>{ if(e.target.id==='overlay') closeModal(); });
 
@@ -6929,10 +7017,12 @@ document.addEventListener('keydown', e=>{
     const tabParam = params.get('tab');
     const topicParam = params.get('shiurTopic');
     const audParam = params.get('shiurAudience');
+    const langParam = params.get('shiurLanguage');
     const searchParam = params.get('shiurSearch');
-    if (tabParam === 'shiurim' || topicParam || audParam || searchParam){
+    if (tabParam === 'shiurim' || topicParam || audParam || langParam || searchParam){
       if (topicParam) topicParam.split(',').filter(Boolean).forEach(t=>selectedTopics.add(t));
       if (audParam) document.getElementById('filterAudience').value = audParam;
+      if (langParam) document.getElementById('filterLanguage').value = langParam;
       if (searchParam) document.getElementById('filterSearch').value = searchParam;
       document.getElementById('shiurimFiltersPanel').classList.add('show');
       document.getElementById('shiurimFiltersToggle').classList.add('active');
