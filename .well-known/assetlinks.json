@@ -1,1 +1,8 @@
-
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "il.muni.betel.tfilot",
+        "sha256_cert_fingerprints": ["13:85:37:27:42:D5:48:23:7F:44:7A:05:37:63:01:38:CA:FE:79:B4:0D:7A:4F:C4:71:C7:D5:EA:70:A5:FF:CF"]
+      }
+    }]
