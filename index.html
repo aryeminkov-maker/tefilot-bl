@@ -1267,7 +1267,18 @@ async function ensureDriveAccessToken(){
   if (driveAccessToken && Date.now() < driveAccessTokenExpiry) return driveAccessToken;
   const provider = new firebase.auth.GoogleAuthProvider();
   provider.addScope('https://www.googleapis.com/auth/drive.file');
-  const result = await auth.signInWithPopup(provider);
+  let result;
+  try{
+    result = await auth.signInWithPopup(provider);
+  }catch(err){
+    if (err && err.code === 'auth/popup-blocked'){
+      throw new Error('הדפדפן חסם את חלון האישור של גוגל. חפשו סמל "פופאפ נחסם" בשורת הכתובת (בדרך כלל ריבוע קטן עם X), לחצו עליו ובחרו "לאפשר תמיד פופאפים מהאתר הזה", ואז נסו שוב.');
+    }
+    if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')){
+      throw new Error('חלון האישור נסגר לפני שהושלם. נסו שוב ואשרו את הבקשה בחלון שנפתח.');
+    }
+    throw err;
+  }
   const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
   if (!credential || !credential.accessToken) throw new Error('לא התקבלה הרשאת גישה ל-Drive מגוגל');
   driveAccessToken = credential.accessToken;
