@@ -1283,17 +1283,23 @@ async function uploadFileToDrive(file, title, shulId, oldFileId){
   if (!res.ok || data.error) throw new Error(data.error || 'שגיאה לא ידועה בהעלאה');
   return { id: data.id, webViewLink: data.webViewLink };
 }
-// מחיקת קובץ קיים מ-Drive (למשל כשמסירים אותו לגמרי, בלי להחליף בחדש) - דרך אותו Worker
+// מחיקת קובץ קיים מ-Drive (למשל כשמסירים אותו לגמרי, בלי להחליף בחדש) - דרך אותו Worker.
+// מחזירה {ok:true} או {ok:false, error} - לא בולעת שגיאות בשקט, כדי שאפשר יהיה לדעת בפועל אם המחיקה הצליחה.
 async function deleteDriveFile(fileId, shulId){
-  if (!fileId || !currentUser) return;
+  if (!fileId || !currentUser) return { ok: true };
   try{
     const idToken = await currentUser.getIdToken();
-    await fetch(SHUL_DOCUMENT_WORKER_URL, {
+    const res = await fetch(SHUL_DOCUMENT_WORKER_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ idToken, action: 'delete', shulId, fileId })
     });
-  }catch(e){ console.warn('מחיקת קובץ ישן מ-Drive נכשלה (לא קריטי):', e); }
+    const data = await res.json();
+    if (!res.ok || data.error || data.ok === false) return { ok: false, error: (data && data.error) || 'שגיאה לא ידועה' };
+    return { ok: true };
+  }catch(e){
+    return { ok: false, error: e.message };
+  }
 }
 function getMessagingSafe(){
   try{
@@ -2109,6 +2115,11 @@ function openMyProfile(){
       </div>
       <button class="btn" onclick="saveMyProfileName()">שמירת שם</button>
 
+      ${currentRole === 'gabai' ? `
+      <h3 style="margin-top:22px">🔑 בית הכנסת שאני גבאי בו</h3>
+      <div id="myProfileGabaiShuls"></div>
+      ` : ''}
+
       <h3 style="margin-top:22px">🏠 בית הכנסת המועדף שלי</h3>
       <div id="myProfilePreferredShul"></div>
 
@@ -2123,9 +2134,24 @@ function openMyProfile(){
       </div>
     </div>`;
   document.getElementById('overlay').classList.add('show');
+  if (currentRole === 'gabai') renderMyProfileGabaiShuls();
   renderMyProfilePreferredShul();
   renderMyProfileNotifications();
   renderMyProfileEdits();
+}
+// מציג לגבאי את בית/בתי הכנסת שהוא מוגדר עליהם (assignedShulIds) - כמו שכבר קיים בשאר האפליקציה
+// לבדיקת הרשאה (canManageShul וכו'), רק כאן זה לתצוגה בלבד, עם קישור לדף בית הכנסת.
+function renderMyProfileGabaiShuls(){
+  const el = document.getElementById('myProfileGabaiShuls');
+  if (!el) return;
+  const shuls = currentUserAssignedShulIds.map(id=>data.shuls.find(s=>s.id===id)).filter(Boolean);
+  if (!shuls.length){
+    el.innerHTML = `<div class="empty">עדיין לא הוגדרתם כגבאי של בית כנסת מסוים - פנו למנהל אם זו טעות.</div>`;
+    return;
+  }
+  el.innerHTML = shuls.map(s=>`
+    <div class="minyan-line"><span><a href="#" onclick="closeModal();openShulPage('${s.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(s.name)}</a></span></div>
+  `).join('');
 }
 function renderMyProfilePreferredShul(){
   const el = document.getElementById('myProfilePreferredShul');
@@ -5649,16 +5675,19 @@ function openShulForm(shulId){
     <div class="field optional"><label for="f_gabaiNames">שמות גבאים נוספים (שלא מוגדרים כ"גבאי" במערכת ההרשאות)</label><input id="f_gabaiNames" value="${s&&s.gabaiNames?escapeHtml(s.gabaiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
     ${s ? `<div class="field optional">
       <label>מסמך לבית הכנסת (קובץ אחד בלבד - העלאה חדשה מחליפה קובץ קיים)</label>
-      <div class="field" style="margin-bottom:8px"><label for="f_documentTitle">כותרת המסמך</label><input id="f_documentTitle" value="${escapeHtml(s.documentTitle||'')}" placeholder="לדוגמה: לוח זמנים לחגים"></div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
-        <label class="btn" style="cursor:pointer;margin:0">
-          📄 העלאת קובץ
-          <input type="file" id="f_documentFile" style="display:none" onchange="handleDocumentUpload(this, '${s.id}')">
-        </label>
-        <span class="muted" id="documentUploadStatus"></span>
-      </div>
       <div id="documentPreview">${s.documentUrl?`<a href="${escapeHtml(s.documentUrl)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(s.documentTitle||'המסמך הנוכחי')}</a>`:''}</div>
-      ${s.documentUrl?`<button type="button" class="btn ghost" style="color:var(--danger);margin-top:6px" onclick="removeDocumentField('${s.id}')">✕ הסרת המסמך</button>`:''}
+      ${s.documentUrl?`<button type="button" class="btn ghost" style="color:var(--danger);margin-top:6px;margin-bottom:4px" onclick="removeDocumentField('${s.id}')">✕ הסרת המסמך</button>`:''}
+      <div id="documentPendingArea" style="display:none;margin-top:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)">
+        <p class="muted" id="documentPendingFileName" style="margin-bottom:8px"></p>
+        <div class="field"><label for="f_documentTitle">כותרת המסמך</label><input id="f_documentTitle" placeholder="לדוגמה: לוח זמנים לחגים"></div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button type="button" class="btn primary" onclick="confirmDocumentUpload('${s.id}')">✓ אישור העלאה</button>
+          <button type="button" class="btn ghost" onclick="cancelDocumentUpload()">ביטול</button>
+        </div>
+      </div>
+      <button type="button" class="btn primary" id="documentUploadTriggerBtn" style="margin-top:10px;padding:14px 22px;font-size:15px;display:block;width:100%">📄 העלאת קובץ חדש</button>
+      <input type="file" id="f_documentFile" style="display:none" onchange="onDocumentFileSelected(this)">
+      <p class="muted" id="documentUploadStatus" style="margin-top:8px"></p>
       <input type="hidden" id="f_documentFileId" value="${escapeHtml(s.documentFileId||'')}">
       <input type="hidden" id="f_documentUrl" value="${escapeHtml(s.documentUrl||'')}">
     </div>` : ''}
@@ -5713,18 +5742,32 @@ function removePhotoField(){
   document.getElementById('photoPreview').innerHTML = '';
   document.getElementById('photoUploadStatus').textContent = '';
 }
-async function handleDocumentUpload(input, shulId){
+let pendingDocumentFile = null; // הקובץ שנבחר אך עדיין לא הועלה בפועל - ממתין לאישור עם כותרת
+function onDocumentFileSelected(input){
   const file = input.files[0];
   if (!file) return;
   const maxBytes = 10*1024*1024;
   if (file.size > maxBytes){ alert('הקובץ גדול מדי - המקסימום הוא 10MB'); input.value = ''; return; }
+  pendingDocumentFile = file;
+  document.getElementById('documentPendingFileName').textContent = 'קובץ נבחר: ' + file.name;
+  document.getElementById('f_documentTitle').value = file.name.replace(/\.[^.]+$/, ''); // שם הקובץ בלי הסיומת, כברירת מחדל לכותרת - ניתנת לעריכה
+  document.getElementById('documentPendingArea').style.display = '';
+  document.getElementById('documentUploadTriggerBtn').style.display = 'none';
+}
+function cancelDocumentUpload(){
+  pendingDocumentFile = null;
+  document.getElementById('f_documentFile').value = '';
+  document.getElementById('documentPendingArea').style.display = 'none';
+  document.getElementById('documentUploadTriggerBtn').style.display = '';
+}
+async function confirmDocumentUpload(shulId){
+  if (!pendingDocumentFile) return;
+  const title = document.getElementById('f_documentTitle').value.trim() || pendingDocumentFile.name;
   const statusEl = document.getElementById('documentUploadStatus');
-  const titleInput = document.getElementById('f_documentTitle');
-  const title = titleInput.value.trim() || file.name;
   const oldFileId = document.getElementById('f_documentFileId').value;
   statusEl.textContent = 'מעלה ל-Drive...';
   try{
-    const result = await uploadFileToDrive(file, title, shulId, oldFileId);
+    const result = await uploadFileToDrive(pendingDocumentFile, title, shulId, oldFileId);
     document.getElementById('f_documentFileId').value = result.id;
     document.getElementById('f_documentUrl').value = result.webViewLink;
     document.getElementById('documentPreview').innerHTML = `<a href="${escapeHtml(result.webViewLink)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(title)}</a>`;
@@ -5736,17 +5779,26 @@ async function handleDocumentUpload(input, shulId){
     statusEl.textContent = '';
     alert('שגיאה בהעלאה או בשמירה: ' + e.message);
   }
-  input.value = '';
+  pendingDocumentFile = null;
+  document.getElementById('f_documentFile').value = '';
+  document.getElementById('documentPendingArea').style.display = 'none';
+  document.getElementById('documentUploadTriggerBtn').style.display = '';
 }
-function removeDocumentField(shulId){
+async function removeDocumentField(shulId){
   const fileId = document.getElementById('f_documentFileId').value;
-  if (fileId) deleteDriveFile(fileId, shulId);
+  const statusEl = document.getElementById('documentUploadStatus');
+  if (fileId){
+    if (statusEl) statusEl.textContent = 'מוחק מ-Drive...';
+    const result = await deleteDriveFile(fileId, shulId);
+    if (!result.ok){
+      // חשוב לא לבלוע את זה בשקט - הקישור עדיין יוסר מהאתר למטה, אבל הגבאי צריך לדעת שהקובץ עצמו נשאר ב-Drive
+      alert('הקישור הוסר מהאתר, אבל מחיקת הקובץ עצמו מ-Drive נכשלה:\n' + result.error + '\n\nאפשר למחוק אותו ידנית מתוך Drive אם צריך.');
+    }
+  }
   document.getElementById('f_documentFileId').value = '';
   document.getElementById('f_documentUrl').value = '';
-  document.getElementById('f_documentTitle').value = '';
   document.getElementById('documentPreview').innerHTML = '';
-  document.getElementById('documentUploadStatus').textContent = '';
-  // מסירים מיידית גם מ-Firestore, מאותה סיבה - לא מסתמכים על שמירת הטופס הכללית
+  if (statusEl) statusEl.textContent = '';
   db.collection('shuls').doc(shulId).update({ documentTitle: '', documentUrl: '', documentFileId: '' }).catch(()=>{});
 }
 function captureGpsInto(latId, lngId, statusId){
