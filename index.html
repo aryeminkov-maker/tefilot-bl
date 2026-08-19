@@ -1255,79 +1255,44 @@ const db = firebase.firestore();
 // כל עוד זה ריק, כפתור "הפעלת התראות" יציג הודעת שגיאה ברורה במקום לנסות ולהיכשל בשקט.
 const FCM_VAPID_KEY = 'BCUk8Q7KrSdD-ffM6wCuY024Lz7_HZiWR0OLKSQFiojxgcfkqFSlUDFDiDHi0r-DvPFp0htfDp1kTO-qBGC-evU';
 
-// ---------- מסמכים לבתי כנסת (Google Drive) ----------
-// תיקייה משותפת אחת ב-Drive (משותפת מראש ל"Editor" לכל הגבאים) - כל קובץ שמועלה מתוך האתר נכנס לשם.
-const DRIVE_FOLDER_ID = '1WXvFzy8U-agDkOER57b05y1ApTUn1yol';
-// טוקן הרשאת Drive נשמר רק בזיכרון (לא ב-localStorage/Firestore) - נעלם ברענון עמוד, וזה בכוונה: זו הרשאה
-// רגישה יותר מהתחברות רגילה (drive.file), אין סיבה לשמור אותה בין טעינות. פג תוקף אחרי כשעה ממילא.
-let driveAccessToken = null, driveAccessTokenExpiry = 0;
-// מבקש הרשאה נוספת ל-Drive מעבר להתחברות הרגילה (scope מצומצם - drive.file, לא כל הדרייב האישי) - המשתמש
-// כבר מחובר, זה רק "מרחיב" את ההרשאה עם פופאפ נוסף של גוגל. שקוף למשתמש - נדרש רק בפעם הראשונה בכל טעינת עמוד.
-async function ensureDriveAccessToken(){
-  if (driveAccessToken && Date.now() < driveAccessTokenExpiry) return driveAccessToken;
-  const provider = new firebase.auth.GoogleAuthProvider();
-  provider.addScope('https://www.googleapis.com/auth/drive.file');
-  let result;
-  try{
-    result = await auth.signInWithPopup(provider);
-  }catch(err){
-    if (err && err.code === 'auth/popup-blocked'){
-      throw new Error('הדפדפן חסם את חלון האישור של גוגל. חפשו סמל "פופאפ נחסם" בשורת הכתובת (בדרך כלל ריבוע קטן עם X), לחצו עליו ובחרו "לאפשר תמיד פופאפים מהאתר הזה", ואז נסו שוב.');
-    }
-    if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')){
-      throw new Error('חלון האישור נסגר לפני שהושלם. נסו שוב ואשרו את הבקשה בחלון שנפתח.');
-    }
-    throw err;
-  }
-  const credential = firebase.auth.GoogleAuthProvider.credentialFromResult(result);
-  if (!credential || !credential.accessToken) throw new Error('לא התקבלה הרשאת גישה ל-Drive מגוגל');
-  driveAccessToken = credential.accessToken;
-  driveAccessTokenExpiry = Date.now() + 50*60*1000; // כ-50 דקות - שמרני מול תוקף בפועל (כשעה)
-  return driveAccessToken;
-}
+// ---------- מסמכים לבתי כנסת (Google Drive, דרך ה-Worker) ----------
+// כתובת ה-Worker שכבר קיים (אותו אחד שמטפל בהתראות Push) - מטפל גם בהעלאה/מחיקה של מסמכי בתי כנסת,
+// כדי שהגבאי לא יצטרך אף פעם לאשר הרשאת Drive נפרדת בפופאפ: השרת (Service Account) עושה את ההעלאה
+// בעצמו, אחרי שהוא מוודא מול Firebase שזו באמת התחברות תקפה של אותו משתמש.
+const SHUL_DOCUMENT_WORKER_URL = 'https://tefilot-bl.arye-minkov.workers.dev/shul-document';
 function arrayBufferToBase64(buffer){
   let binary = '';
   const bytes = new Uint8Array(buffer);
   for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
   return btoa(binary);
 }
-// מעלה קובץ לתיקייה המשותפת, ואז הופך את הקובץ הספציפי לניתן-לצפייה לכל מי שיש לו קישור (לא נוגע בהרשאות
-// התיקייה הכללית) - כדי שגם תושבים שלא הוזמנו לתיקייה עצמה יוכלו לפתוח את הקובץ מהאתר.
-async function uploadFileToDrive(file, title){
-  const token = await ensureDriveAccessToken();
-  const metadata = { name: title || file.name, parents: [DRIVE_FOLDER_ID] };
-  const boundary = '-------314159265358979323846';
+// מעלה קובץ (עבור shulId נתון) - שולח את תוכן הקובץ + אישור ההתחברות הקיים ל-Worker, שמבצע את ההעלאה
+// בפועל בעצמו (ולא הדפדפן) ומחזיר קישור לצפייה. oldFileId אופציונלי - אם מוחלף קובץ קיים, ה-Worker
+// ידאג למחוק אותו ברקע אחרי שהחדש הועלה בהצלחה.
+async function uploadFileToDrive(file, title, shulId, oldFileId){
+  if (!currentUser) throw new Error('יש להתחבר לאתר לפני העלאת קובץ');
+  const idToken = await currentUser.getIdToken();
   const fileContent = await file.arrayBuffer();
-  const base64Data = arrayBufferToBase64(fileContent);
-  const multipartBody =
-    '--' + boundary + '\r\n' +
-    'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
-    JSON.stringify(metadata) + '\r\n' +
-    '--' + boundary + '\r\n' +
-    'Content-Type: ' + (file.type || 'application/octet-stream') + '\r\n' +
-    'Content-Transfer-Encoding: base64\r\n\r\n' +
-    base64Data + '\r\n' +
-    '--' + boundary + '--';
-  const res = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+  const fileBase64 = arrayBufferToBase64(fileContent);
+  const res = await fetch(SHUL_DOCUMENT_WORKER_URL, {
     method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'multipart/related; boundary="' + boundary + '"' },
-    body: multipartBody
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ idToken, action: 'upload', shulId, title, fileBase64, mimeType: file.type || 'application/octet-stream', oldFileId: oldFileId || null })
   });
   const data = await res.json();
-  if (!res.ok) throw new Error((data.error && data.error.message) || 'שגיאה לא ידועה בהעלאה ל-Drive');
-  await fetch(`https://www.googleapis.com/drive/v3/files/${data.id}/permissions`, {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ role: 'reader', type: 'anyone' })
-  }).catch(()=>{}); // לא קריטי אם זה נכשל - התיקייה עצמה עדיין משותפת לגבאים לפחות
+  if (!res.ok || data.error) throw new Error(data.error || 'שגיאה לא ידועה בהעלאה');
   return { id: data.id, webViewLink: data.webViewLink };
 }
-// מחיקת קובץ ישן מ-Drive (למשל כשמחליפים אותו בחדש, או מסירים אותו) - best-effort, לא חוסמת את המשתמש אם נכשלת
-async function deleteDriveFile(fileId){
-  if (!fileId) return;
+// מחיקת קובץ קיים מ-Drive (למשל כשמסירים אותו לגמרי, בלי להחליף בחדש) - דרך אותו Worker
+async function deleteDriveFile(fileId, shulId){
+  if (!fileId || !currentUser) return;
   try{
-    const token = await ensureDriveAccessToken();
-    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+    const idToken = await currentUser.getIdToken();
+    await fetch(SHUL_DOCUMENT_WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ idToken, action: 'delete', shulId, fileId })
+    });
   }catch(e){ console.warn('מחיקת קובץ ישן מ-Drive נכשלה (לא קריטי):', e); }
 }
 function getMessagingSafe(){
@@ -2531,6 +2496,16 @@ function renderShulsAdmin(){
   const el = document.getElementById('shulsAdminList');
   if (!el) return;
   if (!data.shuls.length){ el.innerHTML = '<div class="empty">אין עדיין בתי כנסת</div>'; return; }
+  // השלמה ברקע: לבית כנסת ישן שעדיין אין לו קישור ידידותי (נוסף לפני שהפיצ'ר הזה קיים) - מוקצה מספר
+  // רץ אוטומטית, בלי לחכות שמישהו יפתח את טופס העריכה שלו. רץ רק כאן (לא בכל טעינת עמוד) כי צריך
+  // הרשאת מנהל לכתיבה, וכדי לא לגרום להמון כתיבות מיותרות ל-Firestore בכל כניסה לאפליקציה.
+  if (isManager()){
+    let nextNum = nextAvailableShulSlugNumber();
+    data.shuls.filter(s=>!s.slug).forEach(s=>{
+      db.collection('shuls').doc(s.id).update({ slug: String(nextNum) }).catch(()=>{});
+      nextNum++;
+    });
+  }
   el.innerHTML = data.shuls.map(s=>`
     <div class="card row">
       <div>
@@ -3710,8 +3685,9 @@ function attachListeners(){
       urlShulChecked = true;
       const params = new URLSearchParams(window.location.search);
       const shulParam = params.get('shul');
-      if (shulParam && data.shuls.find(s=>s.id===shulParam)){
-        openShulPage(shulParam);
+      if (shulParam){
+        const matched = data.shuls.find(s=>s.id===shulParam) || data.shuls.find(s=>s.slug && s.slug===shulParam);
+        if (matched) openShulPage(matched.id);
       }
     }
   }, e=>console.error(e));
@@ -5664,6 +5640,11 @@ function openShulForm(shulId){
     </div>
     <div class="field optional"><label for="f_description">תיאור / מידע נוסף</label><textarea id="f_description" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${s?escapeHtml(s.description||''):''}</textarea></div>
     <div class="field optional"><label for="f_donationLink">קישור לתרומה</label><input id="f_donationLink" value="${s?escapeHtml(s.donationLink||''):''}" placeholder="https://..."></div>
+    <div class="field optional">
+      <label for="f_slug">קישור ידידותי (עובד בנוסף לקישור הרגיל, לא מחליף אותו)</label>
+      <input id="f_slug" value="${s?escapeHtml(s.slug||''):''}" placeholder="ריק = מספר אוטומטי. אפשר גם טקסט משלכם, למשל gavriel" oninput="this.value=this.value.replace(/[^a-zA-Z0-9-]/g,'').toLowerCase()">
+      <p class="muted" style="margin-top:6px">${s&&s.slug?`הקישור הנוכחי: ${escapeHtml(window.location.origin + window.location.pathname)}?shul=${escapeHtml(s.slug)}`:'אם משאירים ריק, יוקצה מספר רץ אוטומטית בשמירה. אפשר גם לכתוב כאן טקסט משלכם (אנגלית/מספרים/מקף בלבד) כדי לשנות.'}</p>
+    </div>
     <div class="field optional"><label for="f_rabbiNames">שם/שמות הרב</label><input id="f_rabbiNames" value="${s&&s.rabbiNames?escapeHtml(s.rabbiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
     <div class="field optional"><label for="f_gabaiNames">שמות גבאים נוספים (שלא מוגדרים כ"גבאי" במערכת ההרשאות)</label><input id="f_gabaiNames" value="${s&&s.gabaiNames?escapeHtml(s.gabaiNames.join(', ')):''}" placeholder="אם יש כמה שמות, הפרידו בפסיק"></div>
     ${s ? `<div class="field optional">
@@ -5672,12 +5653,12 @@ function openShulForm(shulId){
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
         <label class="btn" style="cursor:pointer;margin:0">
           📄 העלאת קובץ
-          <input type="file" id="f_documentFile" style="display:none" onchange="handleDocumentUpload(this)">
+          <input type="file" id="f_documentFile" style="display:none" onchange="handleDocumentUpload(this, '${s.id}')">
         </label>
         <span class="muted" id="documentUploadStatus"></span>
       </div>
       <div id="documentPreview">${s.documentUrl?`<a href="${escapeHtml(s.documentUrl)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(s.documentTitle||'המסמך הנוכחי')}</a>`:''}</div>
-      ${s.documentUrl?`<button type="button" class="btn ghost" style="color:var(--danger);margin-top:6px" onclick="removeDocumentField()">✕ הסרת המסמך</button>`:''}
+      ${s.documentUrl?`<button type="button" class="btn ghost" style="color:var(--danger);margin-top:6px" onclick="removeDocumentField('${s.id}')">✕ הסרת המסמך</button>`:''}
       <input type="hidden" id="f_documentFileId" value="${escapeHtml(s.documentFileId||'')}">
       <input type="hidden" id="f_documentUrl" value="${escapeHtml(s.documentUrl||'')}">
     </div>` : ''}
@@ -5732,7 +5713,7 @@ function removePhotoField(){
   document.getElementById('photoPreview').innerHTML = '';
   document.getElementById('photoUploadStatus').textContent = '';
 }
-async function handleDocumentUpload(input){
+async function handleDocumentUpload(input, shulId){
   const file = input.files[0];
   if (!file) return;
   const maxBytes = 10*1024*1024;
@@ -5743,21 +5724,20 @@ async function handleDocumentUpload(input){
   const oldFileId = document.getElementById('f_documentFileId').value;
   statusEl.textContent = 'מעלה ל-Drive...';
   try{
-    const result = await uploadFileToDrive(file, title);
+    const result = await uploadFileToDrive(file, title, shulId, oldFileId);
     document.getElementById('f_documentFileId').value = result.id;
     document.getElementById('f_documentUrl').value = result.webViewLink;
     document.getElementById('documentPreview').innerHTML = `<a href="${escapeHtml(result.webViewLink)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(title)}</a>`;
     statusEl.textContent = '✓ הועלה בהצלחה';
-    if (oldFileId && oldFileId !== result.id) deleteDriveFile(oldFileId); // מחליפים קובץ קיים - מוחקים את הישן ברקע, לא חוסמים את המשתמש
   }catch(e){
     statusEl.textContent = '';
-    alert('שגיאה בהעלאה ל-Drive: ' + e.message);
+    alert('שגיאה בהעלאה: ' + e.message);
   }
   input.value = '';
 }
-function removeDocumentField(){
+function removeDocumentField(shulId){
   const fileId = document.getElementById('f_documentFileId').value;
-  if (fileId) deleteDriveFile(fileId);
+  if (fileId) deleteDriveFile(fileId, shulId);
   document.getElementById('f_documentFileId').value = '';
   document.getElementById('f_documentUrl').value = '';
   document.getElementById('f_documentTitle').value = '';
@@ -5778,6 +5758,12 @@ function captureGpsInto(latId, lngId, statusId){
     { enableHighAccuracy: true, timeout: 10000 }
   );
 }
+// מחזיר את המספר הרץ הבא הפנוי לקישור ידידותי - מסתכל רק על slug-ים שהם מספרים טהורים,
+// מתעלם מקישורים מותאמים אישית (טקסט) שגבאי בחר להזין ידנית.
+function nextAvailableShulSlugNumber(){
+  const nums = data.shuls.map(s=>s.slug).filter(s=>/^\d+$/.test(s||'')).map(Number);
+  return (nums.length ? Math.max(...nums) : 0) + 1;
+}
 function saveShul(shulId){
   if (shulId ? !canManageShul(shulId) : !isManager()) return;
   const name = document.getElementById('f_name').value.trim();
@@ -5786,6 +5772,12 @@ function saveShul(shulId){
   const lng = document.getElementById('f_lng').value;
   const donationLink = document.getElementById('f_donationLink').value.trim();
   if (donationLink && !/^https?:\/\//i.test(donationLink)){ alert('קישור לתרומה צריך להתחיל ב-http:// או https://'); return; }
+  // קישור ידידותי - אם הגבאי לא הזין כלום, מוקצה מספר רץ אוטומטית (גם לבית כנסת חדש, וגם כשמעדכנים
+  // בית כנסת ישן שעדיין אין לו קישור ידידותי - כך שברבות הזמן כל בתי הכנסת מקבלים מספר, גם בלי מיגרציה נפרדת).
+  let slug = document.getElementById('f_slug').value.trim().toLowerCase();
+  if (!slug) slug = String(nextAvailableShulSlugNumber());
+  const slugTakenBy = data.shuls.find(s=>s.slug===slug && s.id!==shulId);
+  if (slugTakenBy){ alert(`הקישור הידידותי "${slug}" כבר תפוס על ידי בית כנסת אחר (${slugTakenBy.name}). יש לבחור קישור אחר.`); return; }
   const parseNames = s => s.split(',').map(x=>x.trim()).filter(Boolean);
   const docTitleEl = document.getElementById('f_documentTitle');
   const docUrlEl = document.getElementById('f_documentUrl');
@@ -5799,6 +5791,7 @@ function saveShul(shulId){
     photo: document.getElementById('f_photo').value.trim(),
     description: document.getElementById('f_description').value.trim(),
     donationLink,
+    slug,
     rabbiNames: parseNames(document.getElementById('f_rabbiNames').value),
     gabaiNames: parseNames(document.getElementById('f_gabaiNames').value),
     documentTitle: docTitleEl ? docTitleEl.value.trim() : '',
