@@ -5841,8 +5841,9 @@ function openShulPage(shulId){
   document.getElementById('shul-page').style.display = '';
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   try{
+    const shulForUrl = data.shuls.find(s=>s.id===shulId);
     const url = new URL(window.location.href);
-    url.searchParams.set('shul', shulId);
+    url.searchParams.set('shul', (shulForUrl && shulForUrl.slug) ? shulForUrl.slug : shulId);
     history.replaceState(null, '', url);
   }catch(e){}
   renderShulPage();
@@ -5967,8 +5968,9 @@ function closeShulPage(){
 function shareShulLink(shulId){
   let link;
   try{
+    const shul = data.shuls.find(s=>s.id===shulId);
     const url = new URL(window.location.href);
-    url.searchParams.set('shul', shulId);
+    url.searchParams.set('shul', (shul && shul.slug) ? shul.slug : shulId);
     link = url.toString();
   }catch(e){ link = window.location.href; }
   if (navigator.share){
