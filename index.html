@@ -5306,6 +5306,7 @@ function openNavPopover(e){
   pop.style.top = (rect.bottom + 6) + 'px';
   pop.style.right = (window.innerWidth - rect.right) + 'px';
   pop.style.width = '190px';
+  pop.style.height = 'auto';
   pop.innerHTML = `
     <a href="${btn.dataset.waze}" target="_blank" rel="noopener" style="display:block;padding:9px 4px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 פתח בוייז</a>
     <a href="${btn.dataset.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 4px;color:var(--ink);text-decoration:none">🧭 פתח ב-Google Maps</a>
@@ -5344,6 +5345,7 @@ function keepPopoverInViewport(pop, rect){
   const maxH = Math.max(spaceAbove, spaceBelow, 120);
   pop.style.maxHeight = maxH + 'px';
   pop.style.overflowY = 'auto';
+  pop.style.height = 'auto'; // הכרחה מפורשת - תיקון הגנתי למקרה נדיר שבו הגובה מצטמצם לערך זעיר משום מה
 }
 function openMinyanMenuPopover(e, shulId, minyanId){
   e.stopPropagation();
@@ -5362,6 +5364,7 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   pop.style.top = (rect.bottom + 6) + 'px';
   pop.style.right = (window.innerWidth - rect.right) + 'px';
   pop.style.width = '230px';
+  pop.style.height = 'auto';
   let html = '';
   if (m.verifiedAt || m.updatedAt){
     const infoLine = m.verifiedAt
@@ -5426,6 +5429,7 @@ function openShiurMenuPopover(e, shiurId){
   pop.style.top = (rect.bottom + 6) + 'px';
   pop.style.right = (window.innerWidth - rect.right) + 'px';
   pop.style.width = '230px';
+  pop.style.height = 'auto';
   let html = '';
   if (s.updatedAt){
     html += `<div class="muted" style="padding:8px 6px;border-bottom:1px solid var(--border);font-size:12.5px">${lastUpdatedLabel(s)}</div>`;
