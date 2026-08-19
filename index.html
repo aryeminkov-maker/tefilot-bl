@@ -5685,7 +5685,7 @@ function openShulForm(shulId){
           <button type="button" class="btn ghost" onclick="cancelDocumentUpload()">ביטול</button>
         </div>
       </div>
-      <button type="button" class="btn primary" id="documentUploadTriggerBtn" style="margin-top:10px;padding:14px 22px;font-size:15px;display:block;width:100%">📄 העלאת קובץ חדש</button>
+      <button type="button" class="btn primary" id="documentUploadTriggerBtn" style="margin-top:10px;padding:14px 22px;font-size:15px;display:block;width:100%" onclick="document.getElementById('f_documentFile').click()">📄 העלאת קובץ חדש</button>
       <input type="file" id="f_documentFile" style="display:none" onchange="onDocumentFileSelected(this)">
       <p class="muted" id="documentUploadStatus" style="margin-top:8px"></p>
       <input type="hidden" id="f_documentFileId" value="${escapeHtml(s.documentFileId||'')}">
@@ -6193,7 +6193,7 @@ function renderShulPage(){
         ${(()=>{ const links = getNavLinks(shul); return links ? `<button type="button" class="icon-btn" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)" aria-label="ניווט" title="ניווט">${NAV_PIN_ICON_SVG}</button>` : ''; })()}
       </div>
       ${editable?`<div style="display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap">
-        <button class="btn" onclick="openShulForm('${shul.id}')">עריכת פרטים</button>
+        <button class="btn" onclick="openShulForm('${shul.id}')">ממשק ניהול לגבאים</button>
         <button class="btn" onclick="openShulImportModal('${shul.id}')" title="עדכון מרוכז של המניינים מקובץ אקסל">📤 ייבוא מניינים מאקסל</button>
       </div>`:''}
       ${shul.description?`<p style="margin-top:12px;line-height:1.7">${escapeHtml(shul.description)}</p>`:''}
