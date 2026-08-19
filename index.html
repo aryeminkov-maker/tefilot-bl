@@ -48,8 +48,11 @@
   .shiur-recording-btn{width:64px;flex-shrink:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-decoration:none;border-right:1px solid var(--border);border-top-left-radius:9px;border-bottom-left-radius:9px;transition:filter .15s;padding:6px 4px;text-align:center}
   .shiur-recording-btn .rec-caption{font-size:9px;line-height:1.25;color:var(--ink-soft);font-weight:500}
   .google-icon-svg{width:20px;height:20px}
-  .info-popover{display:none;position:absolute;top:calc(100% + 8px);right:0;width:230px;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6;z-index:30}
-  .info-popover.show{display:block}
+  /* עודכן לשימוש ב-Popover API הילידי של הדפדפן (תכונת popover) במקום ניהול display/z-index ידני -
+     זה מבטיח שהתפריט תמיד יירנדר ב"שכבה עליונה" נפרדת מכל שאר הדף, חסין מבעיות CSS/מיכל-הכלה
+     שגרמו בעבר לגובה שלו להתכווץ באופן בלתי צפוי. גם הסגירה בלחיצה מחוץ לתפריט (light-dismiss)
+     וב-Esc כלולות מובנות בדפדפן - אין יותר צורך במאזין document.addEventListener ידני. */
+  .info-popover{position:fixed;width:230px;margin:0;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6}
   .idbar{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
   .idbar input, .idbar select{font-family:'Rubik',sans-serif;font-size:13px;padding:7px 10px;border-radius:8px;border:none}
   .idbar span{font-size:12px;color:var(--ink-soft);align-self:center}
@@ -1427,7 +1430,11 @@ auth.onAuthStateChanged(async user=>{
   const userRef = db.collection('users').doc(user.uid);
   const snap = await userRef.get();
   if (!snap.exists){
-    await userRef.set({ role:'resident', name:user.displayName||'', email:user.email||'', createdAt: new Date().toISOString() });
+    await userRef.set({ role:'resident', name:user.displayName||'', email:user.email||'', createdAt: new Date().toISOString(), lastActiveAt: new Date().toISOString() });
+  } else {
+    // כתיבה בודדת פעם אחת לכל טעינת אפליקציה (לא בכל render/snapshot) - מספיקה כדי לדעת "מי היה פעיל
+    // השבוע" בדשבורד הניהול, בלי להעמיס כתיבות מיותרות ל-Firestore
+    userRef.update({ lastActiveAt: new Date().toISOString() }).catch(()=>{});
   }
   unsubUserDoc = userRef.onSnapshot(doc=>{
     const d = doc.data();
@@ -1443,6 +1450,7 @@ auth.onAuthStateChanged(async user=>{
     currentUserNotifyLeadMinutes = (d && d.notifyLeadMinutes) ? d.notifyLeadMinutes : 10;
     currentUserNotifyMinyanIds = (d && Array.isArray(d.notifyMinyanIds)) ? d.notifyMinyanIds : [];
     currentUserNotifyShiurIds = (d && Array.isArray(d.notifyShiurIds)) ? d.notifyShiurIds : [];
+    if (currentUserNotifyShiurIds.length) ensureShiurimLoaded(); // ר' תיקון - בלי זה, מנוי לשיעור שנמחק יכול להיספר בטעות במכסת 4 ההתראות עד שמישהו מבקר בלשונית שיעורים
     if (document.getElementById('myProfileModalBody')) renderMyProfileNotifications(); // המודל פתוח כרגע - לרענן מיד (למשל אחרי הפעלה/ביטול)
     document.getElementById('userNameLabel').textContent = currentUserName;
     const labels = {resident:'תושב', gabai:'גבאי', manager:'מנהל'};
@@ -2060,6 +2068,9 @@ function openMyProfile(){
       </div>
       <button class="btn" onclick="saveMyProfileName()">שמירת שם</button>
 
+      <h3 style="margin-top:22px">🏠 בית הכנסת המועדף שלי</h3>
+      <div id="myProfilePreferredShul"></div>
+
       <h3 style="margin-top:22px">🔔 התראות</h3>
       <div id="myProfileNotifications"></div>
 
@@ -2071,8 +2082,40 @@ function openMyProfile(){
       </div>
     </div>`;
   document.getElementById('overlay').classList.add('show');
+  renderMyProfilePreferredShul();
   renderMyProfileNotifications();
   renderMyProfileEdits();
+}
+function renderMyProfilePreferredShul(){
+  const el = document.getElementById('myProfilePreferredShul');
+  if (!el) return;
+  let myShulId = null;
+  try{ myShulId = localStorage.getItem('myShulId'); }catch(e){}
+  const shul = myShulId ? data.shuls.find(s=>s.id===myShulId) : null;
+  // הערה: הסימון הזה נשמר על המכשיר עצמו (לא בחשבון ה-Firestore) - כמו שכבר קיים באפליקציה
+  // (כוכב ⭐ בדף בית כנסת), ולכן לא מסתנכרן בין מכשירים שונים של אותו משתמש.
+  if (shul){
+    el.innerHTML = `<p style="line-height:1.7">בית הכנסת המועדף שלכם: <b>${escapeHtml(shul.name)}</b></p>
+      <button class="btn" onclick="closeModal();openShulPage('${shul.id}')">מעבר לדף בית הכנסת</button>`;
+  } else {
+    el.innerHTML = `<p class="muted" style="margin-bottom:10px">עדיין לא סימנתם בית כנסת מועדף - זה עוזר להגיע אליו מהר יותר בכל כניסה לאפליקציה.</p>
+      <button class="btn primary" onclick="goPickMyShul()">בחירת בית כנסת מועדף</button>`;
+  }
+}
+// סוגר את המודל ומעביר ללשונית "תפילות" בתצוגת "לפי בית כנסת", כדי שהמשתמש יוכל לבחור ולסמן בית כנסת (בכוכב ⭐ שכבר קיים בדף כל בית כנסת)
+function goPickMyShul(){
+  closeModal();
+  viewingShulId = null;
+  document.getElementById('shul-page').style.display = 'none';
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
+  currentTab = 'tefilot';
+  currentView = 'byshul';
+  document.getElementById('tefilot-tab').style.display = '';
+  document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('info-tab').style.display = 'none';
+  document.getElementById('admin-tab').style.display = 'none';
+  document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='byshul'));
+  render();
 }
 function saveMyProfileName(){
   if (!currentUser) return;
@@ -2091,19 +2134,20 @@ function renderMyProfileEdits(){
     el.innerHTML = `<div class="empty">לא נמצאו פריטים שהעדכון האחרון שלהם בוצע על ידך</div>`;
     return;
   }
-  let html = '';
-  if (myMinyanim.length){
-    html += myMinyanim.map(m=>{
-      const shul = getMinyanLocation(m);
-      return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openMinyanForm('${m.shulId}','${m.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(m.tefila)} · ${escapeHtml(shul?shul.name:'')}</a></span></div>`;
-    }).join('');
-  }
-  if (myShiurim.length){
-    html += myShiurim.map(s=>{
-      return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openShiurForm('${s.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(s.title)}</a></span></div>`;
-    }).join('');
-  }
-  el.innerHTML = html;
+  // ממזגים מניינים ושיעורים לרשימה אחת, ממוינת מהחדש לישן לפי updatedAt - פריטים בלי updatedAt (ישנים
+  // מלפני שהשדה הזה נוסף למערכת) יורדים לסוף הרשימה, לא נעלמים
+  const combined = [
+    ...myMinyanim.map(m=>({ type:'minyan', item:m, updatedAt: m.updatedAt || '' })),
+    ...myShiurim.map(s=>({ type:'shiur', item:s, updatedAt: s.updatedAt || '' }))
+  ].sort((a,b) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+  const rows = combined.map(({type, item}) => {
+    if (type === 'minyan'){
+      const shul = getMinyanLocation(item);
+      return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openMinyanForm('${item.shulId}','${item.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(item.tefila)} · ${escapeHtml(shul?shul.name:'')}</a></span></div>`;
+    }
+    return `<div class="minyan-line"><span><a href="#" onclick="closeModal();openShiurForm('${item.id}');return false" style="color:var(--dusk);text-decoration:none;font-weight:500">${escapeHtml(item.title)}</a></span></div>`;
+  }).join('');
+  el.innerHTML = `<details class="info-accordion"><summary>הצגת ${combined.length} פריטים (מהחדש לישן)</summary><div class="info-accordion-body">${rows}</div></details>`;
 }
 // מרנדר מחדש רק את חלק ההתראות במסך האזור האישי - נקרא גם מהמאזין בזמן אמת של מתג הכיבוי (config/notifications),
 // כדי שאם מנהל מכבה את המערך בזמן שהמסך הזה כבר פתוח אצל מישהו, זה ייעלם אצלו מיד ולא רק בכניסה הבאה.
@@ -2179,7 +2223,12 @@ async function toggleNotifySubscription(type, id){
   const list = type === 'minyan' ? currentUserNotifyMinyanIds : currentUserNotifyShiurIds;
   const isSubscribed = list.includes(id);
   if (!isSubscribed){
-    const totalActive = currentUserNotifyMinyanIds.length + currentUserNotifyShiurIds.length;
+    // סופרים רק מנויים לפריטים שעדיין קיימים בפועל - לא רשומות "מתות" שנשארו ברשימה אחרי שהמניין/שיעור
+    // שהם מצביעים עליו נמחק (ר' הערה בחלק ד' באפיון - לא מנקים את אלה אקטיבית, בדיוק כמו followedShiurIds
+    // הקיים). בלי הסינון הזה, פריט "מת" כזה היה תופס מקום נסתר במכסה בלי דרך למשתמש לבטל אותו.
+    const activeMinyanCount = currentUserNotifyMinyanIds.filter(mid => data.minyanim.some(m=>m.id===mid)).length;
+    const activeShiurCount = currentUserNotifyShiurIds.filter(sid => data.shiurim.some(s=>s.id===sid)).length;
+    const totalActive = activeMinyanCount + activeShiurCount;
     if (totalActive >= NOTIFY_MAX_SUBSCRIPTIONS){
       alert(`הגעת למקסימום ${NOTIFY_MAX_SUBSCRIPTIONS} התראות פעילות. אפשר לבטל אחת מהאזור האישי כדי להוסיף חדשה.`);
       return;
@@ -3961,6 +4010,15 @@ function renderDashboard(){
   const totalEdited = shulsStats.editedCount + minyanimStats.editedCount + shiurimStats.editedCount;
   const leaderboard = computeEditLeaderboard();
 
+  // כל משתמש באפליקציה נרשם דרך Google Sign-In בלבד - כך שסך כל data.users הוא בדיוק מספר
+  // המשתמשים שהתחברו אי-פעם עם חשבון גוגל (לא רק בטווח הנבחר - זה נתון מצטבר, לא לפי טווח).
+  const totalGoogleUsers = data.users.length;
+  // "פעיל" = נכנס לאפליקציה (לא בהכרח ערך משהו) בשבוע האחרון - נמדד לפי lastActiveAt, שדה שנכתב
+  // פעם אחת בכל טעינת אפליקציה. משתמשים שהתחברו לפני שהשדה הזה נוסף למערכת לא יסתמנו כפעילים
+  // עד שיכנסו שוב פעם אחת - זה נתון מצטבר קדימה, לא רטרואקטיבי.
+  const weekAgo = new Date(); weekAgo.setDate(weekAgo.getDate() - 7);
+  const activeLastWeek = data.users.filter(u => u.lastActiveAt && new Date(u.lastActiveAt) >= weekAgo).length;
+
   const card = (num, label) => `
     <div class="card" style="flex:1;min-width:120px;text-align:center;padding:14px;margin-bottom:0">
       <div style="font-size:28px;font-weight:700;color:var(--dusk)">${num}</div>
@@ -3972,6 +4030,8 @@ function renderDashboard(){
       ${card(shiurimStats.newCount, 'שיעורים חדשים')}
       ${card(leaderboard.length, 'משתמשים שביצעו עריכות')}
       ${card(totalEdited, 'עריכות לתוכן קיים')}
+      ${card(totalGoogleUsers, 'סה"כ משתמשים מחוברים (גוגל)')}
+      ${card(activeLastWeek, 'משתמשים פעילים בשבוע האחרון')}
     </div>`;
 
   const leaderboardEl = document.getElementById('dashboardLeaderboard');
@@ -5297,11 +5357,13 @@ function downloadShiurIcs(shiurId){
 function openNavPopover(e){
   e.stopPropagation();
   closeNavPopover();
+  try{
   const btn = e.currentTarget;
   const rect = btn.getBoundingClientRect();
   const pop = document.createElement('div');
   pop.id = 'navPopoverDynamic';
-  pop.className = 'info-popover show';
+  pop.className = 'info-popover';
+  pop.setAttribute('popover', 'auto'); // מפעיל את מנגנון ה-Popover API הילידי - שכבה עליונה + סגירה אוטומטית בלחיצה בחוץ / Esc
   pop.style.position = 'fixed';
   pop.style.top = (rect.bottom + 6) + 'px';
   pop.style.right = (window.innerWidth - rect.right) + 'px';
@@ -5312,13 +5374,21 @@ function openNavPopover(e){
     <a href="${btn.dataset.gmaps}" target="_blank" rel="noopener" style="display:block;padding:9px 4px;color:var(--ink);text-decoration:none">🧭 פתח ב-Google Maps</a>
   `;
   document.body.appendChild(pop);
+  pop.showPopover(); // חייב לקרות לפני keepPopoverInViewport - למדוד מיקום נכון, האלמנט חייב להיות מוצג בפועל
   keepPopoverInViewport(pop, rect);
-  setTimeout(()=>document.addEventListener('click', closeNavPopover), 80);
+  }catch(err){
+    alert('שגיאה בפתיחת תפריט הניווט: ' + err.message + '\n\nיכול להיות שהדפדפן הזה ישן מדי ולא תומך בתכונה הזו. אנא צלמו מסך ושלחו כדי שנוכל לתקן.');
+    console.error('openNavPopover error:', err);
+  }
 }
+// סוגר את התפריט הפתוח (אם יש). לא צריך יותר מאזין click גלובלי ידני - ה-Popover API כבר סוגר אוטומטית
+// בלחיצה מחוץ לתפריט או ב-Esc (light-dismiss); זה נשאר בעיקר לסגירה יזומה מתוך לחיצה על פריט בתפריט עצמו.
 function closeNavPopover(){
   const el = document.getElementById('navPopoverDynamic');
-  if (el) el.remove();
-  document.removeEventListener('click', closeNavPopover);
+  if (el){
+    try{ el.hidePopover(); }catch(err){} // עלול "להתלונן" אם כבר סגור (למשל via light-dismiss) - לא קריטי, בכל מקרה מוסר בשורה הבאה
+    el.remove();
+  }
 }
 // לאחר שהפופאובר נוסף ל-DOM, בודק אם הוא חורג מתחתית המסך (קורה כשלוחצים על פריט קרוב לתחתית הרשימה,
 // ואז החלק התחתון של התפריט "נחתך" מתחת לסרגל הניווט התחתון). אם כן - פותח אותו כלפי מעלה מהכפתור במקום כלפי מטה,
@@ -5359,7 +5429,8 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   const links = shul ? getNavLinks(shul) : null;
   const pop = document.createElement('div');
   pop.id = 'navPopoverDynamic';
-  pop.className = 'info-popover show';
+  pop.className = 'info-popover';
+  pop.setAttribute('popover', 'auto');
   pop.style.position = 'fixed';
   pop.style.top = (rect.bottom + 6) + 'px';
   pop.style.right = (window.innerWidth - rect.right) + 'px';
@@ -5385,8 +5456,8 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   }
   pop.innerHTML = html;
   document.body.appendChild(pop);
+  pop.showPopover();
   keepPopoverInViewport(pop, rect);
-  setTimeout(()=>document.addEventListener('click', closeNavPopover), 80);
   }catch(err){
     alert('שגיאה בפתיחת תפריט המניין: ' + err.message + '\n\nאנא צלמו מסך של ההודעה הזו ושלחו כדי שנוכל לתקן.');
     console.error('openMinyanMenuPopover error:', err);
@@ -5424,7 +5495,8 @@ function openShiurMenuPopover(e, shiurId){
   const links = getNavLinks({lat:s.lat, lng:s.lng, address:s.location});
   const pop = document.createElement('div');
   pop.id = 'navPopoverDynamic';
-  pop.className = 'info-popover show';
+  pop.className = 'info-popover';
+  pop.setAttribute('popover', 'auto');
   pop.style.position = 'fixed';
   pop.style.top = (rect.bottom + 6) + 'px';
   pop.style.right = (window.innerWidth - rect.right) + 'px';
@@ -5454,8 +5526,8 @@ function openShiurMenuPopover(e, shiurId){
   }
   pop.innerHTML = html;
   document.body.appendChild(pop);
+  pop.showPopover();
   keepPopoverInViewport(pop, rect);
-  setTimeout(()=>document.addEventListener('click', closeNavPopover), 80);
   }catch(err){
     alert('שגיאה בפתיחת תפריט השיעור: ' + err.message + '\n\nאנא צלמו מסך של ההודעה הזו ושלחו כדי שנוכל לתקן.');
     console.error('openShiurMenuPopover error:', err);
