@@ -5415,7 +5415,7 @@ function keepPopoverInViewport(pop, rect){
     pop.style.top = '';
     pop.style.bottom = (window.innerHeight - rect.top + 6) + 'px';
   }
-  const maxH = Math.max(spaceAbove, spaceBelow, 120);
+  const maxH = Math.min(Math.max(spaceAbove, spaceBelow, 120), 420); // תקרה בטוחה - תפריט לעולם לא צריך יותר מזה, גם במסך גבוה מאוד
   pop.style.maxHeight = maxH + 'px';
   pop.style.overflowY = 'auto';
   pop.style.height = 'auto'; // הכרחה מפורשת - תיקון הגנתי למקרה נדיר שבו הגובה מצטמצם לערך זעיר משום מה
