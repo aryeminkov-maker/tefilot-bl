@@ -52,7 +52,7 @@
      זה מבטיח שהתפריט תמיד יירנדר ב"שכבה עליונה" נפרדת מכל שאר הדף, חסין מבעיות CSS/מיכל-הכלה
      שגרמו בעבר לגובה שלו להתכווץ באופן בלתי צפוי. גם הסגירה בלחיצה מחוץ לתפריט (light-dismiss)
      וב-Esc כלולות מובנות בדפדפן - אין יותר צורך במאזין document.addEventListener ידני. */
-  .info-popover{position:fixed;width:230px;margin:0;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6}
+  .info-popover{position:fixed;inset:auto;width:230px;margin:0;background:var(--surface);color:var(--ink);border:1px solid var(--border);border-radius:10px;box-shadow:0 6px 18px rgba(0,0,0,.18);padding:12px;font-size:12.5px;line-height:1.6}
   .idbar{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
   .idbar input, .idbar select{font-family:'Rubik',sans-serif;font-size:13px;padding:7px 10px;border-radius:8px;border:none}
   .idbar span{font-size:12px;color:var(--ink-soft);align-self:center}
@@ -5728,10 +5728,13 @@ async function handleDocumentUpload(input, shulId){
     document.getElementById('f_documentFileId').value = result.id;
     document.getElementById('f_documentUrl').value = result.webViewLink;
     document.getElementById('documentPreview').innerHTML = `<a href="${escapeHtml(result.webViewLink)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(title)}</a>`;
-    statusEl.textContent = '✓ הועלה בהצלחה';
+    // שומרים את הקישור בבית הכנסת מיד - לא מסתמכים על כך שמישהו ילחץ גם על כפתור "שמירה" הכללי של הטופס
+    statusEl.textContent = 'שומר...';
+    await db.collection('shuls').doc(shulId).update({ documentTitle: title, documentUrl: result.webViewLink, documentFileId: result.id });
+    statusEl.textContent = '✓ הועלה ונשמר בהצלחה';
   }catch(e){
     statusEl.textContent = '';
-    alert('שגיאה בהעלאה: ' + e.message);
+    alert('שגיאה בהעלאה או בשמירה: ' + e.message);
   }
   input.value = '';
 }
@@ -5743,6 +5746,8 @@ function removeDocumentField(shulId){
   document.getElementById('f_documentTitle').value = '';
   document.getElementById('documentPreview').innerHTML = '';
   document.getElementById('documentUploadStatus').textContent = '';
+  // מסירים מיידית גם מ-Firestore, מאותה סיבה - לא מסתמכים על שמירת הטופס הכללית
+  db.collection('shuls').doc(shulId).update({ documentTitle: '', documentUrl: '', documentFileId: '' }).catch(()=>{});
 }
 function captureGpsInto(latId, lngId, statusId){
   if (!navigator.geolocation){ alert('הדפדפן הזה לא תומך באיתור מיקום'); return; }
@@ -7144,6 +7149,17 @@ function halachicGuidesListHtml(){
 // כלל חשוב: כמה שינויים שנעשים באותו יום מתווספים כ"items" נוספים לאותה גרסה (לא כל שינוי מקבל
 // מספר גרסה משלו) - מספר גרסה חדש נפתח רק ביום עבודה חדש.
 const WHATS_NEW = [
+  {
+    version: '2.3',
+    date: '19.8.2026',
+    items: [
+      '👤 אזור אישי חדש - לחיצה על התמונה/שם שלכם למעלה פותחת מסך חדש: עדכון שם התצוגה שלכם, בית הכנסת המועדף שלכם (עם אפשרות לבחור אחד אם עוד לא סימנתם), ורשימת העריכות האחרונות שלכם (מהחדש לישן, בתפריט נפתח).',
+      '🔔 התראות Push חדשות - בתפריט (⋮) של כל מניין או שיעור אפשר ללחוץ "קבל התראה" ולבחור לקבל תזכורת 5/10/15/20 דקות לפני שהוא מתחיל (דורש אישור חד-פעמי בהתראות מהאזור האישי). ⚠️ המערכת בתקופת הרצה ראשונית - ייתכנו תקלות כמו התראות שמגיעות באיחור.',
+      '📄 מסמכים לבתי כנסת - גבאים יכולים להעלות קובץ (כמו PDF) עם כותרת לדף בית הכנסת שלהם, גלוי לכולם.',
+      '🔗 קישורים ידידותיים לבתי כנסת (למשל מספר קצר) - זמינים לצד הקישור המלא הקיים, לא מחליפים אותו.',
+      '🖱️ שיפור אמינות בפתיחת תפריטי המידע (⋮) של מניינים ושיעורים - היו מקרים שהתפריט לא נפתח בלחיצה ראשונה.'
+    ]
+  },
   {
     version: '2.2',
     date: '16.8.2026',
