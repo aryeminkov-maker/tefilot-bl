@@ -5354,6 +5354,7 @@ function downloadShiurIcs(shiurId){
   a.remove();
   setTimeout(()=>URL.revokeObjectURL(url), 2000);
 }
+let currentPopoverEl = null; // עוקב אחרי אלמנט התפריט הפתוח כרגע (משתנה, לא ID קבוע - ר' הערה ב-closeNavPopover)
 function openNavPopover(e){
   e.stopPropagation();
   closeNavPopover();
@@ -5361,7 +5362,8 @@ function openNavPopover(e){
   const btn = e.currentTarget;
   const rect = btn.getBoundingClientRect();
   const pop = document.createElement('div');
-  pop.id = 'navPopoverDynamic';
+  pop.id = 'navPopoverDynamic_' + uid(); // מזהה ייחודי לכל פתיחה - לא לעשות שימוש חוזר באותו ID, זה בלבל את הדפדפן בין תפריט ישן שנסגר לחדש שנפתח (ר' הסבר בשיחה)
+  currentPopoverEl = pop;
   pop.className = 'info-popover';
   pop.setAttribute('popover', 'auto'); // מפעיל את מנגנון ה-Popover API הילידי - שכבה עליונה + סגירה אוטומטית בלחיצה בחוץ / Esc
   pop.style.position = 'fixed';
@@ -5384,11 +5386,12 @@ function openNavPopover(e){
 // סוגר את התפריט הפתוח (אם יש). לא צריך יותר מאזין click גלובלי ידני - ה-Popover API כבר סוגר אוטומטית
 // בלחיצה מחוץ לתפריט או ב-Esc (light-dismiss); זה נשאר בעיקר לסגירה יזומה מתוך לחיצה על פריט בתפריט עצמו.
 function closeNavPopover(){
-  const el = document.getElementById('navPopoverDynamic');
+  const el = currentPopoverEl;
   if (el){
     try{ el.hidePopover(); }catch(err){} // עלול "להתלונן" אם כבר סגור (למשל via light-dismiss) - לא קריטי, בכל מקרה מוסר בשורה הבאה
     el.remove();
   }
+  currentPopoverEl = null;
 }
 // לאחר שהפופאובר נוסף ל-DOM, בודק אם הוא חורג מתחתית המסך (קורה כשלוחצים על פריט קרוב לתחתית הרשימה,
 // ואז החלק התחתון של התפריט "נחתך" מתחת לסרגל הניווט התחתון). אם כן - פותח אותו כלפי מעלה מהכפתור במקום כלפי מטה,
@@ -5428,7 +5431,8 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   const rect = btn.getBoundingClientRect();
   const links = shul ? getNavLinks(shul) : null;
   const pop = document.createElement('div');
-  pop.id = 'navPopoverDynamic';
+  pop.id = 'navPopoverDynamic_' + uid(); // מזהה ייחודי לכל פתיחה - לא לעשות שימוש חוזר באותו ID, זה בלבל את הדפדפן בין תפריט ישן שנסגר לחדש שנפתח (ר' הסבר בשיחה)
+  currentPopoverEl = pop;
   pop.className = 'info-popover';
   pop.setAttribute('popover', 'auto');
   pop.style.position = 'fixed';
@@ -5494,7 +5498,8 @@ function openShiurMenuPopover(e, shiurId){
   const rect = btn.getBoundingClientRect();
   const links = getNavLinks({lat:s.lat, lng:s.lng, address:s.location});
   const pop = document.createElement('div');
-  pop.id = 'navPopoverDynamic';
+  pop.id = 'navPopoverDynamic_' + uid(); // מזהה ייחודי לכל פתיחה - לא לעשות שימוש חוזר באותו ID, זה בלבל את הדפדפן בין תפריט ישן שנסגר לחדש שנפתח (ר' הסבר בשיחה)
+  currentPopoverEl = pop;
   pop.className = 'info-popover';
   pop.setAttribute('popover', 'auto');
   pop.style.position = 'fixed';
