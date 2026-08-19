@@ -1461,7 +1461,7 @@ auth.onAuthStateChanged(async user=>{
     if (d) maybeShowPendingMessage(d);
     checkFollowedShiurimChanges();
     updateAppLockScreen();
-    render();
+    renderDebounced();
   });
 });
 
