@@ -873,7 +873,7 @@
 <script src="https://cdn.jsdelivr.net/npm/kosher-zmanim@0.9.0/dist/kosher-zmanim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@hebcal/core@6/dist/bundle.min.js"></script>
 <script>
-let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [] };
+let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [], deletionLog: [] };
 let currentView = 'chrono';
 let selectedDayKey = '';
 let selectedSpecificDate = ''; // תאריך מדויק שנבחר (YYYY-MM-DD), או ריק אם מציגים לפי יום בשבוע כללי
@@ -1550,6 +1550,7 @@ auth.onAuthStateChanged(async user=>{
       document.getElementById('admin-tab').style.display = 'none';
     }
     attachUsersListenerIfManager();
+    attachDeletionLogListenerIfManager();
     attachSupportMessagesListenerIfManager();
     if (d) maybeShowPendingMessage(d);
     checkFollowedShiurimChanges();
@@ -1569,6 +1570,21 @@ function attachUsersListenerIfManager(){
   unsubUsers = db.collection('users').onSnapshot(snap=>{
     data.users = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if (currentTab === 'admin') renderUsers();
+  }, e=>console.error(e));
+}
+// יומן מחיקות של מניינים/שיעורים (בוצעו על ידי גבאים או מנהלים) - כדי שיומן העדכונים בדשבורד יראה
+// גם מחיקות, לא רק עריכות. נטען רק למנהלים (בדיוק כמו data.users), כי רק הם רואים את הדשבורד בכלל.
+let unsubDeletionLog;
+function attachDeletionLogListenerIfManager(){
+  if (!isManager()){
+    if (unsubDeletionLog){ unsubDeletionLog(); unsubDeletionLog = null; }
+    data.deletionLog = [];
+    return;
+  }
+  if (unsubDeletionLog) return;
+  unsubDeletionLog = db.collection('deletionLog').onSnapshot(snap=>{
+    data.deletionLog = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if (currentTab === 'admin') renderActivityLog();
   }, e=>console.error(e));
 }
 // ---------- הודעות תושבים למנהל (דיווחים כמו מניין שהתבטל) ----------
@@ -4239,18 +4255,26 @@ function renderActivityLog(){
     const shul = data.shuls.find(x=>x.id===s.locationShulId);
     entries.push({ time: s.updatedAt, by: s.updatedBy, icon: '📖', label: 'שיעור', name: `${s.title}${shul?' · '+shul.name:''}`, type:'shiur', id:s.id, shulId:s.locationShulId||'' });
   });
+  // מחיקות - נשמרות בנפרד (data.deletionLog), כי הפריט המקורי כבר לא קיים כדי לשלוף ממנו updatedAt/updatedBy.
+  // מסומנות is_deletion=true כדי לעצב אותן אחרת (אדום, "🗑️ נמחק") ולא לנסות לקשר אליהן (הפריט כבר לא קיים).
+  (data.deletionLog||[]).forEach(d=>{
+    if (!d.deletedAt || !inRange(d.deletedAt)) return;
+    entries.push({ time: d.deletedAt, by: d.deletedBy, icon: d.type==='minyan'?'🕍':'📖', label: d.type==='minyan'?'מניין':'שיעור', name: d.name||'', type: d.type, id: d.id, shulId: d.shulId||'', is_deletion: true });
+  });
   entries.sort((a,b)=> new Date(b.time) - new Date(a.time));
   const top = entries.slice(0, 100);
   if (!top.length){ el.innerHTML = '<div class="empty">אין עדיין עדכונים</div>'; return; }
   el.innerHTML = top.map(e=>{
-    const isLinkable = (e.type==='shul' && data.shuls.some(x=>x.id===e.id))
+    const isLinkable = !e.is_deletion && (
+      (e.type==='shul' && data.shuls.some(x=>x.id===e.id))
       || (e.type==='minyan' && e.shulId && data.shuls.some(x=>x.id===e.shulId))
-      || (e.type==='shiur' && ((e.shulId && data.shuls.some(x=>x.id===e.shulId)) || data.shiurim.some(x=>x.id===e.id)));
-    const baseStyle = 'padding:9px 0;border-bottom:1px solid var(--border)';
+      || (e.type==='shiur' && ((e.shulId && data.shuls.some(x=>x.id===e.shulId)) || data.shiurim.some(x=>x.id===e.id))));
+    const baseStyle = 'padding:9px 0;border-bottom:1px solid var(--border)' + (e.is_deletion ? ';color:var(--danger)' : '');
     const attrs = isLinkable ? `onclick="goToActivityLogItem('${e.type}','${e.id}','${e.shulId}')" role="button" tabindex="0" style="${baseStyle};cursor:pointer"` : `style="${baseStyle}"`;
+    const labelPrefix = e.is_deletion ? '🗑️ נמחק - ' : '';
     return `
     <div ${attrs}>
-      <div>${e.icon} <b>${escapeHtml(e.label)}</b> · ${escapeHtml(e.name)}${isLinkable?' <span class="muted" style="font-size:11px">↗ מעבר לתוכן</span>':''}</div>
+      <div>${labelPrefix}${e.icon} <b>${escapeHtml(e.label)}</b> · ${escapeHtml(e.name)}${isLinkable?' <span class="muted" style="font-size:11px">↗ מעבר לתוכן</span>':''}</div>
       <div class="muted" style="font-size:12px;margin-top:2px">${escapeHtml(e.by||'לא ידוע')} · ${new Date(e.time).toLocaleString('he-IL')}</div>
     </div>`;
   }).join('');
@@ -6793,6 +6817,14 @@ function deleteMinyan(id){
   const m = data.minyanim.find(x=>x.id===id);
   if (!m || !canDeleteInShul(m.shulId)) return;
   if (!confirm('למחוק את המניין?')) return;
+  const shul = getMinyanLocation(m);
+  db.collection('deletionLog').add({
+    type: 'minyan',
+    name: `${m.tefila}${shul?' · '+shul.name:''}`,
+    shulId: m.shulId || '',
+    deletedBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || 'לא ידוע',
+    deletedAt: new Date().toISOString()
+  }).catch(()=>{}); // לא קריטי אם זה נכשל - לא חוסם את המחיקה עצמה
   db.collection('minyanim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
   trackEvent('delete_minyan', { minyan_id: id });
 }
@@ -6988,6 +7020,14 @@ function deleteShiur(id){
   const s = data.shiurim.find(x=>x.id===id);
   if (!s || !canDeleteShiur(s)) return;
   if (!confirm('למחוק את השיעור?')) return;
+  const shul = data.shuls.find(x=>x.id===s.locationShulId);
+  db.collection('deletionLog').add({
+    type: 'shiur',
+    name: `${s.title}${shul?' · '+shul.name:''}`,
+    shulId: s.locationShulId || '',
+    deletedBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || 'לא ידוע',
+    deletedAt: new Date().toISOString()
+  }).catch(()=>{}); // לא קריטי אם זה נכשל - לא חוסם את המחיקה עצמה
   db.collection('shiurim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
   trackEvent('delete_shiur', { shiur_id: id });
 }
