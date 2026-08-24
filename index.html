@@ -5752,6 +5752,8 @@ function openShulForm(shulId){
     </div>
     <div class="field optional"><label for="f_description">תיאור / מידע נוסף</label><textarea id="f_description" rows="3" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${s?escapeHtml(s.description||''):''}</textarea></div>
     <div class="field optional"><label for="f_donationLink">קישור לתרומה</label><input id="f_donationLink" value="${s?escapeHtml(s.donationLink||''):''}" placeholder="https://..."></div>
+    <div class="field optional"><label for="f_whatsappGroupLink">קישור להצטרפות ישירה לקבוצת הוואטסאפ של הקהילה</label><input id="f_whatsappGroupLink" value="${s?escapeHtml(s.whatsappGroupLink||''):''}" placeholder="https://chat.whatsapp.com/..."></div>
+    <div class="field optional"><label for="f_whatsappGroupPhone">או: טלפון גבאי לפנייה בוואטסאפ (אם אין קישור קבוצה ישיר)</label><input id="f_whatsappGroupPhone" value="${s?escapeHtml(s.whatsappGroupPhone||''):''}" placeholder="050-1234567"></div>
     <div class="field optional">
       <label for="f_slug">קישור ידידותי (עובד בנוסף לקישור הרגיל, לא מחליף אותו)</label>
       <input id="f_slug" value="${s?escapeHtml(s.slug||''):''}" placeholder="ריק = מספר אוטומטי. אפשר גם טקסט משלכם, למשל gavriel" oninput="this.value=this.value.replace(/[^a-zA-Z0-9-]/g,'').toLowerCase()">
@@ -5915,6 +5917,9 @@ function saveShul(shulId){
   const lng = document.getElementById('f_lng').value;
   const donationLink = document.getElementById('f_donationLink').value.trim();
   if (donationLink && !/^https?:\/\//i.test(donationLink)){ alert('קישור לתרומה צריך להתחיל ב-http:// או https://'); return; }
+  const whatsappGroupLink = document.getElementById('f_whatsappGroupLink').value.trim();
+  if (whatsappGroupLink && !/^https?:\/\//i.test(whatsappGroupLink)){ alert('קישור לקבוצת הוואטסאפ צריך להתחיל ב-http:// או https://'); return; }
+  const whatsappGroupPhone = document.getElementById('f_whatsappGroupPhone').value.trim();
   // קישור ידידותי - אם הגבאי לא הזין כלום, מוקצה מספר רץ אוטומטית (גם לבית כנסת חדש, וגם כשמעדכנים
   // בית כנסת ישן שעדיין אין לו קישור ידידותי - כך שברבות הזמן כל בתי הכנסת מקבלים מספר, גם בלי מיגרציה נפרדת).
   let slug = document.getElementById('f_slug').value.trim().toLowerCase();
@@ -5934,6 +5939,8 @@ function saveShul(shulId){
     photo: document.getElementById('f_photo').value.trim(),
     description: document.getElementById('f_description').value.trim(),
     donationLink,
+    whatsappGroupLink,
+    whatsappGroupPhone,
     slug,
     rabbiNames: parseNames(document.getElementById('f_rabbiNames').value),
     gabaiNames: parseNames(document.getElementById('f_gabaiNames').value),
@@ -6285,6 +6292,8 @@ function renderShulPage(){
         <button class="icon-btn" onclick="printShulSchedule('${shul.id}')" aria-label="גרסת הדפסה" title="גרסת הדפסה">🖨️</button>
         <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(shul.name)}','shul','${shul.id}','${shul.id}')" aria-label="שליחת הודעה למנהל" title="שליחת הודעה למנהל">✉️</button>
         ${shul.donationLink?`<a href="${escapeHtml(shul.donationLink)}" target="_blank" rel="noopener" class="icon-btn" style="color:var(--ink);text-decoration:none" aria-label="תרומה לבית הכנסת" title="תרומה לבית הכנסת">${DONATION_ICON_SVG}</a>`:''}
+        ${shul.whatsappGroupLink?`<a href="${escapeHtml(shul.whatsappGroupLink)}" target="_blank" rel="noopener" class="icon-btn" style="color:var(--ink);text-decoration:none" aria-label="הצטרפות לקבוצת הוואטסאפ" title="הצטרפות לקבוצת הוואטסאפ">${WHATSAPP_ICON_SVG}</a>`
+          :(shul.whatsappGroupPhone?`<a href="https://wa.me/${phoneToWhatsappNumber(shul.whatsappGroupPhone)}" target="_blank" rel="noopener" class="icon-btn" style="color:var(--ink);text-decoration:none" aria-label="פנייה לגבאי בוואטסאפ" title="פנייה לגבאי בוואטסאפ">${WHATSAPP_ICON_SVG}</a>`:'')}
         ${(()=>{ const links = getNavLinks(shul); return links ? `<button type="button" class="icon-btn" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event)" aria-label="ניווט" title="ניווט">${NAV_PIN_ICON_SVG}</button>` : ''; })()}
       </div>
       ${editable?`<div style="display:flex;justify-content:center;gap:8px;margin-top:8px;flex-wrap:wrap">
