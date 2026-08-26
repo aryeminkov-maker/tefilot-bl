@@ -1630,7 +1630,7 @@ function isUnreadForUser(m){
 }
 // מוסיף הודעה להתכתבות (מצד תושב או מנהל) ומעדכן את דגלי "לא נקרא" בהתאם
 function appendToMessageThread(m, sender, text){
-  const by = currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || (sender==='resident' ? (lastName||'תושב אנונימי') : 'מנהל');
+  const by = publicDisplayName() !== 'תושב אנונימי' ? publicDisplayName() : (sender==='resident' ? (lastName||'תושב אנונימי') : 'מנהל');
   const at = new Date().toISOString();
   const thread = getMessageThread(m).concat([{ sender, text, at, by }]);
   const update = { thread };
@@ -1839,7 +1839,7 @@ function submitAdminMessage(contextLabel, contextType, contextId, contextShulId)
   const text = document.getElementById('f_adminMessageText').value.trim();
   if (!text){ alert('יש לכתוב הודעה'); return; }
   const now = new Date().toISOString();
-  const by = currentUserName || currentUser.displayName || currentUser.email;
+  const by = publicDisplayName();
   db.collection('supportMessages').add({
     fromUid: currentUser.uid,
     fromName: by,
@@ -1869,7 +1869,7 @@ function requestRecordingLink(shiurId){
   const title = shiur ? shiur.title : '';
   const text = `בקשה להוספת קישור להקלטה לשיעור "${title}":\n${link}`;
   const now = new Date().toISOString();
-  const by = currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '';
+  const by = publicDisplayName();
   db.collection('supportMessages').add({
     fromUid: currentUser.uid,
     fromName: by,
@@ -2448,7 +2448,7 @@ function confirmNewPrimaryManagerAndDemote(oldPrimaryUid, newRoleForOldPrimary){
   const batch = db.batch();
   batch.set(db.collection('config').doc('primaryManager'), {
     uid: newPrimaryUid,
-    setBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '',
+    setBy: publicDisplayName(),
     setAt: new Date().toISOString()
   });
   batch.update(db.collection('users').doc(oldPrimaryUid), { role: newRoleForOldPrimary, assignedShulIds: [] });
@@ -3868,9 +3868,16 @@ function ensureDivreiTorahLoaded(callback){
   }, e=>console.error(e));
 }
 
+// שם תצוגה "בטוח" לשימוש בשדות שעלולים להיות גלויים לציבור (מניינים/שיעורים/בתי כנסת/הגדרות) -
+// לעולם לא נופל לכתובת המייל כברירת מחדל אחרונה, כדי שלא תיחשף בטעות דרך שדה כמו "עודכן על ידי"
+// שכל אחד יכול לראות, גם בלי להתחבר. במקרה הקצה שבו אין לא שם מותאם ולא שם תצוגה מגוגל.
+function publicDisplayName(){
+  if (!currentUser) return lastName || 'תושב אנונימי';
+  return currentUserName || currentUser.displayName || 'משתמש מחובר';
+}
 function stamp(obj){
   if (currentUser){
-    obj.updatedBy = currentUserName || currentUser.displayName || currentUser.email;
+    obj.updatedBy = publicDisplayName();
     obj.updatedByUid = currentUser.uid;
   } else {
     const el = document.getElementById('userName');
@@ -4164,6 +4171,8 @@ function renderDashboard(){
       ${card(totalEdited, 'עריכות לתוכן קיים')}
       ${card(totalGoogleUsers, 'סה"כ משתמשים מחוברים (גוגל)')}
       ${card(activeLastWeek, 'משתמשים פעילים בשבוע האחרון')}
+      ${card(data.minyanim.length, 'סה"כ מניינים באפליקציה')}
+      ${card(data.shiurim.length, 'סה"כ שיעורי תורה באפליקציה')}
     </div>`;
 
   const leaderboardEl = document.getElementById('dashboardLeaderboard');
@@ -4328,7 +4337,7 @@ function saveEditLockConfig(){
   const reason = document.getElementById('editLockReason').value.trim();
   db.collection('config').doc('editLock').set({
     enabled, until, reason,
-    setBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '',
+    setBy: publicDisplayName(),
     setAt: new Date().toISOString()
   }).then(()=>alert('ההגדרה נשמרה')).catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
@@ -4348,7 +4357,7 @@ function saveAppLockConfig(){
   if (enabled && !confirm('להפעיל חסימה כוללת לאפליקציה? כל מי שאינו מנהל יראה מסך "האפליקציה אינה זמינה" במקום התוכן, מיידית.')) return;
   db.collection('config').doc('appLock').set({
     enabled, reason,
-    setBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '',
+    setBy: publicDisplayName(),
     setAt: new Date().toISOString()
   }).then(()=>alert('ההגדרה נשמרה')).catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
@@ -4369,7 +4378,7 @@ function saveNotificationsConfig(){
   const reason = document.getElementById('notificationsDisabledReason').value.trim();
   db.collection('config').doc('notifications').set({
     enabled: !disabled, reason,
-    setBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '',
+    setBy: publicDisplayName(),
     setAt: new Date().toISOString()
   }).then(()=>alert('ההגדרה נשמרה')).catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
@@ -5645,7 +5654,7 @@ function openVerifyMinyanConfirm(minyanId){
 }
 function verifyMinyan(minyanId){
   if (!requireEditPermission()) return;
-  const by = currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || '';
+  const by = publicDisplayName();
   db.collection('minyanim').doc(minyanId).update({
     verifiedAt: new Date().toISOString(),
     verifiedBy: by,
@@ -6527,7 +6536,7 @@ function addAnnouncement(shulId){
   if (!text) return;
   const announcement = {
     text,
-    author: currentUser ? (currentUserName || currentUser.displayName || currentUser.email) : (lastName || 'תושב אנונימי'),
+    author: publicDisplayName(),
     date: new Date().toISOString()
   };
   db.collection('shuls').doc(shulId).update({
@@ -6831,7 +6840,7 @@ function deleteMinyan(id){
     type: 'minyan',
     name: `${m.tefila}${shul?' · '+shul.name:''}`,
     shulId: m.shulId || '',
-    deletedBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || 'לא ידוע',
+    deletedBy: publicDisplayName(),
     deletedAt: new Date().toISOString()
   }).catch(()=>{}); // לא קריטי אם זה נכשל - לא חוסם את המחיקה עצמה
   db.collection('minyanim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
@@ -7034,7 +7043,7 @@ function deleteShiur(id){
     type: 'shiur',
     name: `${s.title}${shul?' · '+shul.name:''}`,
     shulId: s.locationShulId || '',
-    deletedBy: currentUserName || (currentUser && currentUser.displayName) || (currentUser && currentUser.email) || 'לא ידוע',
+    deletedBy: publicDisplayName(),
     deletedAt: new Date().toISOString()
   }).catch(()=>{}); // לא קריטי אם זה נכשל - לא חוסם את המחיקה עצמה
   db.collection('shiurim').doc(id).delete().catch(e=>alert('שגיאה: '+e.message));
