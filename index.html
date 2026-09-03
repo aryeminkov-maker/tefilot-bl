@@ -314,6 +314,7 @@
   <div class="tabs">
     <button class="tab-btn active" data-tab="tefilot">תפילות</button>
     <button class="tab-btn" data-tab="shiurim">שיעורי תורה</button>
+    <button class="tab-btn" data-tab="holidayTimes" id="holidayTimesTabBtn" style="display:none">ימים נוראים</button>
     <button class="tab-btn" data-tab="info">מידע שימושי</button>
     <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none">ניהול</button>
   </div>
@@ -429,6 +430,10 @@
     <div id="topicDescriptionBox"></div>
     <div class="muted" id="shiurDayLabel" style="margin-bottom:10px"></div>
     <div id="shiurimList"></div>
+  </div>
+
+  <div id="holidayTimes-tab" style="display:none">
+    <div id="holidayTimesTabContent"></div>
   </div>
 
   <div id="info-tab" style="display:none">
@@ -655,6 +660,42 @@
       </button>
       <div class="admin-section-body" id="adminSection_group_content" style="display:none">
       <div class="card admin-section" style="margin-bottom:12px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_holidayTimes" aria-expanded="false" onclick="toggleAdminSection('holidayTimes')">
+        <h3>🕎 ימים נוראים</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_holidayTimes" style="display:none">
+        <div class="field">
+          <label for="f_holidayTimesVisibility">הופעת הלשונית "ימים נוראים"</label>
+          <select id="f_holidayTimesVisibility" onchange="saveHolidayTimesVisibility()">
+            <option value="auto">אוטומטי - מא' אלול ועד סוף סוכות (ברירת מחדל)</option>
+            <option value="show">תמיד מוצגת</option>
+            <option value="hide">תמיד מוסתרת</option>
+          </select>
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <label style="display:block;margin-bottom:8px">חוברת זמני תפילות (קובץ להורדה/הצגה, יופיע בראש הלשונית)</label>
+          <div id="bookletPreview" style="margin-bottom:8px"></div>
+          <div id="bookletPendingArea" style="display:none;margin-bottom:10px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)">
+            <p class="muted" id="bookletPendingFileName" style="margin-bottom:8px"></p>
+            <div class="field"><label for="f_bookletTitle">כותרת החוברת</label><input id="f_bookletTitle" placeholder="לדוגמה: זמני תפילות לימים נוראים תשפ&quot;ז"></div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button type="button" class="btn primary" onclick="confirmBookletUpload()">✓ אישור העלאה</button>
+              <button type="button" class="btn ghost" onclick="cancelBookletUpload()">ביטול</button>
+            </div>
+          </div>
+          <button type="button" class="btn primary" id="bookletUploadTriggerBtn" style="padding:14px 22px;font-size:15px;display:block;width:100%" onclick="document.getElementById('f_bookletFile').click()">📄 העלאת קובץ חוברת</button>
+          <input type="file" id="f_bookletFile" style="display:none" onchange="onBookletFileSelected(this)">
+          <p class="muted" id="bookletUploadStatus" style="margin-top:8px"></p>
+        </div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+          <p class="muted" style="margin-bottom:8px">כלי חד-פעמי: ממלא אוטומטית את זמני הימים הנוראים לכל בתי הכנסת, לפי התוכן שהוכן מראש מהחוברת. מזהה כל בית כנסת לפי השם (לא דורש הזנת מזהים), ויוצר בעצמו רשומות "מיקום מיוחד" למקומות שאין להם עדיין (מסומנות אוטומטית כ"לא להציג ברשימה הרגילה"). בטוח להרצה חוזרת - כל הרצה דורסת/מעדכנת לפי השם, לא יוצרת כפילויות.</p>
+          <button type="button" class="btn" onclick="seedHolidayTimesFromBooklet()">🌱 מילוי אוטומטי חד-פעמי מנתוני החוברת</button>
+          <div id="seedHolidayTimesResult" style="margin-top:10px"></div>
+        </div>
+      </div>
+    </div>
+      <div class="card admin-section" style="margin-bottom:12px">
       <button type="button" class="admin-section-header" id="adminSectionHeader_shuls" aria-expanded="false" onclick="toggleAdminSection('shuls')">
         <h3>🏠 בתי כנסת</h3>
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -873,7 +914,7 @@
 <script src="https://cdn.jsdelivr.net/npm/kosher-zmanim@0.9.0/dist/kosher-zmanim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@hebcal/core@6/dist/bundle.min.js"></script>
 <script>
-let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [], deletionLog: [] };
+let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [], deletionLog: [], holidayTimes: [] };
 let currentView = 'chrono';
 let selectedDayKey = '';
 let selectedSpecificDate = ''; // תאריך מדויק שנבחר (YYYY-MM-DD), או ריק אם מציגים לפי יום בשבוע כללי
@@ -937,6 +978,287 @@ function getHebcalGlobal(){
   if (!_hebcalGlobal) console.warn('ספריית Hebcal לא זוהתה - משתמשים בנוסחת הגיבוי לחישוב זמנים, ובלי זיהוי חגים/ראש חודש.');
   return _hebcalGlobal;
 }
+// ============ זמני ימים נוראים ============
+// לשונית עונתית נפרדת - לא חלק ממערכת המניינים הרגילה בכוונה (ר' הסבר מלא בשיחה): התוכן הזה הוא
+// "חוברת עיון" חד-פעמית לעונה, לא לוח זמנים יומיומי שצריך לסנן/למחוק אחרי החג. כל בית כנסת שומר
+// תיבת טקסט חופשית אחת (פורמט: שורת "## כותרת מועד" ואז שורות "תפילה - שעה") - קל לעריכה ולהזנה.
+function isYamimNoraimSeasonActive(){
+  // משתמש בפונקציות ההמרה העצמאיות שכבר קיימות באתר (לא תלוי בטעינה מוצלחת של ספריית Hebcal
+  // החיצונית) - מ-א' באלול ועד כ"ג בתשרי (יום אחרי שמחת תורה) של השנה העברית הבאה מיד אחריו.
+  try{
+    const f = todayF_();
+    const today = g2h_(f);
+    const start = fH_(today.year, 6, 1);
+    const end = fH_(today.year + 1, 7, 23);
+    return f >= start && f <= end;
+  }catch(e){ console.warn('בדיקת עונת ימים נוראים נכשלה:', e); return false; }
+}
+function updateHolidayTimesTabVisibility(){
+  const btn = document.getElementById('holidayTimesTabBtn');
+  if (!btn) return;
+  const override = (HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.visibilityOverride) || 'auto';
+  const active = override === 'show' ? true : (override === 'hide' ? false : isYamimNoraimSeasonActive());
+  btn.style.display = active ? '' : 'none';
+  // אם הלשונית פתוחה כרגע אצל מישהו בדיוק ברגע שהעונה "נגמרת" (למשל השאיר את האתר פתוח לילה שלם,
+  // או שמנהל כיבה ידנית תוך כדי) - מחזירים אותו בעדינות ללשונית הרגילה, כדי לא להשאיר תוכן פתוח
+  // מאחורי כפתור שכבר נעלם
+  if (!active && currentTab === 'holidayTimes'){
+    document.querySelector('.tab-btn[data-tab="tefilot"]').click();
+  }
+}
+let holidayTimesLoaded = false;
+function ensureHolidayTimesLoaded(){
+  if (holidayTimesLoaded) return;
+  holidayTimesLoaded = true;
+  db.collection('holidayTimes').onSnapshot(snap=>{
+    data.holidayTimes = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if (currentTab === 'holidayTimes') renderHolidayTimesTab();
+  }, e=>console.error(e));
+}
+// פורמט טקסט חופשי -> מבנה: [{title, items:[{label, time}]}] - שורת "## כותרת" פותחת מועד חדש,
+// שאר השורות בתוך המועד מפוצלות לפי " - " הראשון (תפילה - שעה). שורה בלי " - " נשמרת כמו שהיא.
+function parseHolidayTimesText(text){
+  if (!text) return [];
+  const lines = String(text).split('\n').map(l=>l.trim()).filter(Boolean);
+  const occasions = [];
+  let current = null;
+  lines.forEach(line=>{
+    if (line.startsWith('##')){
+      current = { title: line.replace(/^##\s*/, ''), items: [] };
+      occasions.push(current);
+    } else if (current){
+      const idx = line.indexOf(' - ');
+      if (idx > -1) current.items.push({ label: line.slice(0, idx).trim(), time: line.slice(idx+3).trim() });
+      else current.items.push({ label: line, time: '' });
+    }
+  });
+  return occasions;
+}
+let holidayTimesView = 'byshul';
+function setHolidayTimesView(v){ holidayTimesView = v; renderHolidayTimesTab(); }
+function renderHolidayTimesTab(){
+  const el = document.getElementById('holidayTimesTabContent');
+  if (!el) return;
+  if (!holidayTimesLoaded){ el.innerHTML = '<div class="loading-spinner-wrap"><div class="loading-spinner"></div>טוען...</div>'; return; }
+
+  const byShulId = {};
+  data.holidayTimes.forEach(h=>{ byShulId[h.id] = h; });
+  const shulsSorted = [...data.shuls].sort((a,b)=>(a.name||'').localeCompare(b.name||'', 'he'));
+  const parsedByShul = shulsSorted.map(shul=>{
+    const doc = byShulId[shul.id];
+    const occasions = doc ? parseHolidayTimesText(doc.rawText) : [];
+    return { shul, occasions, canEdit: canManageShul(shul.id) };
+  }).filter(x => x.occasions.length || x.canEdit); // מסתירים לגמרי בתי כנסת בלי תוכן ובלי הרשאת עריכה - לא מציגים כרטיס ריק לכולם
+
+  let html = `
+    <p class="muted" style="margin-bottom:12px">זמני תפילות לימים הנוראים - תצוגה עונתית, נעלמת אוטומטית אחרי סוכות.</p>
+    ${HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletUrl ? `
+    <a href="${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletUrl)}" target="_blank" rel="noopener" class="btn primary" style="display:block;text-align:center;margin-bottom:14px;text-decoration:none">
+      📖 ${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletTitle || 'חוברת זמני תפילות לימים הנוראים')}
+    </a>` : ''}
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn ${holidayTimesView==='byshul'?'primary':''}" onclick="setHolidayTimesView('byshul')">לפי בית כנסת</button>
+      <button class="btn ${holidayTimesView==='bytime'?'primary':''}" onclick="setHolidayTimesView('bytime')">לפי שעה</button>
+    </div>`;
+
+  if (!parsedByShul.length){
+    html += '<div class="empty">טרם הוזנו זמני ימים נוראים</div>';
+    el.innerHTML = html;
+    return;
+  }
+
+  if (holidayTimesView === 'byshul'){
+    html += parsedByShul.map(({shul, occasions, canEdit})=>`
+      <div class="card" style="margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <h3>${escapeHtml(shul.name)}</h3>
+          ${canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
+        </div>
+        ${occasions.length ? occasions.map(occ=>`
+          <div style="margin-bottom:10px">
+            <div style="font-weight:600;color:var(--dusk);margin-bottom:4px">${escapeHtml(occ.title)}</div>
+            ${occ.items.map(it=>`<div class="minyan-line"><span>${escapeHtml(it.label)}</span><span>${escapeHtml(it.time)}</span></div>`).join('')}
+          </div>`).join('') : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
+      </div>`).join('');
+  } else {
+    const byOccasion = {};
+    parsedByShul.forEach(({shul, occasions})=>{
+      occasions.forEach(occ=>{
+        if (!byOccasion[occ.title]) byOccasion[occ.title] = [];
+        occ.items.forEach(it=>byOccasion[occ.title].push({ shulName: shul.name, label: it.label, time: it.time }));
+      });
+    });
+    const titles = Object.keys(byOccasion);
+    if (!titles.length){
+      html += '<div class="empty">טרם הוזנו זמני ימים נוראים</div>';
+    } else {
+      html += titles.map(title=>`
+        <div class="card" style="margin-bottom:14px">
+          <h3 style="margin-bottom:10px">${escapeHtml(title)}</h3>
+          ${byOccasion[title].map(it=>`<div class="minyan-line"><span>${escapeHtml(it.label)} · ${escapeHtml(it.shulName)}</span><span>${escapeHtml(it.time)}</span></div>`).join('')}
+        </div>`).join('');
+    }
+  }
+  el.innerHTML = html;
+}
+function openHolidayTimesEditForm(shulId){
+  if (!canManageShul(shulId)) return;
+  const shul = data.shuls.find(s=>s.id===shulId);
+  if (!shul) return;
+  const existing = data.holidayTimes.find(h=>h.id===shulId);
+  document.getElementById('modalBody').innerHTML = `
+    <h3>עריכת זמני ימים נוראים - ${escapeHtml(shul.name)}</h3>
+    <p class="muted" style="margin-bottom:10px;line-height:1.7">פורמט: שורת כותרת למועד מתחילה ב-<code>##</code>, ואחריה שורות "תפילה - שעה" (אחת לכל שורה). לדוגמה:<br><code>## ערב ראש השנה</code><br><code>סליחות - 6:30, 5:50</code></p>
+    <textarea id="f_holidayTimesText" rows="18" style="width:100%;font-family:monospace;font-size:13px;direction:rtl">${existing ? escapeHtml(existing.rawText||'') : ''}</textarea>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="saveHolidayTimesText('${shulId}')">שמירה</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
+}
+function saveHolidayTimesText(shulId){
+  if (!canManageShul(shulId)) return;
+  const text = document.getElementById('f_holidayTimesText').value;
+  db.collection('holidayTimes').doc(shulId).set({
+    rawText: text,
+    updatedBy: publicDisplayName(),
+    updatedAt: new Date().toISOString()
+  }).then(()=>closeModal()).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
+
+const YAMIM_NORAIM_SEED_DATA = [
+  {
+    "name": "אברהם אוהבי",
+    "hidden": false,
+    "text": "## ערב ראש השנה\nסליחות - 5:50, 6:30, 7:00 (בפספיפס)\nשחרית והתרת נדרים - 6:00, 6:20, 7:10, 7:30, 7:50, 8:15 (בפספיפס)\nמנחה גדולה - 13:20, 14:00\n\n## א' דראש השנה\nמנחה, שיחה וערבית - 18:35\nשחרית (ברכות השחר) - 7:00\n'המלך' - 7:45\nמוסף - 10:00\nמנחה גדולה - 13:06\nמנחה קטנה - 16:45, 17:20\nערבית - 18:00\n\n## ב' דראש השנה\nשיחה וערבית - 19:05\nשחרית (ברכות השחר) - 7:00\nתקיעת שופר ומוסף - 10:00\nתקיעת שופר לנשים - 12:50\nמנחה גדולה - 13:06\nמנחה קטנה - 16:45, 17:15\nערבית - 18:00\nערבית - 19:15, 19:25\n\n## צום גדליה\nסליחות בלילה - 00:30\nסליחות בבוקר עם שחרית - 5:30, 5:50, 6:15, 6:30, 6:50, 7:15\nמנחה - 13:20, 17:15\n\n## עשרת ימי תשובה\nסליחות בלילה - 00:32\nסליחות בבוקר עם שחרית - 5:30, 6:00, 6:20, 6:40, 7:00, 7:20\nסליחות ושחרית יום ה' - 5:30, 5:50, 6:10, 6:30, 7:00, 7:20\nערבית - 19:11, 19:15\n\n## שבת שובה\nמנחה גדולה ערב שבת - 13:20, 14:00\nמנחה, קבלת שבת וערבית - 18:26\nשחרית - 6:20, 8:00\nמנחה - 13:20, 15:15\nדרשת שבת שובה (ומנחה) - 16:30\nערבית - 19:07, 19:17\n\n## ערב יום הכיפורים\nסליחות בלילה - 00:30\nסליחות ושחרית - 5:45, 6:15, 6:45, 7:15, 7:45\nמנחה - 13:05, 14:00\n\n## יום הכיפורים\nכל נדרי ועברית - 18:33\nשחרית (ברכות השחר) - 7:00\nמנחה ונעילה - 16:00\nתקיעת שופר וערבית - 19:05\n\n## חג סוכות\nמנחה בערב חג - 13:00, 14:00\nמנחה, שיחה, ערבית - 18:16\nשחרית - 6:20, 8:00\nמנחה - 13:00, 15:45\nמנחה - 17:15, 17:45\n\n## חול המועד\nשחרית - 6:00, 6:30, 7:00, 7:30, 8:00, 8:20\nמנחה - 13:00, 17:00, 18:00, 18:15\nערבית - 18:55, 19:00, 21:00, 22:00, 23:00\n\n## הושענא רבה\nשחרית - 6:04, 6:30, 7:00, 7:40, 8:10, 8:30\nמנחה גדולה - 13:00, 14:00\n\n## שמחת תורה\nמנחה, שיחה, ערבית והקפות - 18:07\nשחרית - 6:00, 8:00\n'יזכור' ומוסף ומנחה (משוער) - 12:30\nמנחה - 17:15, 17:45\nערבית - 18:48, 18:58\n\n## אבות ובנים\nחג סוכות - 15:00"
+  },
+  {
+    "name": "מרכזי שכונה א'",
+    "hidden": false,
+    "text": "## ערב ראש השנה\nסליחות שחרית והתרת נדרים - 00:35, 5:20, 5:55, 6:50\nמנחה גדולה - 13:30, 14:00\nמנחה, שיחה וערבית - 18:35\n\n## א' דראש השנה\nשחרית (ברכות השחר) - 7:00\nמנחה גדולה - 13:30\nמנחה קטנה - 18:00\nשיעור הרב אבינר - 18:30\n\n## ב' דראש השנה\nערבית - 19:30\nשחרית (ברכות השחר) - 7:00\nתקיעת שופר ומוסף - 9:20\nתקיעת שופר לנשים - 12:00\nמנחה גדולה - 13:30\nמנחה ותשליך - 17:30\nערבית - 19:27\n\n## צום גדליה\nסליחות ושחרית - 5:35, 6:15, 7:10\nמנחה - 13:20, 18:15\nערבית - 19:08\n\n## שבת שובה\nמנחה גדולה - 13:20, 14:00\nמנחה וקבלת שבת - 18:25\nשחרית - 6:25, 8:00\nמנחה - 13:15, 17:45\nערבית - 19:17\n\n## עשרת ימי תשובה\nסליחות ושחרית (יום ה' 5:35) - 5:40, 6:15, 7:10\nמנחה - 13:20, 18:35\nערבית - 19:10, 20:00\n\n## ערב יום הכיפורים\nסליחות ושחרית - 5:50, 6:25, 7:20\nמנחה - 13:05, 14:00\n\n## יום הכיפורים\nכל נדרי - שיעור הרב אבינר אחרי ערבית\nשחרית - 7:30\nשיעור הרב טויטו - 15:40\nמנחה ונעילה - 16:20, 18:51\n\n## חג סוכות\nמנחה גדולה ערב חג - 13:20, 14:00\nמנחה, שיחה, ערבית וחג - 18:16\nשחרית - 6:00, 8:05\nמנחה - 13:15, 17:30\nערבית - 19:08\n\n## חול המועד\nשחרית - 6:00, 7:00, 8:10\nמנחה - 13:20, 18:10\nערבית - 18:55, 20:00\n\n## הושענא רבה\nשחרית - 6:00, 7:30\n\n## שמחת תורה\nמנחה גדולה ערב חג - 13:20, 14:00"
+  },
+  {
+    "name": "היכל גבריאל",
+    "hidden": false,
+    "text": "## א' דראש השנה\nשיר השירים - 18:13\nמנחה וערבית - 18:35\nותיקין (בגיל הזהב) - 5:05\nשחרית - 7:30\nמנחה - 13:15, 17:00\nתהילים בסוכה - 16:30\nערבית - 19:10\n\n## ב' דראש השנה\nותיקין (בגיל הזהב) - 5:05\nשחרית - 7:30\nמנחה - 17:00\nשיעור הרב סבתו - 18:00\nערבית - 19:09\n\n## צום גדליה\nסליחות - 4:50\nשחרית - 5:45, 8:00\nמנחה - 18:10\nערבית (משוער) - 18:55\n\n## עשרת ימי תשובה\nסליחות - 4:50, 6:45\nשחרית - 5:45, 8:00\nמנחה וערבית - 18:15\n\n## שבת תשובה\nשיר השירים - 18:03\nמנחה וקבלת שבת - 18:25\nשחרית - 5:25, 7:30\nמנחה - 13:15, 16:00\nשיעור לשבת תשובה - 16:30\nערבית (צאת השבת) - 19:15\n\n## ערב יום הכיפורים\nסליחות והתרת נדרים - 4:50, 6:45\nהתרת נדרים - 5:37, 7:17\nשחרית - 5:47, 8:00\nמנחה - 13:00\n\n## יום הכיפורים\nלך אלי - 18:15\nותיקין (בגיל הזהב) - 5:00\nשחרית - 7:00\nמנחה - 15:40\nערבית - 19:12\n\n## חג סוכות\nשיר השירים - 17:54\nמנחה וקבלת חג - 18:15\nשחרית - 5:28, 7:30\nמנחה - 13:15, 16:00\nשיעור הרב סבתו - 16:30\nערבית - 19:06\n\n## חול המועד\nשחרית - 5:53, 7:30\nמנחה וערבית - 17:50\n\n## הושענא רבה\nלימוד - 22:30\nשיעור הרב סבתו - 1:30\nשחרית - 5:56, 8:00\n\n## שמחת תורה\nשיר השירים - 17:45\nמנחה וקבלת חג - 18:07\nותיקין - 5:33\nשחרית, מוסף ומנחה - 7:00\nמנחה ב' והקפות - 16:15\nערבית והקפות קצרות - 21:00\n\n## אבות ובנים\nב' דראש השנה - תהילים - 17:45\nשבת שובה (האזינו) - 16:00\nחג סוכות - 16:00"
+  },
+  {
+    "name": "ראו בנים",
+    "hidden": false,
+    "text": "## סליחות\nעד כ\"א אלול - 4:45\nאלול עד יו\"כ - 4:55\n\n## א' דראש השנה\nמנחה וערבית - 18:30\nשחרית - 7:00\nמנחה וסעודה שלישית - 16:30\nתשליך - 18:30\nערבית - 19:35\n\n## ב' דראש השנה\nשחרית - 7:00\nמנחה - 18:20\nערבית - 19:25\n\n## שבת שובה\nשחרית - 7:30\nמנחה - 16:30\n\n## ערב יום הכיפורים\nסליחות - 5:00\nמנחה - 13:00\nלך אלי - 18:00\n\n## יום הכיפורים\nשחרית - 6:30\nמנחה - 15:15\nערבית - 19:15\n\n## חג סוכות\nמנחה וערבית - 18:10\nשחרית - 7:30\nמנחה - 17:00"
+  },
+  {
+    "name": "סולם יעקב",
+    "hidden": false,
+    "text": "## ערב ראש השנה\nסליחות ושחרית - 7:00\nמנחה גדולה - 13:15\n\n## א' דראש השנה\nמנחה - 18:35\nשחרית - 7:30\nמוסף - 10:30\nמנחה - 13:05, 17:00\nשיעור ותהילים לילדים - 18:00\n\n## ב' דראש השנה\nערבית - 19:15\nשחרית - 7:30\nשיחה לפני תקיעות - 10:30\nתקיעות ומוסף - 10:40\nמנחה - 13:05, 17:00, 18:15\nערבית - 19:25\n\n## צום גדליה\nמנחה - 18:20\nערבית - 19:10\n\n## ערב יום הכיפורים\nסליחות ושחרית - 7:45\nמנחה - 13:00, 14:00\n\n## יום הכיפורים\nתפילה זכה - 18:15\nכל נדרי - 18:30\nשחרית - 7:30\nמנחה ונעילה - 16:30\n\n## חול המועד סוכות\nשחרית - 6:10, 7:00, 8:00\nמנחה - 13:00, 18:10\nערבית - 20:00, 21:00\n\n## הושענא רבה\nשחרית - 5:54, 7:00\n\n## שמחת תורה\nמנחה וערבית - 18:05\nשחרית - 5:54, 7:30\nיזכור, מוסף ומנחה - 11:30\nמנחה - 17:00, 18:00\nערבית - 18:58, 19:15\n\n## אבות ובנים\nא' דראש השנה - שיעור ותהילים - 18:00\nשבת שובה - 15:30\nחג סוכות - 17:00"
+  },
+  {
+    "name": "מזמור לדוד",
+    "hidden": false,
+    "text": "## א' דראש השנה\nמנחה - 18:25\nקבלת שבת (מזמור לדוד) - 18:40\nשחרית - 5:20\nמנחה - 13:30, 17:00\n\n## ב' דראש השנה\nחון תחון - 19:15\nשחרית - 5:20\nמנחה - 18:00\nתשליך - 18:30\n\n## צום גדליה\nמנחה וערבית - 18:20\n\n## ערב יום הכיפורים\nמנחה - 13:15\n\n## יום הכיפורים\nלך אלי - 18:20\nותיקין - 5:30\nמנחה - 15:30\n\n## חול המועד\nשחרית - 7:30"
+  },
+  {
+    "name": "בית כנסת ניצנית",
+    "hidden": false,
+    "text": "## א' דראש השנה\nמנחה, שיחה וערבית - 18:35\nשחרית (ברכות השחר) - 7:15\nמנחה - 17:55\n\n## ב' דראש השנה\nערבית - 19:15\nשחרית (ברכות השחר) - 7:15\nשיחה לפני תקיעות - 10:30\nמנחה גדולה - 13:15\nמנחה קטנה - 18:25\n\n## צום גדליה\nסליחות - 6:30\nשחרית - 7:00\nמנחה - 18:15\nערבית - 19:10\n\n## ערב יום הכיפורים\nמנחה - 14:00\n\n## יום הכיפורים\nתפילה זכה - 18:15\nכל נדרי ועברית - 18:30\nשחרית (ברכות השחר) - 7:15\nיזכור (משוער) - 10:30\nמנחה - 16:10\nנעילה - 17:35\nערבית וקידוש לבנה - 19:14"
+  },
+  {
+    "name": "עוד יוסף חי",
+    "hidden": false,
+    "text": "## א' דראש השנה\nמנחה ושיחה - 18:40\nשחרית, קידוש ומוסף - 8:00\n\n## ב' דראש השנה\nמנחה, שיחה וערבית - 18:40\nשחרית, קידוש, תקיעות ומוסף - 8:00\nמנחה ותשליך - 17:00\nערבית - 19:25\n\n## שבת תשובה\nשחרית - 8:30\nמנחה - 13:15\nמנחה ושיעור - 17:00\nערבית - 19:15\n\n## ערב יום הכיפורים\nסליחות ושחרית - 6:10\nמנחה - 13:30\n\n## יום הכיפורים\nכל נדרי - 18:30\nשחרית - 8:00\nמנחה ונעילה - 16:30\n\n## חג סוכות\nמנחה, שיחה וערבית - 18:25\nשחרית - 8:15\nמנחה - 13:15\nמנחה ושיעור - 17:00\nערבית - 19:05\n\n## חול המועד\nשחרית - 7:30\nמנחה - 18:10\nערבית - 18:50\n\n## הושענא רבה\nלימוד בסוכת דרור שילה - 21:30\nשחרית (ותיקין) - 6:20\n\n## שמחת תורה\nמנחה, שיחה וערבית - 18:15\nשחרית, קידוש, מוסף ומנחה - 8:15\nערבית צאת החג - 19:00"
+  },
+  {
+    "name": "תפארת שושנה",
+    "hidden": false,
+    "text": "## א' דראש השנה\nמנחה וערבית - 18:30\nשחרית - 7:30\nשיעור - 16:00\nמנחה - 17:00\n\n## ב' דראש השנה\nערבית - 19:00\nשחרית - 7:30\nתקיעות (משוער) - 10:30\nתהילים לילדים - 17:30\nמנחה - 18:00\nערבית - 19:25\n\n## צום גדליה\nסליחות - 5:15\nשחרית - 6:00\nמנחה וערבית - 18:25\n\n## שבת שובה\nמנחה, קבלת שבת וערבית - 18:15\nשחרית (הודו) - 8:00\nתהילים לילדים - 12:30\nמנחה - 13:15, 16:30\nערבית - 19:20\n\n## יום הכיפורים\nמנחה - 13:00\nערבית (לך אלי) - 18:10\nשחרית (הודו) - 7:30\nמנחה - 15:30\nנעילה - 17:30\n\n## חג סוכות\nמנחה וערבית - 18:10\nשחרית - 8:00\nתהילים לילדים - 12:30\nמנחה - 17:00\nערבית - 19:10\n\n## חול המועד\nשחרית (קורבנות) - 7:15\nמנחה - 18:10\nערבית - 18:50\n\n## הושענא רבה\nלימוד - 22:30\nשחרית (קורבנות) - 5:50\n\n## שמחת תורה\nמנחה, ערבית והקפות - 18:00\nשחרית (הודו) - 8:00\nהקפות (משוער) - 9:15\nמנחה - 16:30\nשיעור - 17:00\nערבית - 19:00"
+  },
+  {
+    "name": "מדרש אליהו למעלה",
+    "hidden": false,
+    "text": "## א' דראש השנה\nערבית - בשקיעה\nשחרית ומוסף - בנץ\nמנחה ותשליך - 16:30\nערבית - בשקיעה\n\n## ב' דראש השנה\nשחרית - בנץ\nמנחה - 17:30\nערבית - בשקיעה\n\n## יום הכיפורים\nלך אלי וערבית - בשקיעה\nשחרית - בנץ\nמנחה - 15:15\n\n## חג סוכות\nערבית - בשקיעה\nשחרית - 8:30"
+  },
+  {
+    "name": "מניין חב\"ד",
+    "hidden": false,
+    "text": "## א' דראש השנה\nמנחה - 18:45\nערבית - 19:15\nסדר חסידות - 8:00\nשחרית, מוסף, מנחה - 9:00\n\n## ב' דראש השנה\nמנחה - 18:45\nערבית - 19:15\nסדר חסידות - 8:00\nשחרית, מוסף, מנחה - 9:00\nתקיעות (משוער) - 11:15\n\n## יום הכיפורים\nכל נדרי - 18:25\nסדר חסידות - 8:00\nשחרית ומוסף - 9:00\nמנחה ונעילה - 16:30\nערבית וקידוש לבנה - צאת החג\n\n## חג סוכות\nערבית - צאת הכוכבים\nשחרית ומוסף - 9:30\nקידוש והתוועדות - 12:00\n\n## שמחת תורה\nערבית - צאת הכוכבים\nסדר חסידות - 8:30\nשחרית - 9:30\nקידוש והתוועדות - 10:30\nערבית - צאת הכוכבים"
+  },
+  {
+    "name": "בית כנסת משכנות",
+    "hidden": false,
+    "text": "## ערב ראש השנה\nסליחות - 00:30, 6:30\nשחרית - 7:30\nמנחה - 13:10, 14:00, 18:35\n\n## א' דראש השנה\nשיחה - 19:00\nערבית - 19:14\nשחרית - 7:30\nמוסף (משוער) - 10:00\nמנחה - 13:10, 17:30\n\n## ב' דראש השנה\nשיחה וערבית - 19:15\nשחרית - 7:30\nתקיעות (משוער) - 10:00\nמנחה - 13:10, 17:30\nתקיעות לנשים - 17:20\nצאת החג וערבית - 19:25\n\n## ערב יום הכיפורים\nסליחות - 7:15\nמנחה - 13:05, 14:00\n\n## יום הכיפורים\nכל נדרי - 18:12\nשחרית ומוסף - 7:00\nמנחה ונעילה - 15:55\n\n## חג סוכות\nערבית וצאת הכוכבים -\nשחרית ומוסף - 9:30\nקידוש והתוועדות - 12:00\n\n## שמחת תורה\nערבית וצאת הכוכבים -\nסדר חסידות - 8:30\nשחרית - 9:30\nקידוש והתוועדות, מוסף ומנחה אחרי ההקפות - 10:30\nערבית - צאת הכוכבים"
+  },
+  {
+    "name": "מעלות אמיתי",
+    "hidden": false,
+    "text": "## א' דראש השנה\nשיר השירים - 18:15\nמנחה וערבית - 18:35\nשחרית (שופט כל הארץ) - 7:30\nמנחה - 16:00\n\n## ב' דראש השנה\nערבית - 19:00\nשחרית (שופט כל הארץ) - 7:30\nמנחה - 18:20\nערבית - 19:10\n\n## צום גדליה\nאשמורות - 4:45\nמנחה - 18:00\n\n## שבת שובה\nשיר השירים - 18:05\nמנחה וקבלת שבת - 18:25\nשחרית (שופט כל הארץ) - 7:30\nערבית - 19:10\n\n## ערב יום הכיפורים\nמנחה - 13:30\nלך אלי - 18:10\nשחרית (שופט כל הארץ) - 7:30\nמנחה - 16:10\nנעילה (משוער) - 17:55\nערבית - 19:00\n\n## חג סוכות\nשיר השירים - 17:55\nמנחה וקבלת חג - 18:15\nשחרית - 7:30\nלימוד קהלת - 15:30\nמנחה - 16:15\nערבית - 19:05\n\n## חול המועד סוכות\nשחרית - 7:30\nמנחה - 18:05\n\n## הושענא רבה\nלימוד בסוכה - 20:30\nסליחות והקפות - 7:00\n\n## שמחת תורה\nשיר השירים - 17:50\nמנחה וערבית - 18:10\nשחרית, מוסף ומנחה - 7:30\nקהלת - 17:45\nערבית - 18:50"
+  },
+  {
+    "name": "מניין תימני",
+    "hidden": true,
+    "text": "## א' דראש השנה\nשיר השירים - 18:15\nמנחה וערבית - 18:35\nשחרית (שופט כל הארץ) - 7:30\nמנחה - 13:00, 18:15\n\n## ב' דראש השנה\nערבית - 19:00\nשחרית (שופט כל הארץ) - 7:30\nשיעור - 17:20\nמנחה - 17:00\nערבית - 19:10\n\n## צום גדליה\nאשמורת ושחרית - 5:00\nמנחה - 18:15\n\n## שבת שובה\nשיר השירים - 18:05\nמנחה וקבלת שבת - 18:25\nשחרית (שופט כל הארץ) - 7:30\nשיעור - 16:00\nמנחה - 13:00, 15:00\nערבית - 19:10\n\n## ערב יום הכיפורים\nלך אלי - 18:07\nשחרית (שופט כל הארץ) - 7:30\nמנחה - 13:00\nנעילה (משוער) - 17:55\nערבית - 19:02\n\n## חג סוכות\nערבית - צאת הכוכבים\nשחרית ומוסף - 9:30\n\n## שמיני עצרת ושמחת תורה\nשיר השירים - 17:45\nמנחה וקבלת שבת - 18:05\nשחרית, מוסף (סעודה) - 7:30\nערבית - 18:50"
+  },
+  {
+    "name": "בית כנסת אוהל חיים",
+    "hidden": false,
+    "text": "## א' דראש השנה\nמנחה, אחות קטנה וערבית - 14:00, 18:25\nשחרית - 5:12\nמנחה ותשליך - 13:15\nשיעור הרב יוסי אליהו - 18:15\nערבית - 19:10\n\n## ב' דראש השנה\nשחרית - 5:13\nתקיעת שופר (משוער) - 8:00\nתקיעת שופר לנשים (משוער) - 10:00\nמנחה גדולה - 13:15\nמנחה קטנה ושיעור - 18:00\nערבית - 19:27\n\n## צום גדליה\nמנחה וערבית א' - 18:20\nערבית ב' - 20:30\n\n## שבת שובה\nמנחה גדולה - 14:00\nמנחה, קבלת שבת וערבית - 18:25\nשחרית (הודו) - 5:45\nמנחה גדולה - 13:15\nשיעור הרב ארן בן דוד - 16:00\nמנחה קטנה - 17:00\nערבית - 19:19\n\n## ערב יום הכיפורים\nמנחה - 14:00\nלך אלי - 18:07\nיום הכיפורים - שחרית - 5:08\nמנחה - 15:30\nנעילה וערבית - 17:45\n\n## חג סוכות\nמנחה גדולה - 14:00\nמנחה, קבלת חג וערבית - 18:15\nותיקין (הודו) - 5:50\nשחרית (קורבנות) - 7:45\nמנחה גדולה - 13:15\nשיעור - 16:00\nמנחה קטנה - 17:00\nערבית - 19:10\n\n## חול המועד סוכות\nשחרית - 7:00\nמנחה וערבית - 18:15\nערבית ב' - 20:30\n\n## הושענא רבה\nתחילת התיקון - 21:45\nותיקין - 5:55\nמנחה - 14:00\n\n## שמחת תורה\nמנחה, ערבית והקפות - 18:05\nשחרית (הודו) - 5:55, 8:00\nמנחה - 13:15, 17:00\nערבית - 19:00"
+  },
+  {
+    "name": "מדרש אליהו למטה",
+    "hidden": false,
+    "text": "## ערב ראש השנה\nמנחה - 18:30\n\n## א' דראש השנה\nערבית - 19:14\nשחרית (קרבנות) - 5:18\nמנחה ותשליך - 13:05\n\n## ב' דראש השנה\nערבית - 19:13\nשחרית (קרבנות) - 6:21\nתקיעות (משוער) ומוסף - 7:20\nמנחה - 13:05\n\n## שבת שובה\nשחרית (הודו) - 6:25\n\n## יום הכיפורים\nלך אלי תשוקתי - 18:05\nכל נדרי - 18:35\nערבית - 19:02\nשחרית (קרבנות) - 5:18\nשיעור הרב דביר אזולאי - 15:15\nמנחה (למנצח) - 16:00\nנעילה - 18:02\nתקיעות - 19:03\n\n## חג סוכות\nשחרית (הודו) - 5:42\n\n## הושענא רבה\nשחרית (הודו) - 6:13\n\n## שמחת תורה\nשחרית (הודו) - 5:46"
+  },
+  {
+    "name": "אולם פספס",
+    "hidden": true,
+    "text": "## ראש השנה\nא' וב' דראש השנה - 5:35\n\n## יום הכיפורים\nיום הכיפורים - 5:40"
+  },
+  {
+    "name": "אולם בי\"ס בנות בקומה שלישית",
+    "hidden": true,
+    "text": "## ראש השנה\nא' וב' דראש השנה - 5:45\n\n## יום הכיפורים\nיום הכיפורים - 5:50"
+  },
+  {
+    "name": "משיבת נפש - ברסלב",
+    "hidden": false,
+    "text": "## א' דראש השנה\nערבית - 18:40\nשחרית - 5:30\nמנחה - 17:00\n\n## שבת שובה\nקבלת שבת וערבית - 18:45\nותיקין - 5:35\nשחרית - 9:15\n\n## עשרת ימי תשובה\nשחרית - 6:01\nמנחה - 17:00\nערבית - 19:10\n\n## ערב יום הכיפורים\nלך אלי וערבית - 18:40\nשחרית - 5:43\nמנחה - 15:30\nנעילה וערבית - 18:20\n\n## חג סוכות\nערבית - 19:00\nשחרית - 5:40\nמנחה - 17:30\nערבית - 19:00\n\n## חול המועד סוכות\nשחרית - 6:00\nמנחה - 18:00\nערבית - 18:40\n\n## הושענא רבה\nתחילת תיקון - 22:30"
+  }
+];
+
+// כלי חד-פעמי: ממלא זמני ימים נוראים לכל בתי הכנסת לפי נתוני החוברת, בהתאמה לפי שם. בטוח להרצה
+// חוזרת - לא יוצר כפילויות, רק דורס/מעדכן לפי שם (למקומות קיימים) או יוצר "מיקום מיוחד" חדש
+// (למקומות שאין עדיין - hiddenFromListing:true, כדי שלא יופיעו ברשימת בתי הכנסת הרגילה).
+async function seedHolidayTimesFromBooklet(){
+  if (!isManager()) return;
+  if (!confirm(`הפעולה תמלא/תעדכן זמני ימים נוראים ל-${YAMIM_NORAIM_SEED_DATA.length} מיקומים, ותיצור רשומות "מיקום מיוחד" חדשות למקומות שאין עדיין. להמשיך?`)) return;
+  const resultEl = document.getElementById('seedHolidayTimesResult');
+  resultEl.innerHTML = 'מריץ...';
+  const matched = [], created = [], failed = [];
+  for (const entry of YAMIM_NORAIM_SEED_DATA){
+    try{
+      let shul = data.shuls.find(s => (s.name||'').trim() === entry.name.trim());
+      if (!shul && entry.hidden){
+        const newId = uid();
+        const newShul = stamp({ name: entry.name, hiddenFromListing: true, createdAt: new Date().toISOString() });
+        await db.collection('shuls').doc(newId).set(newShul);
+        shul = { id: newId, name: entry.name };
+        data.shuls.push(shul); // כדי שערכים הבאים באותה הרצה (למשל התאמות כפולות) יראו אותו מיד
+        created.push(entry.name);
+      }
+      if (!shul){ failed.push(entry.name + ' (לא נמצא בית כנסת בשם הזה, ולא סומן כ"מיקום מיוחד" ליצירה אוטומטית)'); continue; }
+      await db.collection('holidayTimes').doc(shul.id).set({
+        rawText: entry.text, updatedBy: publicDisplayName(), updatedAt: new Date().toISOString()
+      }, { merge: true });
+      matched.push(entry.name);
+    }catch(e){
+      failed.push(entry.name + ' - שגיאה: ' + e.message);
+    }
+  }
+  resultEl.innerHTML = `
+    <p>✅ עודכנו בהצלחה: ${matched.length} (${matched.map(escapeHtml).join(', ')})</p>
+    ${created.length?`<p>🆕 נוצרו כ"מיקום מיוחד" חדש: ${created.length} (${created.map(escapeHtml).join(', ')})</p>`:''}
+    ${failed.length?`<p style="color:var(--danger)">⚠️ נכשלו: ${failed.length}<br>${failed.map(escapeHtml).join('<br>')}</p>`:''}`;
+}
+
 // ---------- לוח עברי - חישוב עצמאי, בלי תלות בספריית Hebcal ----------
 // אלגוריתם המרה בין תאריך לועזי לעברי, עצמאי לגמרי (לא תלוי בטעינה מוצלחת של ספרייה חיצונית) -
 // משמש גם להצגת תאריכים עבריים לצד הלועזיים בכל מקום באתר, וגם לבורר התאריך העברי המלא (למטה).
@@ -1373,6 +1695,7 @@ let currentUserNotifyShiurIds = [];
 let unsubUserDoc;
 let APP_LOCK_CONFIG = null;
 let NOTIFICATIONS_CONFIG = null; // מתג כיבוי חירום למערך ההתראות - config/notifications, {enabled:false} מסתיר מכולם את אפשרות ההתראות
+let HOLIDAY_TIMES_CONFIG = null; // config/holidayTimes - בקרה ידנית על תצוגת הלשונית + קובץ חוברת זמנים
 let authResolved = false; // הופך true אחרי הקריאה הראשונה ל-onAuthStateChanged (עם או בלי משתמש מחובר)
 let roleResolved = false; // הופך true אחרי שידוע גם התפקיד (מיד אם אין משתמש, או אחרי טעינת מסמך המשתמש)
 
@@ -1455,6 +1778,8 @@ function trackPageView(title, path){
 
 // הצפייה פתוחה לכולם - מאזינים לנתונים כבר בטעינת הדף, בלי קשר להתחברות
 attachListeners();
+updateHolidayTimesTabVisibility();
+setInterval(updateHolidayTimesTabVisibility, 60*60*1000); // בדיקה חוזרת פעם בשעה - למקרה שהאתר נשאר פתוח כשהעונה מתחילה/נגמרת
 initA11yPrefs();
 updateMyShulHeaderBtn();
 checkCookieConsent();
@@ -1498,6 +1823,7 @@ auth.onAuthStateChanged(async user=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
       document.getElementById('tefilot-tab').style.display = '';
       document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('holidayTimes-tab').style.display = 'none';
       document.getElementById('info-tab').style.display = 'none';
       document.getElementById('admin-tab').style.display = 'none';
     }
@@ -1546,6 +1872,7 @@ auth.onAuthStateChanged(async user=>{
       document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.tab==='tefilot'));
       document.getElementById('tefilot-tab').style.display = '';
       document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('holidayTimes-tab').style.display = 'none';
       document.getElementById('info-tab').style.display = 'none';
       document.getElementById('admin-tab').style.display = 'none';
     }
@@ -2233,6 +2560,7 @@ function goPickMyShul(){
   currentView = 'byshul';
   document.getElementById('tefilot-tab').style.display = '';
   document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('holidayTimes-tab').style.display = 'none';
   document.getElementById('info-tab').style.display = 'none';
   document.getElementById('admin-tab').style.display = 'none';
   document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='byshul'));
@@ -3819,6 +4147,12 @@ function attachListeners(){
     if (currentTab === 'admin') populateNotificationsAdmin();
     if (document.getElementById('myProfileModalBody')) renderMyProfileNotifications(); // אם המודל פתוח כרגע, לרענן מיד אם מנהל כיבה/הפעיל תוך כדי
   }, e=>console.error(e));
+  db.collection('config').doc('holidayTimes').onSnapshot(doc=>{
+    HOLIDAY_TIMES_CONFIG = doc.exists ? doc.data() : null;
+    updateHolidayTimesTabVisibility();
+    if (currentTab === 'admin') populateHolidayTimesAdmin();
+    if (currentTab === 'holidayTimes') renderHolidayTimesTab(); // לרענן את קישור החוברת בראש הלשונית אם מנהל העלה/הסיר תוך כדי שהיא פתוחה
+  }, e=>console.error(e));
 }
 // --- טעינה עצלה (lazy) לאוספי shiurim ו-rabbanim ---
 // כדי לצמצם קריאות ל-Firestore: מי שנכנס לאפליקציה רק כדי לבדוק תפילות (הלשונית הכי נפוצה) לא צריך
@@ -4499,8 +4833,9 @@ function renderImmediate(){
   if (viewingShulId){ renderShulPage(); return; }
   if (currentTab === 'tefilot'){ renderSpecialDayBanner(); renderTefilot(); }
   else if (currentTab === 'shiurim') renderShiurim();
+  else if (currentTab === 'holidayTimes') renderHolidayTimesTab();
   else if (currentTab === 'info') renderInfoTab();
-  else if (currentTab === 'admin'){ renderDashboard(); renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); populateNotificationsAdmin(); renderRabbanimAdmin(); renderHalachicGuidesAdmin(); ensureDivreiTorahLoaded(); renderDivreiTorahAdmin(); }
+  else if (currentTab === 'admin'){ renderDashboard(); renderAdminMessages(); renderUsers(); renderTefilaTypesAdmin(); renderTopicsAdmin(); populateTopicDescSelect(); populateAnnouncementAdmin(); renderShulsAdmin(); renderActivityLog(); populateEditLockAdmin(); populateAppLockAdmin(); populateNotificationsAdmin(); populateHolidayTimesAdmin(); renderRabbanimAdmin(); renderHalachicGuidesAdmin(); ensureDivreiTorahLoaded(); renderDivreiTorahAdmin(); }
 }
 // הפוטר התחתון (זמנים משוערים + קרדיט) מוצג רק בדפי תפילות ובית כנסת - לא בשיעורים ולא במידע שימושי
 function updateFooterVisibility(){
@@ -4643,7 +4978,7 @@ function renderTefilot(){
   const tefilaF = tefilaSel.value;
   const shulSel = document.getElementById('filterShul');
   const currentShulF = shulSel.value;
-  const shulsSortedForFilter = [...data.shuls].sort((a,b)=>a.name.localeCompare(b.name,'he'));
+  const shulsSortedForFilter = [...visibleShulsList()].sort((a,b)=>a.name.localeCompare(b.name,'he'));
   shulSel.innerHTML = '<option value="">כל בתי הכנסת</option>' + shulsSortedForFilter.map(s=>`<option value="${s.id}">${escapeHtml(s.name)}</option>`).join('');
   shulSel.value = currentShulF;
   const shulF = shulSel.value;
@@ -4666,10 +5001,10 @@ function renderTefilot(){
   const minyanimForDisplay = getVisibleMinyanimForDate(data.minyanim, today, specialDayInfoForToday);
 
   if (currentView === 'byshul'){
-    if (!data.shuls.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל כדי להוסיף.</div>'; return; }
-    let shulsOrdered = [...data.shuls].sort((a,b)=> a.name.localeCompare(b.name, 'he'));
+    if (!visibleShulsList().length){ el.innerHTML = '<div class="empty">עדיין לא נוספו בתי כנסת. פנו למנהל כדי להוסיף.</div>'; return; }
+    let shulsOrdered = [...visibleShulsList()].sort((a,b)=> a.name.localeCompare(b.name, 'he'));
     if (sortByProximity && userLocation){
-      shulsOrdered = [...data.shuls].sort((a,b)=>{
+      shulsOrdered = [...visibleShulsList()].sort((a,b)=>{
         const da = (a.lat&&a.lng) ? haversineKm(userLocation.lat, userLocation.lng, a.lat, a.lng) : Infinity;
         const db = (b.lat&&b.lng) ? haversineKm(userLocation.lat, userLocation.lng, b.lat, b.lng) : Infinity;
         return da - db;
@@ -4979,7 +5314,7 @@ function openGlobalSearchModal(){
 function computeGlobalSearchResults(query){
   const q = query.trim().toLowerCase();
   const results = [];
-  data.shuls.forEach(s=>{
+  visibleShulsList().forEach(s=>{
     const hay = [s.name, s.address, s.description, s.nusach].filter(Boolean).join(' ').toLowerCase();
     if (hay.includes(q)) results.push({ icon:'🏠', title: s.name, subtitle: s.address||'', action:()=>{ closeModal(); openShulPage(s.id); } });
   });
@@ -5440,6 +5775,12 @@ function nextOccurrenceTimestamp(s){
 // מחזיר את "מיקום" המניין לצורך תצוגה/ניווט/שיתוף: בית כנסת רגיל מתוך data.shuls,
 // או במניין חד-פעמי שהוסיף מנהל במיקום מיוחד (customLocation) - אובייקט מדומה עם השם/כתובת שהוזנו.
 // אין ל-shul.id ערך אמיתי במקרה הזה (אין "דף בית כנסת" למיקום כזה) - קוד קורא צריך לבדוק זאת לפני קישור.
+// רשימת בתי כנסת ל"עיון/דפדוף" ציבורי - מסננת בתי כנסת שסומנו hiddenFromListing (מיקומים מיוחדים
+// בלי מניין קבוע כל השנה, למשל ששימשו רק לצורך זמני ימים נוראים) - עדיין קיימים במערכת לכל דבר
+// (אפשר לפתוח ישירות בקישור, לערוך, לקשר אליהם holidayTimes), רק לא מוצגים בדפדוף/סינון הרגיל.
+function visibleShulsList(){
+  return data.shuls.filter(s=>!s.hiddenFromListing);
+}
 function getMinyanLocation(m){
   if (m && m.customLocation){
     return { id: null, name: m.customLocationName || 'מיקום מיוחד', address: m.customLocationAddress || '', custom: true };
@@ -5763,6 +6104,10 @@ function openShulForm(shulId){
     <div class="field optional"><label for="f_donationLink">קישור לתרומה</label><input id="f_donationLink" value="${s?escapeHtml(s.donationLink||''):''}" placeholder="https://..."></div>
     <div class="field optional"><label for="f_whatsappGroupLink">קישור להצטרפות ישירה לקבוצת הוואטסאפ של הקהילה</label><input id="f_whatsappGroupLink" value="${s?escapeHtml(s.whatsappGroupLink||''):''}" placeholder="https://chat.whatsapp.com/..."></div>
     <div class="field optional"><label for="f_whatsappGroupPhone">או: טלפון גבאי לפנייה בוואטסאפ (אם אין קישור קבוצה ישיר)</label><input id="f_whatsappGroupPhone" value="${s?escapeHtml(s.whatsappGroupPhone||''):''}" placeholder="050-1234567"></div>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:10px 0">
+      <input type="checkbox" id="f_hiddenFromListing" ${s&&s.hiddenFromListing?'checked':''}>
+      מיקום מיוחד בלבד (לדוגמה: לצורך זמני ימים נוראים) - לא להציג ברשימת בתי הכנסת הרגילה, בסינון או בחיפוש
+    </label>
     <div class="field optional">
       <label for="f_slug">קישור ידידותי (עובד בנוסף לקישור הרגיל, לא מחליף אותו)</label>
       <input id="f_slug" value="${s?escapeHtml(s.slug||''):''}" placeholder="ריק = מספר אוטומטי. אפשר גם טקסט משלכם, למשל gavriel" oninput="this.value=this.value.replace(/[^a-zA-Z0-9-]/g,'').toLowerCase()">
@@ -5840,6 +6185,75 @@ function removePhotoField(){
   document.getElementById('photoUploadStatus').textContent = '';
 }
 let pendingDocumentFile = null; // הקובץ שנבחר אך עדיין לא הועלה בפועל - ממתין לאישור עם כותרת
+let pendingBookletFile = null; // אותו דפוס בדיוק, עבור חוברת הימים הנוראים (קובץ גלובלי, לא של בית כנסת ספציפי)
+function populateHolidayTimesAdmin(){
+  const sel = document.getElementById('f_holidayTimesVisibility');
+  if (!sel) return; // הטופס לא בתצוגה כרגע (לא בטאב ניהול)
+  sel.value = (HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.visibilityOverride) || 'auto';
+  const preview = document.getElementById('bookletPreview');
+  const url = HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletUrl;
+  preview.innerHTML = url
+    ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletTitle||'החוברת הנוכחית')}</a>
+       <button type="button" class="btn ghost" style="color:var(--danger);margin-right:8px" onclick="removeBookletFile()">✕ הסרה</button>`
+    : '<span class="muted">לא הועלתה חוברת עדיין</span>';
+}
+function saveHolidayTimesVisibility(){
+  if (!isManager()) return;
+  const value = document.getElementById('f_holidayTimesVisibility').value;
+  db.collection('config').doc('holidayTimes').set({ visibilityOverride: value }, { merge: true })
+    .catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
+function onBookletFileSelected(input){
+  const file = input.files[0];
+  if (!file) return;
+  const maxBytes = 10*1024*1024;
+  if (file.size > maxBytes){ alert('הקובץ גדול מדי - המקסימום הוא 10MB'); input.value = ''; return; }
+  pendingBookletFile = file;
+  document.getElementById('bookletPendingFileName').textContent = 'קובץ נבחר: ' + file.name;
+  document.getElementById('f_bookletTitle').value = file.name.replace(/\.[^.]+$/, '');
+  document.getElementById('bookletPendingArea').style.display = '';
+  document.getElementById('bookletUploadTriggerBtn').style.display = 'none';
+}
+function cancelBookletUpload(){
+  pendingBookletFile = null;
+  document.getElementById('f_bookletFile').value = '';
+  document.getElementById('bookletPendingArea').style.display = 'none';
+  document.getElementById('bookletUploadTriggerBtn').style.display = '';
+}
+async function confirmBookletUpload(){
+  if (!pendingBookletFile || !isManager()) return;
+  const title = document.getElementById('f_bookletTitle').value.trim() || pendingBookletFile.name;
+  const statusEl = document.getElementById('bookletUploadStatus');
+  const oldFileId = (HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletFileId) || '';
+  statusEl.textContent = 'מעלה ל-Drive...';
+  try{
+    // shulId=null - זו העלאה גלובלית (לא שייכת לבית כנסת מסוים), מותרת רק למנהל (נבדק גם בצד ה-Worker)
+    const result = await uploadFileToDrive(pendingBookletFile, title, null, oldFileId);
+    statusEl.textContent = 'שומר...';
+    await db.collection('config').doc('holidayTimes').set({
+      bookletTitle: title, bookletUrl: result.webViewLink, bookletFileId: result.id
+    }, { merge: true });
+    statusEl.textContent = '✓ הועלה ונשמר בהצלחה';
+  }catch(e){
+    statusEl.textContent = '';
+    alert('שגיאה בהעלאה או בשמירה: ' + e.message);
+  }
+  pendingBookletFile = null;
+  document.getElementById('f_bookletFile').value = '';
+  document.getElementById('bookletPendingArea').style.display = 'none';
+  document.getElementById('bookletUploadTriggerBtn').style.display = '';
+}
+async function removeBookletFile(){
+  if (!isManager()) return;
+  const fileId = HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletFileId;
+  if (fileId){
+    const result = await deleteDriveFile(fileId, null);
+    if (!result.ok){
+      alert('הקישור הוסר מהאתר, אבל מחיקת הקובץ עצמו מ-Drive נכשלה:\n' + result.error + '\n\nאפשר למחוק אותו ידנית מתוך Drive אם צריך.');
+    }
+  }
+  await db.collection('config').doc('holidayTimes').set({ bookletTitle: '', bookletUrl: '', bookletFileId: '' }, { merge: true });
+}
 function onDocumentFileSelected(input){
   const file = input.files[0];
   if (!file) return;
@@ -5950,6 +6364,7 @@ function saveShul(shulId){
     donationLink,
     whatsappGroupLink,
     whatsappGroupPhone,
+    hiddenFromListing: document.getElementById('f_hiddenFromListing').checked,
     slug,
     rabbiNames: parseNames(document.getElementById('f_rabbiNames').value),
     gabaiNames: parseNames(document.getElementById('f_gabaiNames').value),
@@ -5995,6 +6410,7 @@ function openShulPage(shulId){
   ensureRabbanimLoaded();
   document.getElementById('tefilot-tab').style.display = 'none';
   document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('holidayTimes-tab').style.display = 'none';
   document.getElementById('info-tab').style.display = 'none';
   document.getElementById('admin-tab').style.display = 'none';
   document.getElementById('shul-page').style.display = '';
@@ -6114,6 +6530,7 @@ function goHome(){
   document.querySelectorAll('.sub-toggle button').forEach(b=>b.classList.toggle('active', b.dataset.view==='chrono'));
   document.getElementById('tefilot-tab').style.display = '';
   document.getElementById('shiurim-tab').style.display = 'none';
+  document.getElementById('holidayTimes-tab').style.display = 'none';
   document.getElementById('info-tab').style.display = 'none';
   document.getElementById('admin-tab').style.display = 'none';
   trackPageView('תפילות', '/?tab=tefilot');
@@ -7662,11 +8079,13 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     }
     document.getElementById('tefilot-tab').style.display = currentTab==='tefilot' ? '' : 'none';
     document.getElementById('shiurim-tab').style.display = currentTab==='shiurim' ? '' : 'none';
+    document.getElementById('holidayTimes-tab').style.display = currentTab==='holidayTimes' ? '' : 'none';
     document.getElementById('info-tab').style.display = currentTab==='info' ? '' : 'none';
     document.getElementById('admin-tab').style.display = currentTab==='admin' ? '' : 'none';
     if (currentTab === 'shiurim' || currentTab === 'admin') ensureShiurimLoaded();
+    if (currentTab === 'holidayTimes') ensureHolidayTimesLoaded();
     if (currentTab === 'info' || currentTab === 'admin') { ensureRabbanimLoaded(); ensureHalachicGuidesLoaded(); ensureDivreiTorahLoaded(); }
-    const tabLabels = {tefilot:'תפילות', shiurim:'שיעורי תורה', info:'מידע שימושי', admin:'ניהול'};
+    const tabLabels = {tefilot:'תפילות', shiurim:'שיעורי תורה', holidayTimes:'ימים נוראים', info:'מידע שימושי', admin:'ניהול'};
     trackPageView(tabLabels[currentTab] || currentTab, '/?tab=' + currentTab);
     incrementPageViewCount();
     render();
