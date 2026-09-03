@@ -1013,7 +1013,15 @@ function ensureHolidayTimesLoaded(){
   db.collection('holidayTimes').onSnapshot(snap=>{
     data.holidayTimes = snap.docs.map(d=>({id:d.id, ...d.data()}));
     if (currentTab === 'holidayTimes') renderHolidayTimesTab();
+    if (viewingShulId) renderShulPage(); // לרענן גם דף בית כנסת פתוח, כדי שקישור הזמנים יופיע ברגע שהנתונים מגיעים
   }, e=>console.error(e));
+}
+// פותח את לשונית "ימים נוראים" ומסנן אותה להצגת בית כנסת ספציפי בלבד (במקום שתי התצוגות הרגילות) -
+// נקרא מקישור "🕎 זמני ימים נוראים" בדף בית הכנסת עצמו.
+let holidayTimesFilterShulId = null;
+function openHolidayTimesForShul(shulId){
+  holidayTimesFilterShulId = shulId;
+  document.querySelector('.tab-btn[data-tab="holidayTimes"]').click();
 }
 // פורמט טקסט חופשי -> מבנה: [{title, items:[{label, time}]}] - שורת "## כותרת" פותחת מועד חדש,
 // שאר השורות בתוך המועד מפוצלות לפי " - " הראשון (תפילה - שעה). שורה בלי " - " נשמרת כמו שהיא.
@@ -1036,6 +1044,17 @@ function parseHolidayTimesText(text){
 }
 let holidayTimesView = 'byshul';
 function setHolidayTimesView(v){ holidayTimesView = v; renderHolidayTimesTab(); }
+// שורת מניין בודדת, בעיצוב זהה לרשימת התפילות הרגילה (נקודה צבעונית + שעה מודגשת) - נעשה שימוש
+// חוזר באותם קלאסים (tline-item/time) כמו בתצוגה הכרונולוגית הרגילה, כדי שזה ירגיש כמו חלק טבעי
+// מהאתר ולא כמו רשימת טקסט נפרדת.
+function holidayTimeItemHtml(label, time, extra){
+  return `<div class="tline-item" style="--dot-color:var(--dusk)">
+    ${time?`<span class="time">${escapeHtml(time)}</span> — `:''}<span style="font-weight:500">${escapeHtml(label)}</span>${extra?` · ${extra}`:''}
+  </div>`;
+}
+function holidayOccasionHtml(title){
+  return `<div class="tline-divider" style="--dot-color:var(--dusk)">${escapeHtml(title)}</div>`;
+}
 function renderHolidayTimesTab(){
   const el = document.getElementById('holidayTimesTabContent');
   if (!el) return;
@@ -1050,12 +1069,37 @@ function renderHolidayTimesTab(){
     return { shul, occasions, canEdit: canManageShul(shul.id) };
   }).filter(x => x.occasions.length || x.canEdit); // מסתירים לגמרי בתי כנסת בלי תוכן ובלי הרשאת עריכה - לא מציגים כרטיס ריק לכולם
 
-  let html = `
-    <p class="muted" style="margin-bottom:12px">זמני תפילות לימים הנוראים - תצוגה עונתית, נעלמת אוטומטית אחרי סוכות.</p>
-    ${HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletUrl ? `
+  const bookletHtml = HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletUrl ? `
     <a href="${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletUrl)}" target="_blank" rel="noopener" class="btn primary" style="display:block;text-align:center;margin-bottom:14px;text-decoration:none">
       📖 ${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletTitle || 'חוברת זמני תפילות לימים הנוראים')}
-    </a>` : ''}
+    </a>` : '';
+
+  // מצב סינון לבית כנסת בודד - הגעה מקישור "🕎 זמני ימים נוראים" בדף בית הכנסת עצמו
+  if (holidayTimesFilterShulId){
+    const single = parsedByShul.find(x => x.shul.id === holidayTimesFilterShulId);
+    let html = `
+      <button class="btn" style="margin-bottom:12px" onclick="holidayTimesFilterShulId=null;renderHolidayTimesTab()">→ כל בתי הכנסת</button>
+      ${bookletHtml}`;
+    if (!single){
+      html += '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>';
+    } else {
+      html += `<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+          <h3>${escapeHtml(single.shul.name)}</h3>
+          ${single.canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${single.shul.id}')">✏️ עריכה</button>`:''}
+        </div>
+        <div class="timeline">
+          ${single.occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}
+        </div>
+      </div>`;
+    }
+    el.innerHTML = html;
+    return;
+  }
+
+  let html = `
+    <p class="muted" style="margin-bottom:12px">זמני תפילות לימים הנוראים - תצוגה עונתית, נעלמת אוטומטית אחרי סוכות.</p>
+    ${bookletHtml}
     <div style="display:flex;gap:8px;margin-bottom:14px">
       <button class="btn ${holidayTimesView==='byshul'?'primary':''}" onclick="setHolidayTimesView('byshul')">לפי בית כנסת</button>
       <button class="btn ${holidayTimesView==='bytime'?'primary':''}" onclick="setHolidayTimesView('bytime')">לפי שעה</button>
@@ -1074,11 +1118,7 @@ function renderHolidayTimesTab(){
           <h3>${escapeHtml(shul.name)}</h3>
           ${canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
         </div>
-        ${occasions.length ? occasions.map(occ=>`
-          <div style="margin-bottom:10px">
-            <div style="font-weight:600;color:var(--dusk);margin-bottom:4px">${escapeHtml(occ.title)}</div>
-            ${occ.items.map(it=>`<div class="minyan-line"><span>${escapeHtml(it.label)}</span><span>${escapeHtml(it.time)}</span></div>`).join('')}
-          </div>`).join('') : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
+        ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
       </div>`).join('');
   } else {
     const byOccasion = {};
@@ -1092,11 +1132,9 @@ function renderHolidayTimesTab(){
     if (!titles.length){
       html += '<div class="empty">טרם הוזנו זמני ימים נוראים</div>';
     } else {
-      html += titles.map(title=>`
-        <div class="card" style="margin-bottom:14px">
-          <h3 style="margin-bottom:10px">${escapeHtml(title)}</h3>
-          ${byOccasion[title].map(it=>`<div class="minyan-line"><span>${escapeHtml(it.label)} · ${escapeHtml(it.shulName)}</span><span>${escapeHtml(it.time)}</span></div>`).join('')}
-        </div>`).join('');
+      html += `<div class="card"><div class="timeline">${titles.map(title =>
+        holidayOccasionHtml(title) + byOccasion[title].map(it=>holidayTimeItemHtml(it.label, it.time, escapeHtml(it.shulName))).join('')
+      ).join('')}</div></div>`;
     }
   }
   el.innerHTML = html;
@@ -1133,7 +1171,7 @@ const YAMIM_NORAIM_SEED_DATA = [
     "text": "## ערב ראש השנה\nסליחות - 5:50, 6:30, 7:00 (בפספיפס)\nשחרית והתרת נדרים - 6:00, 6:20, 7:10, 7:30, 7:50, 8:15 (בפספיפס)\nמנחה גדולה - 13:20, 14:00\n\n## א' דראש השנה\nמנחה, שיחה וערבית - 18:35\nשחרית (ברכות השחר) - 7:00\n'המלך' - 7:45\nמוסף - 10:00\nמנחה גדולה - 13:06\nמנחה קטנה - 16:45, 17:20\nערבית - 18:00\n\n## ב' דראש השנה\nשיחה וערבית - 19:05\nשחרית (ברכות השחר) - 7:00\nתקיעת שופר ומוסף - 10:00\nתקיעת שופר לנשים - 12:50\nמנחה גדולה - 13:06\nמנחה קטנה - 16:45, 17:15\nערבית - 18:00\nערבית - 19:15, 19:25\n\n## צום גדליה\nסליחות בלילה - 00:30\nסליחות בבוקר עם שחרית - 5:30, 5:50, 6:15, 6:30, 6:50, 7:15\nמנחה - 13:20, 17:15\n\n## עשרת ימי תשובה\nסליחות בלילה - 00:32\nסליחות בבוקר עם שחרית - 5:30, 6:00, 6:20, 6:40, 7:00, 7:20\nסליחות ושחרית יום ה' - 5:30, 5:50, 6:10, 6:30, 7:00, 7:20\nערבית - 19:11, 19:15\n\n## שבת שובה\nמנחה גדולה ערב שבת - 13:20, 14:00\nמנחה, קבלת שבת וערבית - 18:26\nשחרית - 6:20, 8:00\nמנחה - 13:20, 15:15\nדרשת שבת שובה (ומנחה) - 16:30\nערבית - 19:07, 19:17\n\n## ערב יום הכיפורים\nסליחות בלילה - 00:30\nסליחות ושחרית - 5:45, 6:15, 6:45, 7:15, 7:45\nמנחה - 13:05, 14:00\n\n## יום הכיפורים\nכל נדרי ועברית - 18:33\nשחרית (ברכות השחר) - 7:00\nמנחה ונעילה - 16:00\nתקיעת שופר וערבית - 19:05\n\n## חג סוכות\nמנחה בערב חג - 13:00, 14:00\nמנחה, שיחה, ערבית - 18:16\nשחרית - 6:20, 8:00\nמנחה - 13:00, 15:45\nמנחה - 17:15, 17:45\n\n## חול המועד\nשחרית - 6:00, 6:30, 7:00, 7:30, 8:00, 8:20\nמנחה - 13:00, 17:00, 18:00, 18:15\nערבית - 18:55, 19:00, 21:00, 22:00, 23:00\n\n## הושענא רבה\nשחרית - 6:04, 6:30, 7:00, 7:40, 8:10, 8:30\nמנחה גדולה - 13:00, 14:00\n\n## שמחת תורה\nמנחה, שיחה, ערבית והקפות - 18:07\nשחרית - 6:00, 8:00\n'יזכור' ומוסף ומנחה (משוער) - 12:30\nמנחה - 17:15, 17:45\nערבית - 18:48, 18:58\n\n## אבות ובנים\nחג סוכות - 15:00"
   },
   {
-    "name": "מרכזי שכונה א'",
+    "name": "מרכזי א",
     "hidden": false,
     "text": "## ערב ראש השנה\nסליחות שחרית והתרת נדרים - 00:35, 5:20, 5:55, 6:50\nמנחה גדולה - 13:30, 14:00\nמנחה, שיחה וערבית - 18:35\n\n## א' דראש השנה\nשחרית (ברכות השחר) - 7:00\nמנחה גדולה - 13:30\nמנחה קטנה - 18:00\nשיעור הרב אבינר - 18:30\n\n## ב' דראש השנה\nערבית - 19:30\nשחרית (ברכות השחר) - 7:00\nתקיעת שופר ומוסף - 9:20\nתקיעת שופר לנשים - 12:00\nמנחה גדולה - 13:30\nמנחה ותשליך - 17:30\nערבית - 19:27\n\n## צום גדליה\nסליחות ושחרית - 5:35, 6:15, 7:10\nמנחה - 13:20, 18:15\nערבית - 19:08\n\n## שבת שובה\nמנחה גדולה - 13:20, 14:00\nמנחה וקבלת שבת - 18:25\nשחרית - 6:25, 8:00\nמנחה - 13:15, 17:45\nערבית - 19:17\n\n## עשרת ימי תשובה\nסליחות ושחרית (יום ה' 5:35) - 5:40, 6:15, 7:10\nמנחה - 13:20, 18:35\nערבית - 19:10, 20:00\n\n## ערב יום הכיפורים\nסליחות ושחרית - 5:50, 6:25, 7:20\nמנחה - 13:05, 14:00\n\n## יום הכיפורים\nכל נדרי - שיעור הרב אבינר אחרי ערבית\nשחרית - 7:30\nשיעור הרב טויטו - 15:40\nמנחה ונעילה - 16:20, 18:51\n\n## חג סוכות\nמנחה גדולה ערב חג - 13:20, 14:00\nמנחה, שיחה, ערבית וחג - 18:16\nשחרית - 6:00, 8:05\nמנחה - 13:15, 17:30\nערבית - 19:08\n\n## חול המועד\nשחרית - 6:00, 7:00, 8:10\nמנחה - 13:20, 18:10\nערבית - 18:55, 20:00\n\n## הושענא רבה\nשחרית - 6:00, 7:30\n\n## שמחת תורה\nמנחה גדולה ערב חג - 13:20, 14:00"
   },
@@ -1158,7 +1196,7 @@ const YAMIM_NORAIM_SEED_DATA = [
     "text": "## א' דראש השנה\nמנחה - 18:25\nקבלת שבת (מזמור לדוד) - 18:40\nשחרית - 5:20\nמנחה - 13:30, 17:00\n\n## ב' דראש השנה\nחון תחון - 19:15\nשחרית - 5:20\nמנחה - 18:00\nתשליך - 18:30\n\n## צום גדליה\nמנחה וערבית - 18:20\n\n## ערב יום הכיפורים\nמנחה - 13:15\n\n## יום הכיפורים\nלך אלי - 18:20\nותיקין - 5:30\nמנחה - 15:30\n\n## חול המועד\nשחרית - 7:30"
   },
   {
-    "name": "בית כנסת ניצנית",
+    "name": "ניצנית",
     "hidden": false,
     "text": "## א' דראש השנה\nמנחה, שיחה וערבית - 18:35\nשחרית (ברכות השחר) - 7:15\nמנחה - 17:55\n\n## ב' דראש השנה\nערבית - 19:15\nשחרית (ברכות השחר) - 7:15\nשיחה לפני תקיעות - 10:30\nמנחה גדולה - 13:15\nמנחה קטנה - 18:25\n\n## צום גדליה\nסליחות - 6:30\nשחרית - 7:00\nמנחה - 18:15\nערבית - 19:10\n\n## ערב יום הכיפורים\nמנחה - 14:00\n\n## יום הכיפורים\nתפילה זכה - 18:15\nכל נדרי ועברית - 18:30\nשחרית (ברכות השחר) - 7:15\nיזכור (משוער) - 10:30\nמנחה - 16:10\nנעילה - 17:35\nערבית וקידוש לבנה - 19:14"
   },
@@ -1173,17 +1211,17 @@ const YAMIM_NORAIM_SEED_DATA = [
     "text": "## א' דראש השנה\nמנחה וערבית - 18:30\nשחרית - 7:30\nשיעור - 16:00\nמנחה - 17:00\n\n## ב' דראש השנה\nערבית - 19:00\nשחרית - 7:30\nתקיעות (משוער) - 10:30\nתהילים לילדים - 17:30\nמנחה - 18:00\nערבית - 19:25\n\n## צום גדליה\nסליחות - 5:15\nשחרית - 6:00\nמנחה וערבית - 18:25\n\n## שבת שובה\nמנחה, קבלת שבת וערבית - 18:15\nשחרית (הודו) - 8:00\nתהילים לילדים - 12:30\nמנחה - 13:15, 16:30\nערבית - 19:20\n\n## יום הכיפורים\nמנחה - 13:00\nערבית (לך אלי) - 18:10\nשחרית (הודו) - 7:30\nמנחה - 15:30\nנעילה - 17:30\n\n## חג סוכות\nמנחה וערבית - 18:10\nשחרית - 8:00\nתהילים לילדים - 12:30\nמנחה - 17:00\nערבית - 19:10\n\n## חול המועד\nשחרית (קורבנות) - 7:15\nמנחה - 18:10\nערבית - 18:50\n\n## הושענא רבה\nלימוד - 22:30\nשחרית (קורבנות) - 5:50\n\n## שמחת תורה\nמנחה, ערבית והקפות - 18:00\nשחרית (הודו) - 8:00\nהקפות (משוער) - 9:15\nמנחה - 16:30\nשיעור - 17:00\nערבית - 19:00"
   },
   {
-    "name": "מדרש אליהו למעלה",
-    "hidden": false,
+    "name": "מדרש אליהו למעלה (נוסח תוניסאי)",
+    "hidden": true,
     "text": "## א' דראש השנה\nערבית - בשקיעה\nשחרית ומוסף - בנץ\nמנחה ותשליך - 16:30\nערבית - בשקיעה\n\n## ב' דראש השנה\nשחרית - בנץ\nמנחה - 17:30\nערבית - בשקיעה\n\n## יום הכיפורים\nלך אלי וערבית - בשקיעה\nשחרית - בנץ\nמנחה - 15:15\n\n## חג סוכות\nערבית - בשקיעה\nשחרית - 8:30"
   },
   {
-    "name": "מניין חב\"ד",
+    "name": "מדרש אליהו - חב\"ד",
     "hidden": false,
     "text": "## א' דראש השנה\nמנחה - 18:45\nערבית - 19:15\nסדר חסידות - 8:00\nשחרית, מוסף, מנחה - 9:00\n\n## ב' דראש השנה\nמנחה - 18:45\nערבית - 19:15\nסדר חסידות - 8:00\nשחרית, מוסף, מנחה - 9:00\nתקיעות (משוער) - 11:15\n\n## יום הכיפורים\nכל נדרי - 18:25\nסדר חסידות - 8:00\nשחרית ומוסף - 9:00\nמנחה ונעילה - 16:30\nערבית וקידוש לבנה - צאת החג\n\n## חג סוכות\nערבית - צאת הכוכבים\nשחרית ומוסף - 9:30\nקידוש והתוועדות - 12:00\n\n## שמחת תורה\nערבית - צאת הכוכבים\nסדר חסידות - 8:30\nשחרית - 9:30\nקידוש והתוועדות - 10:30\nערבית - צאת הכוכבים"
   },
   {
-    "name": "בית כנסת משכנות",
+    "name": "משכנות בית אל",
     "hidden": false,
     "text": "## ערב ראש השנה\nסליחות - 00:30, 6:30\nשחרית - 7:30\nמנחה - 13:10, 14:00, 18:35\n\n## א' דראש השנה\nשיחה - 19:00\nערבית - 19:14\nשחרית - 7:30\nמוסף (משוער) - 10:00\nמנחה - 13:10, 17:30\n\n## ב' דראש השנה\nשיחה וערבית - 19:15\nשחרית - 7:30\nתקיעות (משוער) - 10:00\nמנחה - 13:10, 17:30\nתקיעות לנשים - 17:20\nצאת החג וערבית - 19:25\n\n## ערב יום הכיפורים\nסליחות - 7:15\nמנחה - 13:05, 14:00\n\n## יום הכיפורים\nכל נדרי - 18:12\nשחרית ומוסף - 7:00\nמנחה ונעילה - 15:55\n\n## חג סוכות\nערבית וצאת הכוכבים -\nשחרית ומוסף - 9:30\nקידוש והתוועדות - 12:00\n\n## שמחת תורה\nערבית וצאת הכוכבים -\nסדר חסידות - 8:30\nשחרית - 9:30\nקידוש והתוועדות, מוסף ומנחה אחרי ההקפות - 10:30\nערבית - צאת הכוכבים"
   },
@@ -1198,12 +1236,12 @@ const YAMIM_NORAIM_SEED_DATA = [
     "text": "## א' דראש השנה\nשיר השירים - 18:15\nמנחה וערבית - 18:35\nשחרית (שופט כל הארץ) - 7:30\nמנחה - 13:00, 18:15\n\n## ב' דראש השנה\nערבית - 19:00\nשחרית (שופט כל הארץ) - 7:30\nשיעור - 17:20\nמנחה - 17:00\nערבית - 19:10\n\n## צום גדליה\nאשמורת ושחרית - 5:00\nמנחה - 18:15\n\n## שבת שובה\nשיר השירים - 18:05\nמנחה וקבלת שבת - 18:25\nשחרית (שופט כל הארץ) - 7:30\nשיעור - 16:00\nמנחה - 13:00, 15:00\nערבית - 19:10\n\n## ערב יום הכיפורים\nלך אלי - 18:07\nשחרית (שופט כל הארץ) - 7:30\nמנחה - 13:00\nנעילה (משוער) - 17:55\nערבית - 19:02\n\n## חג סוכות\nערבית - צאת הכוכבים\nשחרית ומוסף - 9:30\n\n## שמיני עצרת ושמחת תורה\nשיר השירים - 17:45\nמנחה וקבלת שבת - 18:05\nשחרית, מוסף (סעודה) - 7:30\nערבית - 18:50"
   },
   {
-    "name": "בית כנסת אוהל חיים",
+    "name": "אוהל חיים",
     "hidden": false,
     "text": "## א' דראש השנה\nמנחה, אחות קטנה וערבית - 14:00, 18:25\nשחרית - 5:12\nמנחה ותשליך - 13:15\nשיעור הרב יוסי אליהו - 18:15\nערבית - 19:10\n\n## ב' דראש השנה\nשחרית - 5:13\nתקיעת שופר (משוער) - 8:00\nתקיעת שופר לנשים (משוער) - 10:00\nמנחה גדולה - 13:15\nמנחה קטנה ושיעור - 18:00\nערבית - 19:27\n\n## צום גדליה\nמנחה וערבית א' - 18:20\nערבית ב' - 20:30\n\n## שבת שובה\nמנחה גדולה - 14:00\nמנחה, קבלת שבת וערבית - 18:25\nשחרית (הודו) - 5:45\nמנחה גדולה - 13:15\nשיעור הרב ארן בן דוד - 16:00\nמנחה קטנה - 17:00\nערבית - 19:19\n\n## ערב יום הכיפורים\nמנחה - 14:00\nלך אלי - 18:07\nיום הכיפורים - שחרית - 5:08\nמנחה - 15:30\nנעילה וערבית - 17:45\n\n## חג סוכות\nמנחה גדולה - 14:00\nמנחה, קבלת חג וערבית - 18:15\nותיקין (הודו) - 5:50\nשחרית (קורבנות) - 7:45\nמנחה גדולה - 13:15\nשיעור - 16:00\nמנחה קטנה - 17:00\nערבית - 19:10\n\n## חול המועד סוכות\nשחרית - 7:00\nמנחה וערבית - 18:15\nערבית ב' - 20:30\n\n## הושענא רבה\nתחילת התיקון - 21:45\nותיקין - 5:55\nמנחה - 14:00\n\n## שמחת תורה\nמנחה, ערבית והקפות - 18:05\nשחרית (הודו) - 5:55, 8:00\nמנחה - 13:15, 17:00\nערבית - 19:00"
   },
   {
-    "name": "מדרש אליהו למטה",
+    "name": "מדרש אליהו - ותיקין",
     "hidden": false,
     "text": "## ערב ראש השנה\nמנחה - 18:30\n\n## א' דראש השנה\nערבית - 19:14\nשחרית (קרבנות) - 5:18\nמנחה ותשליך - 13:05\n\n## ב' דראש השנה\nערבית - 19:13\nשחרית (קרבנות) - 6:21\nתקיעות (משוער) ומוסף - 7:20\nמנחה - 13:05\n\n## שבת שובה\nשחרית (הודו) - 6:25\n\n## יום הכיפורים\nלך אלי תשוקתי - 18:05\nכל נדרי - 18:35\nערבית - 19:02\nשחרית (קרבנות) - 5:18\nשיעור הרב דביר אזולאי - 15:15\nמנחה (למנצח) - 16:00\nנעילה - 18:02\nתקיעות - 19:03\n\n## חג סוכות\nשחרית (הודו) - 5:42\n\n## הושענא רבה\nשחרית (הודו) - 6:13\n\n## שמחת תורה\nשחרית (הודו) - 5:46"
   },
@@ -6597,6 +6635,10 @@ function renderShulPage(){
     el.innerHTML = '<div class="empty">בית הכנסת לא נמצא (אולי נמחק)</div><button class="btn" onclick="closeShulPage()">→ חזרה</button>';
     return;
   }
+  // טוענים את נתוני הימים הנוראים רק כשהלשונית בכלל פעילה (עונתי/דרך בקרה ידנית) - כדי לא לגרום
+  // לקריאת Firestore מיותרת בדפי בית כנסת רגילים רוב השנה
+  const holidayTimesBtn = document.getElementById('holidayTimesTabBtn');
+  if (holidayTimesBtn && holidayTimesBtn.style.display !== 'none') ensureHolidayTimesLoaded();
   const editable = canEditShul(shul);
   const today = new Date();
   const zmanim = getZmanim(today);
@@ -6728,6 +6770,12 @@ function renderShulPage(){
       </div>`:''}
       ${shul.description?`<p style="margin-top:12px;line-height:1.7">${escapeHtml(shul.description)}</p>`:''}
       ${shul.documentUrl?`<p style="margin-top:10px"><a href="${escapeHtml(shul.documentUrl)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(shul.documentTitle||'מסמך')}</a></p>`:''}
+      ${(() => {
+        const htBtn = document.getElementById('holidayTimesTabBtn');
+        const seasonActive = htBtn && htBtn.style.display !== 'none';
+        const hasContent = data.holidayTimes.find(h=>h.id===shul.id && h.rawText && h.rawText.trim());
+        return (seasonActive && hasContent) ? `<p style="margin-top:10px"><a href="#" onclick="openHolidayTimesForShul('${shul.id}');return false" style="color:var(--dusk);font-weight:500;text-decoration:underline">🕎 זמני ימים נוראים בבית הכנסת</a></p>` : '';
+      })()}
     </div>
 
     <div class="card" style="margin-top:18px">
