@@ -1204,13 +1204,15 @@ function renderHolidayTimesTab(){
   }
 
   html += parsedByShul.map(({shul, occasions, canEdit})=>`
-    <div class="card" style="margin-bottom:14px">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-        <h3>${escapeHtml(shul.name)}</h3>
-        ${canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
+    <details class="info-accordion" style="margin-bottom:14px">
+      <summary>
+        <span>${escapeHtml(shul.name)}</span>
+        ${canEdit?`<button class="btn" style="font-size:12px;padding:5px 10px" onclick="event.preventDefault();event.stopPropagation();openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
+      </summary>
+      <div class="info-accordion-body">
+        ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
       </div>
-      ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
-    </div>`).join('');
+    </details>`).join('');
   el.innerHTML = html;
 }
 function openHolidayTimesEditForm(shulId){
