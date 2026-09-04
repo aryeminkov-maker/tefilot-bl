@@ -333,7 +333,7 @@
     <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;flex-wrap:nowrap">
       <button class="btn" id="tefilotFiltersToggle" type="button" style="flex-shrink:0" onclick="toggleFiltersPanel('tefilotFiltersPanel','tefilotFiltersToggle')">🔍 סינון</button>
       <div id="dayLetterBar" role="group" aria-label="בחירת יום בשבוע" style="display:flex;gap:3px;flex-shrink:0"></div>
-      <button class="icon-btn" style="flex-shrink:0" onclick="openPrintGeneralModal()" aria-label="הדפסת זמנים כלליים" title="הדפסת זמנים כלליים - כל בתי הכנסת">🖨️</button>
+      <button class="icon-btn" style="flex-shrink:0" onclick="openDayTimesModal()" aria-label="זמני היום" title="זמני היום בבית אל">🕐</button>
     </div>
     <div id="tefilotFiltersPanel" class="filters-panel">
       <div class="filters">
@@ -365,6 +365,7 @@
         <input type="time" id="filterTimeFrom" style="display:none">
       </div>
       <button type="button" class="btn" style="width:100%;margin-top:8px" onclick="openGlobalSearchModal()">🔎 חיפוש בכל האפליקציה (גם בתי כנסת, שיעורים, רבנים ומידע שימושי)</button>
+      <button type="button" class="btn" style="width:100%;margin-top:8px" onclick="openPrintGeneralModal()">🖨️ הדפסת זמנים כלליים - כל בתי הכנסת</button>
     </div>
     <div class="muted" id="todayLabel" style="margin-bottom:10px"></div>
     <div id="tefilotList"></div>
@@ -660,6 +661,18 @@
       </button>
       <div class="admin-section-body" id="adminSection_group_content" style="display:none">
       <div class="card admin-section" style="margin-bottom:12px">
+      <button type="button" class="admin-section-header" id="adminSectionHeader_dailyZmanim" aria-expanded="false" onclick="toggleAdminSection('dailyZmanim')">
+        <h3>📅 זמני היום - קובץ מקור</h3>
+        <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <div class="admin-section-body" id="adminSection_dailyZmanim" style="display:none">
+        <p class="muted" style="margin-bottom:10px">מעלים כאן את קובץ ה-CSV החודשי הרשמי (מאתר ישיבה, <b>מחושב עבור בית אל ספציפית</b> - לא לוח זמנים כללי) - כל שורה נשמרת לפי התאריך שלה, ומשמשת כמקור מדויק לתצוגת "זמני היום" (כפתור השעון 🕐) ולחישוב זמני מניין יחסיים (למשל "20 דקות אחרי צאת הכוכבים"). לימים שאין להם עדיין קובץ - האתר ממשיך לחשב בעצמו כגיבוי. מומלץ להעלות קובץ חדש בכל תחילת חודש עברי.</p>
+        <button type="button" class="btn primary" style="padding:14px 22px;font-size:15px;display:block;width:100%" onclick="document.getElementById('f_dailyZmanimFile').click()">📤 העלאת קובץ CSV חודשי</button>
+        <input type="file" id="f_dailyZmanimFile" accept=".csv" style="display:none" onchange="handleDailyZmanimCsvUpload(this)">
+        <p class="muted" id="dailyZmanimUploadStatus" style="margin-top:8px"></p>
+      </div>
+    </div>
+      <div class="card admin-section" style="margin-bottom:12px">
       <button type="button" class="admin-section-header" id="adminSectionHeader_holidayTimes" aria-expanded="false" onclick="toggleAdminSection('holidayTimes')">
         <h3>🕎 ימים נוראים</h3>
         <svg class="chevron" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -867,7 +880,7 @@
 </div>
 
 <footer class="note" id="siteFooter">
-  הזמנים לזריחה / שקיעה / צאת הכוכבים מחושבים אוטומטית לפי קואורדינטות וגובה בית אל, ומהווים קירוב — לפני קביעת זמן מניין רגיש יש לוודא מול רב היישוב. האפליקציה מזהה אוטומטית ימים מיוחדים בלוח העברי (ראש חודש, חול המועד, ערבי חג וחגים) ומתאימה את תצוגת המניינים בהתאם.
+  זמני זריחה / שקיעה / צאת הכוכבים וכל זמני ההלכה <b>ייעודיים לבית אל</b> (מחושבים/מתקבלים לפי הקואורדינטות והגובה המדויקים של היישוב), בשיתוף עם <a href="https://www.yeshiva.org.il/calendar" target="_blank" rel="noopener" style="color:var(--ink-soft);text-decoration:underline">אתר ישיבה</a> — ומהווים קירוב; לפני קביעת זמן מניין רגיש יש לוודא מול רב היישוב. האפליקציה מזהה אוטומטית ימים מיוחדים בלוח העברי (ראש חודש, חול המועד, ערבי חג וחגים) ומתאימה את תצוגת המניינים בהתאם.
   <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);text-align:center">
     האפליקציה פותחה על ידי <a href="mailto:m.dat@bet-el.muni.il" style="color:var(--ink-soft);text-decoration:underline">מחלקת דת - מועצה מקומית בית אל</a>
   </div>
@@ -914,7 +927,7 @@
 <script src="https://cdn.jsdelivr.net/npm/kosher-zmanim@0.9.0/dist/kosher-zmanim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@hebcal/core@6/dist/bundle.min.js"></script>
 <script>
-let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [], deletionLog: [], holidayTimes: [] };
+let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [], deletionLog: [], holidayTimes: [], dailyZmanim: {} };
 let currentView = 'chrono';
 let selectedDayKey = '';
 let selectedSpecificDate = ''; // תאריך מדויק שנבחר (YYYY-MM-DD), או ריק אם מציגים לפי יום בשבוע כללי
@@ -977,6 +990,91 @@ function getHebcalGlobal(){
   _hebcalGlobal = candidates.find(c => c && c.GeoLocation && c.Zmanim && c.HDate) || null;
   if (!_hebcalGlobal) console.warn('ספריית Hebcal לא זוהתה - משתמשים בנוסחת הגיבוי לחישוב זמנים, ובלי זיהוי חגים/ראש חודש.');
   return _hebcalGlobal;
+}
+let _kosherZmanimGlobal;
+function getKosherZmanimGlobal(){
+  if (_kosherZmanimGlobal !== undefined) return _kosherZmanimGlobal;
+  const kz = window.KosherZmanim;
+  _kosherZmanimGlobal = (kz && kz.GeoLocation && kz.ComplexZmanimCalendar) ? kz : null;
+  if (!_kosherZmanimGlobal) console.warn('ספריית kosher-zmanim לא זוהתה - "זמני היום" המפורטים לא יהיו זמינים, וחישוב זמני מניין יחסיים יחזור לספריית הגיבוי.');
+  return _kosherZmanimGlobal;
+}
+// זמני היום המפורטים (הנץ, סוז"ק ש מג"א/גר"א, סוז"ת מג"א/גר"א, חצות, שקיעה, צאת הכוכבים, ובימי
+// שישי/שבת גם הדלקת נרות ומוצ"ש) - מבוסס על ספריית kosher-zmanim (כבר טעונה באתר). לצאת הכוכבים
+// נבחרה הגדרת "Geonim 5.95°" - נבדקה והתאימה (עד דקה) מול לוח הזמנים הרשמי של היישוב לחודש אלול תשפ"ו.
+// הדלקת נרות: 40 דקות לפני השקיעה (המנהג המקומי) - ר' הערה בקוד/בשיחה אם יעודכן מנהג מדויק יותר.
+// ⚠️ הערה טכנית קריטית: כל getXxx() בספרייה מחזיר DateTime במטמון UTC גולמי - חובה .setZone('Asia/Jerusalem')
+// לפני עיצוב, אחרת השעה המוצגת תהיה שגויה ב-3 שעות (התגלה ותוקן בבדיקה בפועל מול לוח הזמנים הרשמי).
+function getDetailedZmanimForDate(date){
+  // מקור ראשון - קובץ מדויק שהועלה (אתר ישיבה), אם קיים ליום הזה בדיוק
+  const uploaded = data.dailyZmanim[dateToKey(date)];
+  const dayOfWeek = date.getDay();
+  if (uploaded && uploaded.sunrise){
+    const result = { ...uploaded, source: 'yeshiva' };
+    if (dayOfWeek === 5 && uploaded.sunset){
+      const [h, m] = uploaded.sunset.split(':').map(Number);
+      const total = h*60 + m - 40;
+      result.candleLighting = `${String(Math.floor(total/60)).padStart(2,'0')}:${String(total%60).padStart(2,'0')}`;
+    }
+    if (dayOfWeek === 6) result.shabbatEnds = uploaded.tzais;
+    return result;
+  }
+  // מקור גיבוי - חישוב עצמאי (kosher-zmanim), לימים שאין להם עדיין קובץ מועלה
+  const KZ = getKosherZmanimGlobal();
+  if (!KZ) return null;
+  try{
+    const geo = new KZ.GeoLocation('בית אל', LAT, LON, ELEVATION_METERS, 'Asia/Jerusalem');
+    const cal = new KZ.ComplexZmanimCalendar(geo);
+    cal.setDate(date);
+    const fmt = dt => dt ? dt.setZone('Asia/Jerusalem').toFormat('HH:mm') : null;
+    const sunset = cal.getSunset();
+    const result = {
+      sunrise: fmt(cal.getSunrise()),
+      sofZmanShmaMGA: fmt(cal.getSofZmanShmaMGA()),
+      sofZmanShmaGRA: fmt(cal.getSofZmanShmaGRA()),
+      sofZmanTfilaMGA: fmt(cal.getSofZmanTfilaMGA()),
+      sofZmanTfilaGRA: fmt(cal.getSofZmanTfilaGRA()),
+      chatzos: fmt(cal.getChatzos()),
+      sunset: fmt(sunset),
+      tzais: fmt(cal.getTzaisGeonim5Point95Degrees()),
+      source: 'calculated'
+    };
+    if (dayOfWeek === 5 && sunset){ // שישי - הדלקת נרות (40 דקות לפני שקיעה)
+      result.candleLighting = fmt(sunset.minus({ minutes: 40 }));
+    }
+    if (dayOfWeek === 6){ // שבת - מוצאי שבת (זהה לצאת הכוכבים)
+      result.shabbatEnds = result.tzais;
+    }
+    return result;
+  }catch(e){
+    console.error('שגיאה בחישוב זמני היום המפורטים דרך kosher-zmanim:', e);
+    return null;
+  }
+}
+// פותח מודל "זמני היום" - נקרא מכפתור השעון (🕐) בראש לשונית התפילות
+function openDayTimesModal(){
+  const z = getDetailedZmanimForDate(new Date());
+  const rows = [
+    ['הנץ החמה', z && z.sunrise],
+    ['סוף זמן ק"ש (מג"א)', z && z.sofZmanShmaMGA],
+    ['סוף זמן ק"ש (גר"א)', z && z.sofZmanShmaGRA],
+    ['סוף זמן תפילה (מג"א)', z && z.sofZmanTfilaMGA],
+    ['סוף זמן תפילה (גר"א)', z && z.sofZmanTfilaGRA],
+    ['חצות היום', z && z.chatzos],
+    ['שקיעה', z && z.sunset],
+    ['צאת הכוכבים', z && z.tzais],
+  ];
+  if (z && z.candleLighting) rows.push(['הדלקת נרות', z.candleLighting]);
+  if (z && z.shabbatEnds) rows.push(['מוצאי שבת', z.shabbatEnds]);
+  document.getElementById('modalBody').innerHTML = `
+    <h3>🕐 זמני היום בבית אל</h3>
+    <p class="muted" style="margin-bottom:10px">${formatHebrewDate(new Date())}</p>
+    ${!z ? '<div class="empty">אירעה שגיאה בחישוב הזמנים</div>' : `<div class="timeline">${rows.filter(r=>r[1]).map(r=>holidayTimeItemHtml(r[0], r[1])).join('')}</div>`}
+    <p class="muted" style="margin-top:14px;font-size:12px">${z && z.source==='yeshiva'
+      ? `הזמנים ייעודיים לבית אל, מבוססים על <a href="https://www.yeshiva.org.il/calendar" target="_blank" rel="noopener" style="color:var(--dusk)">אתר ישיבה</a>`
+      : `הזמנים חושבו באופן עצמאי עבור בית אל (עדיין לא הועלה קובץ מדויק ליום זה) - ר' גם <a href="https://www.yeshiva.org.il/calendar" target="_blank" rel="noopener" style="color:var(--dusk)">אתר ישיבה</a>`}</p>
+    <div class="modal-actions"><button class="btn" onclick="closeModal()">סגירה</button></div>`;
+  document.getElementById('overlay').classList.add('show');
 }
 // ============ זמני ימים נוראים ============
 // לשונית עונתית נפרדת - לא חלק ממערכת המניינים הרגילה בכוונה (ר' הסבר מלא בשיחה): התוכן הזה הוא
@@ -1042,8 +1140,6 @@ function parseHolidayTimesText(text){
   });
   return occasions;
 }
-let holidayTimesView = 'byshul';
-function setHolidayTimesView(v){ holidayTimesView = v; renderHolidayTimesTab(); }
 // שורת מניין בודדת, בעיצוב זהה לרשימת התפילות הרגילה (נקודה צבעונית + שעה מודגשת) - נעשה שימוש
 // חוזר באותם קלאסים (tline-item/time) כמו בתצוגה הכרונולוגית הרגילה, כדי שזה ירגיש כמו חלק טבעי
 // מהאתר ולא כמו רשימת טקסט נפרדת.
@@ -1099,11 +1195,7 @@ function renderHolidayTimesTab(){
 
   let html = `
     <p class="muted" style="margin-bottom:12px">זמני תפילות לימים הנוראים - תצוגה עונתית, נעלמת אוטומטית אחרי סוכות.</p>
-    ${bookletHtml}
-    <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button class="btn ${holidayTimesView==='byshul'?'primary':''}" onclick="setHolidayTimesView('byshul')">לפי בית כנסת</button>
-      <button class="btn ${holidayTimesView==='bytime'?'primary':''}" onclick="setHolidayTimesView('bytime')">לפי שעה</button>
-    </div>`;
+    ${bookletHtml}`;
 
   if (!parsedByShul.length){
     html += '<div class="empty">טרם הוזנו זמני ימים נוראים</div>';
@@ -1111,32 +1203,14 @@ function renderHolidayTimesTab(){
     return;
   }
 
-  if (holidayTimesView === 'byshul'){
-    html += parsedByShul.map(({shul, occasions, canEdit})=>`
-      <div class="card" style="margin-bottom:14px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <h3>${escapeHtml(shul.name)}</h3>
-          ${canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
-        </div>
-        ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
-      </div>`).join('');
-  } else {
-    const byOccasion = {};
-    parsedByShul.forEach(({shul, occasions})=>{
-      occasions.forEach(occ=>{
-        if (!byOccasion[occ.title]) byOccasion[occ.title] = [];
-        occ.items.forEach(it=>byOccasion[occ.title].push({ shulName: shul.name, label: it.label, time: it.time }));
-      });
-    });
-    const titles = Object.keys(byOccasion);
-    if (!titles.length){
-      html += '<div class="empty">טרם הוזנו זמני ימים נוראים</div>';
-    } else {
-      html += `<div class="card"><div class="timeline">${titles.map(title =>
-        holidayOccasionHtml(title) + byOccasion[title].map(it=>holidayTimeItemHtml(it.label, it.time, escapeHtml(it.shulName))).join('')
-      ).join('')}</div></div>`;
-    }
-  }
+  html += parsedByShul.map(({shul, occasions, canEdit})=>`
+    <div class="card" style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h3>${escapeHtml(shul.name)}</h3>
+        ${canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
+      </div>
+      ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
+    </div>`).join('');
   el.innerHTML = html;
 }
 function openHolidayTimesEditForm(shulId){
@@ -1162,6 +1236,87 @@ function saveHolidayTimesText(shulId){
     updatedBy: publicDisplayName(),
     updatedAt: new Date().toISOString()
   }).then(()=>closeModal()).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
+
+// ============ קובץ זמנים חודשי (מקור: אתר ישיבה) ============
+// כשמנהל מעלה קובץ CSV בפורמט הרשמי (יום בחודש, יום בשבוע, תאריך לועזי, עלות השחר, זמן טלית ותפילין,
+// הנץ החמה, הנץ החמה במישור, סו"ז ק"ש למג"א/לגר"א, סו"ז תפילה למג"א/לגר"א, חצות, מנחה גדולה/קטנה,
+// פלג המנחה, שקיעה, צאת הכוכבים, צאת הכוכבים לר"ת, ...) - כל שורה נשמרת כמסמך נפרד לפי התאריך,
+// ומשמשת כמקור מדויק ואמיתי לתצוגה ולחישובי זמני מניין יחסיים, במקום החישוב העצמאי (kosher-zmanim)
+// שממשיך לשמש רק כגיבוי לימים שאין להם עדיין קובץ מועלה.
+// data.dailyZmanim מאותחל כבר כחלק מהצהרת data למעלה - מפתח: 'YYYY-MM-DD' (לפי תאריך לועזי) -> אובייקט זמנים
+let dailyZmanimLoaded = false;
+function ensureDailyZmanimLoaded(){
+  if (dailyZmanimLoaded) return;
+  dailyZmanimLoaded = true;
+  db.collection('dailyZmanim').onSnapshot(snap=>{
+    const map = {};
+    snap.docs.forEach(d=>{ map[d.id] = d.data(); });
+    data.dailyZmanim = map;
+    if (currentTab === 'tefilot') renderDebounced(); // זמנים יחסיים משפיעים על סדר/תוכן הרשימה
+    if (document.getElementById('modalBody') && document.getElementById('modalBody').innerHTML.includes('זמני היום')) openDayTimesModal(); // אם המודל פתוח כרגע
+  }, e=>console.error(e));
+}
+// ממיר תאריך לועזי בפורמט d/m/yyyy (כמו בקובץ) למפתח אחיד YYYY-MM-DD
+function csvDateToKey(d){
+  const parts = d.trim().split('/');
+  if (parts.length !== 3) return null;
+  const [day, month, year] = parts;
+  return `${year.padStart(4,'0')}-${month.padStart(2,'0')}-${day.padStart(2,'0')}`;
+}
+function dateToKey(date){
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+// פרסור בסיסי לשורת CSV (מפצל לפי פסיק) - מספיק לפורמט הקבוע הזה, בלי צורך בספריית CSV חיצונית
+function parseCsvLine(line){
+  return line.split(',').map(c=>c.trim());
+}
+function parseDailyZmanimCsv(text){
+  const lines = text.split('\n').map(l=>l.replace(/\r$/,'')).filter(l=>l.trim());
+  if (lines.length < 2) throw new Error('הקובץ ריק או לא בפורמט הצפוי');
+  const rows = [];
+  for (let i=1; i<lines.length; i++){
+    const cols = parseCsvLine(lines[i]);
+    const key = cols[2] ? csvDateToKey(cols[2]) : null;
+    if (!key) continue; // מדלג על שורות שאינן שורת נתונים תקינה (כמו שורת "באדיבות אתר ישיבה" שמופיעה בסוף הקובץ)
+    rows.push({
+      key,
+      sunrise: cols[5] || '',
+      sofZmanShmaMGA: cols[7] || '',
+      sofZmanShmaGRA: cols[8] || '',
+      sofZmanTfilaMGA: cols[9] || '',
+      sofZmanTfilaGRA: cols[10] || '',
+      chatzos: cols[11] || '',
+      sunset: cols[15] || '',
+      tzais: cols[16] || '',
+      tzaisRT: cols[17] || ''
+    });
+  }
+  if (!rows.length) throw new Error('לא נמצאו שורות נתונים תקינות בקובץ - ודאו שזה קובץ ה-CSV הרשמי מאתר ישיבה');
+  return rows;
+}
+async function handleDailyZmanimCsvUpload(input){
+  if (!isManager()) return;
+  const file = input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('dailyZmanimUploadStatus');
+  statusEl.textContent = 'קורא קובץ...';
+  try{
+    const text = await file.text();
+    const rows = parseDailyZmanimCsv(text);
+    statusEl.textContent = `שומר ${rows.length} ימים...`;
+    const batch = db.batch();
+    rows.forEach(r=>{
+      const { key, ...fields } = r;
+      batch.set(db.collection('dailyZmanim').doc(key), { ...fields, updatedBy: publicDisplayName(), updatedAt: new Date().toISOString() }, { merge: true });
+    });
+    await batch.commit();
+    statusEl.textContent = `✓ נשמרו בהצלחה ${rows.length} ימים (${rows[0].key} עד ${rows[rows.length-1].key})`;
+  }catch(e){
+    statusEl.textContent = '';
+    alert('שגיאה בקריאת/שמירת הקובץ: ' + e.message);
+  }
+  input.value = '';
 }
 
 const YAMIM_NORAIM_SEED_DATA = [
@@ -1488,6 +1643,35 @@ function attachHebrewDateLabel(inputId, labelId){
   update();
 }
 function getZmanim(date){
+  // מקור ראשון - קובץ מדויק שהועלה (אתר ישיבה), אם קיים ליום הזה בדיוק
+  const uploaded = data.dailyZmanim[dateToKey(date)];
+  if (uploaded && uploaded.sunrise && uploaded.sunset && uploaded.tzais){
+    const toDate = hhmm => {
+      const [h, m] = hhmm.split(':').map(Number);
+      const d = new Date(date); d.setHours(h, m, 0, 0); return d;
+    };
+    return { sunrise: toDate(uploaded.sunrise), sunset: toDate(uploaded.sunset), tzeit: toDate(uploaded.tzais) };
+  }
+  // מקור גיבוי - kosher-zmanim. ⚠️ הגדרת צאת הכוכבים כאן היא 5.95° (לא 8.5° כמו לפני העדכון הזה) -
+  // שונה בכוונה כדי להתאים במדויק לאותה הגדרה שמופיעה בקובץ המועלה מאתר ישיבה, ולשמור על עקביות:
+  // בלי זה, מניין "יחסית לצאת הכוכבים" היה "קופץ" בכ-13 דקות בהתאם לשאלה אם יש קובץ מועלה לאותו
+  // יום או לא - מצב מבלבל בהרבה מהחלטה אחידה. המשמעות בפועל: כל מניין קיים שכבר הוגדר יחסית
+  // ל"צאת הכוכבים" יזוז מעכשיו בכ-13 דקות מוקדם יותר לעומת מה שהיה לפני העדכון הזה.
+  const KZ = getKosherZmanimGlobal();
+  if (KZ){
+    try{
+      const geo = new KZ.GeoLocation('בית אל', LAT, LON, ELEVATION_METERS, 'Asia/Jerusalem');
+      const cal = new KZ.ComplexZmanimCalendar(geo);
+      cal.setDate(date);
+      const sunrise = cal.getSunrise();
+      const sunset = cal.getSunset();
+      const tzeit = cal.getTzaisGeonim5Point95Degrees();
+      if (!sunrise || !sunset || !tzeit) throw new Error('לא כל הזמנים חושבו');
+      return { sunrise: sunrise.toJSDate(), sunset: sunset.toJSDate(), tzeit: tzeit.toJSDate() };
+    }catch(e){
+      console.error('שגיאה בחישוב זמנים דרך kosher-zmanim - עוברים ל-Hebcal עבור הקריאה הזו', e);
+    }
+  }
   const hebcal = getHebcalGlobal();
   if (hebcal){
     try{
@@ -1816,6 +2000,7 @@ function trackPageView(title, path){
 
 // הצפייה פתוחה לכולם - מאזינים לנתונים כבר בטעינת הדף, בלי קשר להתחברות
 attachListeners();
+ensureDailyZmanimLoaded(); // נטען מוקדם (לא באופן עצל) כי הנתונים משפיעים על חישובי זמני מניין בכל האתר, לא רק במסך ייעודי
 updateHolidayTimesTabVisibility();
 setInterval(updateHolidayTimesTabVisibility, 60*60*1000); // בדיקה חוזרת פעם בשעה - למקרה שהאתר נשאר פתוח כשהעונה מתחילה/נגמרת
 initA11yPrefs();
