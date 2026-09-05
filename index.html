@@ -69,6 +69,12 @@
   .info-accordion summary::after{content:'›';font-size:20px;line-height:1;color:var(--ink-soft);transform:rotate(90deg);transition:transform .15s;flex-shrink:0}
   .info-accordion[open] summary::after{transform:rotate(-90deg)}
   .info-accordion .info-accordion-body{padding:0 16px 16px;line-height:1.8;font-size:14px}
+  .hg-grid{display:flex;flex-wrap:wrap;gap:14px;margin-top:4px}
+  .hg-item{flex:0 0 calc(50% - 7px);box-sizing:border-box;text-decoration:none;color:var(--ink);display:block}
+  .hg-item:last-child:nth-child(odd){margin:0 auto}
+  .hg-cover{width:100%;border-radius:10px;border:1px solid var(--border);box-shadow:0 1px 5px rgba(0,0,0,.1);display:block;object-fit:contain;background:var(--surface)}
+  .hg-cover-placeholder{width:100%;aspect-ratio:3/4;border-radius:10px;border:1px solid var(--border);background:var(--surface-2);display:flex;align-items:center;justify-content:center;font-size:34px}
+  .hg-title{margin-top:6px;font-size:13px;font-weight:600;text-align:center;line-height:1.4}
   .special-day-banner{margin-bottom:14px;padding:12px 14px;border-radius:10px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:13.5px;line-height:1.6}
   .special-day-banner.chag{background:#E7F0EC;border-color:#BFE0CC;color:#2F5D3A}
   .info-link-row{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;text-decoration:none;color:var(--ink);font-weight:700;font-size:15px}
@@ -1182,7 +1188,10 @@ function renderHolidayTimesTab(){
       html += `<div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
           <h3>${escapeHtml(single.shul.name)}</h3>
-          ${single.canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${single.shul.id}')">✏️ עריכה</button>`:''}
+          <div style="display:flex;gap:6px">
+            ${single.canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${single.shul.id}')">✏️ עריכה</button>`:''}
+            <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(single.shul.name+' - זמני ימים נוראים')}','holidayTimes','${single.shul.id}','${single.shul.id}')" aria-label="דיווח למנהל על תיקון או הוספה" title="דיווח למנהל על תיקון או הוספה">✉️</button>
+          </div>
         </div>
         <div class="timeline">
           ${single.occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}
@@ -1207,7 +1216,10 @@ function renderHolidayTimesTab(){
     <details class="info-accordion" style="margin-bottom:14px">
       <summary>
         <span>${escapeHtml(shul.name)}</span>
-        ${canEdit?`<button class="btn" style="font-size:12px;padding:5px 10px" onclick="event.preventDefault();event.stopPropagation();openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
+        <div style="display:flex;gap:6px">
+          ${canEdit?`<button class="btn" style="font-size:12px;padding:5px 10px" onclick="event.preventDefault();event.stopPropagation();openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
+          <button class="icon-btn" onclick="event.preventDefault();event.stopPropagation();openSendAdminMessageForm('${escapeHtml(shul.name+' - זמני ימים נוראים')}','holidayTimes','${shul.id}','${shul.id}')" aria-label="דיווח למנהל על תיקון או הוספה" title="דיווח למנהל על תיקון או הוספה">✉️</button>
+        </div>
       </summary>
       <div class="info-accordion-body">
         ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
@@ -1215,29 +1227,108 @@ function renderHolidayTimesTab(){
     </details>`).join('');
   el.innerHTML = html;
 }
+// ------ עריכת זמני ימים נוראים: בונה מובנה (כרטיס למועד + שורות תפילה/שעה) ------
+// שומר את המצב בזיכרון (_holidayEditState) בזמן העריכה, ומייצר בסוף רשימת שמירה את אותו פורמט
+// טקסטואלי (## כותרת \n תפילה - שעה) שהמסך הרגיל (parseHolidayTimesText) והכלי הישן יודעים לקרוא -
+// כך שאין צורך לשנות שום דבר בתצוגה או במקומות אחרים שקוראים את rawText.
+let _holidayEditState = null;
 function openHolidayTimesEditForm(shulId){
   if (!canManageShul(shulId)) return;
   const shul = data.shuls.find(s=>s.id===shulId);
   if (!shul) return;
   const existing = data.holidayTimes.find(h=>h.id===shulId);
-  document.getElementById('modalBody').innerHTML = `
-    <h3>עריכת זמני ימים נוראים - ${escapeHtml(shul.name)}</h3>
-    <p class="muted" style="margin-bottom:10px;line-height:1.7">פורמט: שורת כותרת למועד מתחילה ב-<code>##</code>, ואחריה שורות "תפילה - שעה" (אחת לכל שורה). לדוגמה:<br><code>## ערב ראש השנה</code><br><code>סליחות - 6:30, 5:50</code></p>
-    <textarea id="f_holidayTimesText" rows="18" style="width:100%;font-family:monospace;font-size:13px;direction:rtl">${existing ? escapeHtml(existing.rawText||'') : ''}</textarea>
-    <div class="modal-actions">
-      <button class="btn" onclick="closeModal()">ביטול</button>
-      <button class="btn primary" onclick="saveHolidayTimesText('${shulId}')">שמירה</button>
-    </div>`;
+  const parsed = parseHolidayTimesText(existing ? existing.rawText : '');
+  _holidayEditState = {
+    shulId,
+    name: shul.name || '',
+    occasions: parsed.length ? parsed.map(occ=>({ title: occ.title, items: occ.items.map(it=>({ label: it.label, time: it.time })) }))
+      : [{ title: '', items: [{ label: '', time: '' }] }]
+  };
+  renderHolidayTimesEditForm();
   document.getElementById('overlay').classList.add('show');
 }
-function saveHolidayTimesText(shulId){
-  if (!canManageShul(shulId)) return;
-  const text = document.getElementById('f_holidayTimesText').value;
-  db.collection('holidayTimes').doc(shulId).set({
-    rawText: text,
-    updatedBy: publicDisplayName(),
-    updatedAt: new Date().toISOString()
-  }).then(()=>closeModal()).catch(e=>alert('שגיאה בשמירה: '+e.message));
+function renderHolidayTimesEditForm(){
+  const st = _holidayEditState;
+  if (!st) return;
+  document.getElementById('modalBody').innerHTML = `
+    <h3>עריכת זמני ימים נוראים</h3>
+    <div class="field">
+      <label for="f_holidayShulName">שם בית הכנסת</label>
+      <input id="f_holidayShulName" value="${escapeHtml(st.name)}" oninput="_holidayEditState.name=this.value">
+    </div>
+    <p class="muted" style="margin-bottom:10px">לכל מועד (למשל "ערב ראש השנה") מוסיפים שורות של תפילה ושעה. אפשר להשאיר שעה ריקה אם היא עוד לא ידועה.</p>
+    <div id="holidayOccasionsList">${st.occasions.map((occ,oi)=>renderHolidayOccasionCard(occ,oi)).join('')}</div>
+    <button type="button" class="btn" style="width:100%;margin:4px 0 14px" onclick="addHolidayOccasion()">➕ הוספת מועד חדש</button>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">ביטול</button>
+      <button class="btn primary" onclick="saveHolidayTimesStructured()">שמירה</button>
+    </div>`;
+}
+function renderHolidayOccasionCard(occ, oi){
+  return `
+    <div class="card" style="padding:12px">
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
+        <input placeholder="כותרת המועד, למשל: ערב ראש השנה" value="${escapeHtml(occ.title)}" style="flex:1;font-weight:600" oninput="_holidayEditState.occasions[${oi}].title=this.value">
+        <button type="button" class="btn danger" title="הסרת המועד כולו" onclick="removeHolidayOccasion(${oi})">🗑️</button>
+      </div>
+      ${occ.items.map((it,ii)=>`
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+          <input placeholder="תפילה, למשל: שחרית" value="${escapeHtml(it.label)}" style="flex:2" oninput="_holidayEditState.occasions[${oi}].items[${ii}].label=this.value">
+          <input placeholder="שעה, למשל: 6:30 (או כמה שעות: 6:30, 7:30)" value="${escapeHtml(it.time)}" style="flex:1" oninput="_holidayEditState.occasions[${oi}].items[${ii}].time=this.value">
+          <button type="button" class="btn ghost" style="color:var(--danger);padding:6px 10px" title="הסרת השורה" onclick="removeHolidayItem(${oi},${ii})">✕</button>
+        </div>`).join('')}
+      <button type="button" class="btn" style="font-size:12.5px;padding:5px 10px;margin-top:2px" onclick="addHolidayItem(${oi})">➕ הוספת שורה</button>
+    </div>`;
+}
+function addHolidayOccasion(){
+  _holidayEditState.occasions.push({ title: '', items: [{ label: '', time: '' }] });
+  renderHolidayTimesEditForm();
+}
+function removeHolidayOccasion(oi){
+  if (_holidayEditState.occasions.length===1 && !confirm('להסיר את המועד היחיד שנשאר?')) return;
+  if (_holidayEditState.occasions.length>1 && !confirm('להסיר את כל המועד הזה, כולל השורות שבתוכו?')) return;
+  _holidayEditState.occasions.splice(oi,1);
+  if (!_holidayEditState.occasions.length) _holidayEditState.occasions.push({ title: '', items: [{ label: '', time: '' }] });
+  renderHolidayTimesEditForm();
+}
+function addHolidayItem(oi){
+  _holidayEditState.occasions[oi].items.push({ label: '', time: '' });
+  renderHolidayTimesEditForm();
+}
+function removeHolidayItem(oi, ii){
+  _holidayEditState.occasions[oi].items.splice(ii,1);
+  if (!_holidayEditState.occasions[oi].items.length) _holidayEditState.occasions[oi].items.push({ label: '', time: '' });
+  renderHolidayTimesEditForm();
+}
+// הופך את מבנה הנתונים חזרה לטקסט בפורמט המקורי (## כותרת, שורות "תפילה - שעה") - מדלג על מועדים/שורות ריקים לגמרי
+function serializeHolidayOccasions(occasions){
+  return occasions
+    .filter(occ => occ.title.trim() || occ.items.some(it=>it.label.trim() || it.time.trim()))
+    .map(occ=>{
+      const lines = [`## ${occ.title.trim()}`];
+      occ.items.forEach(it=>{
+        if (!it.label.trim() && !it.time.trim()) return;
+        lines.push(it.time.trim() ? `${it.label.trim()} - ${it.time.trim()}` : it.label.trim());
+      });
+      return lines.join('\n');
+    }).join('\n\n');
+}
+function saveHolidayTimesStructured(){
+  const st = _holidayEditState;
+  if (!st || !canManageShul(st.shulId)) return;
+  const name = (st.name||'').trim();
+  if (!name){ alert('שם בית הכנסת לא יכול להישאר ריק'); return; }
+  const text = serializeHolidayOccasions(st.occasions);
+  const tasks = [
+    db.collection('holidayTimes').doc(st.shulId).set({
+      rawText: text,
+      updatedBy: publicDisplayName(),
+      updatedAt: new Date().toISOString()
+    })
+  ];
+  const shul = data.shuls.find(s=>s.id===st.shulId);
+  if (shul && name !== shul.name) tasks.push(db.collection('shuls').doc(st.shulId).update({ name }));
+  Promise.all(tasks).then(()=>{ _holidayEditState = null; closeModal(); }).catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
 
 // ============ קובץ זמנים חודשי (מקור: אתר ישיבה) ============
@@ -1403,7 +1494,7 @@ const YAMIM_NORAIM_SEED_DATA = [
     "text": "## ערב ראש השנה\nמנחה - 18:30\n\n## א' דראש השנה\nערבית - 19:14\nשחרית (קרבנות) - 5:18\nמנחה ותשליך - 13:05\n\n## ב' דראש השנה\nערבית - 19:13\nשחרית (קרבנות) - 6:21\nתקיעות (משוער) ומוסף - 7:20\nמנחה - 13:05\n\n## שבת שובה\nשחרית (הודו) - 6:25\n\n## יום הכיפורים\nלך אלי תשוקתי - 18:05\nכל נדרי - 18:35\nערבית - 19:02\nשחרית (קרבנות) - 5:18\nשיעור הרב דביר אזולאי - 15:15\nמנחה (למנצח) - 16:00\nנעילה - 18:02\nתקיעות - 19:03\n\n## חג סוכות\nשחרית (הודו) - 5:42\n\n## הושענא רבה\nשחרית (הודו) - 6:13\n\n## שמחת תורה\nשחרית (הודו) - 5:46"
   },
   {
-    "name": "אולם פספס",
+    "name": "אולם פסיפס",
     "hidden": true,
     "text": "## ראש השנה\nא' וב' דראש השנה - 5:35\n\n## יום הכיפורים\nיום הכיפורים - 5:40"
   },
@@ -3282,18 +3373,36 @@ function renderHalachicGuidesAdmin(){
   const el = document.getElementById('halachicGuidesAdminList');
   if (!el) return;
   if (!data.halachicGuides.length){ el.innerHTML = '<div class="empty">עדיין לא נוספו קבצים</div>'; return; }
-  const sorted = [...data.halachicGuides].sort((a,b)=>(a.title||'').localeCompare(b.title||'', 'he'));
-  el.innerHTML = sorted.map(g=>`
+  const sorted = sortHalachicGuides(data.halachicGuides);
+  el.innerHTML = sorted.map((g,idx)=>`
     <div class="card row">
-      <div>
-        <h3>${escapeHtml(g.title)}</h3>
-        <div class="muted" style="word-break:break-all">${escapeHtml(g.link)}</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        ${g.coverImage?`<img src="${escapeHtml(g.coverImage)}" alt="" style="width:44px;height:58px;object-fit:contain;border-radius:6px;border:1px solid var(--border);flex-shrink:0">`:''}
+        <div>
+          <h3>${escapeHtml(g.title)}</h3>
+          <div class="muted" style="word-break:break-all">${escapeHtml(g.link)}</div>
+        </div>
       </div>
-      <div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <button class="btn" style="padding:6px 9px" title="הזזה למעלה" ${idx===0?'disabled':''} onclick="moveHalachicGuide('${g.id}','up')">🔼</button>
+        <button class="btn" style="padding:6px 9px" title="הזזה למטה" ${idx===sorted.length-1?'disabled':''} onclick="moveHalachicGuide('${g.id}','down')">🔽</button>
         <button class="btn" onclick="openHalachicGuideForm('${g.id}')">עריכה</button>
         <button class="btn danger" onclick="deleteHalachicGuide('${g.id}')">מחיקה</button>
       </div>
     </div>`).join('');
+}
+// מזיזה פריט למעלה/למטה ברשימה - מחשבת מחדש את סדר כל הפריטים (0,1,2...) לפי המיקום הנוכחי בתצוגה
+// כדי לרפא גם פריטים ישנים בלי order, ולכתוב את כולם ב-batch אחד (הרשימה קטנה, זה זול)
+function moveHalachicGuide(guideId, direction){
+  if (!isManager()) return;
+  const sorted = sortHalachicGuides(data.halachicGuides);
+  const idx = sorted.findIndex(g=>g.id===guideId);
+  const swapWith = direction==='up' ? idx-1 : idx+1;
+  if (idx<0 || swapWith<0 || swapWith>=sorted.length) return;
+  [sorted[idx], sorted[swapWith]] = [sorted[swapWith], sorted[idx]];
+  const batch = db.batch();
+  sorted.forEach((g,i)=> batch.update(db.collection('halachicGuides').doc(g.id), { order: i }));
+  batch.commit().catch(e=>alert('שגיאה בשמירת הסדר: '+e.message));
 }
 function openHalachicGuideForm(guideId){
   if (!isManager()) return;
@@ -3302,6 +3411,20 @@ function openHalachicGuideForm(guideId){
     <h3>${g?'עריכת קובץ':'הוספת קובץ'}</h3>
     ${updatedByLineHtml(g)}
     <div class="field"><label for="f_guideTitle">כותרת</label><input id="f_guideTitle" value="${g?escapeHtml(g.title):''}" placeholder="לדוגמה: הנחיות לערב יום כיפור"></div>
+    <div class="field optional">
+      <label>כריכת החוברת (תמונה)</label>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+        <label class="btn" style="cursor:pointer;margin:0">
+          📷 העלאת תמונת כריכה
+          <input type="file" id="f_guideCoverFile" accept="image/*" style="display:none" onchange="handleGuideCoverUpload(this)">
+        </label>
+        <span class="muted" id="guideCoverUploadStatus"></span>
+      </div>
+      <div id="guideCoverPreview">${g&&g.coverImage?`<img src="${escapeHtml(g.coverImage)}" alt="תצוגה מקדימה של כריכת החוברת" style="max-width:140px;max-height:180px;border-radius:8px;display:block;margin-bottom:6px;box-shadow:0 1px 4px rgba(0,0,0,.15)">`:''}</div>
+      ${g&&g.coverImage?`<button type="button" class="btn ghost" style="color:var(--danger);margin-bottom:8px" onclick="removeGuideCoverField()">✕ הסרת תמונת הכריכה</button>`:''}
+      <input type="hidden" id="f_guideCover" value="${g?escapeHtml(g.coverImage||''):''}">
+      <p class="muted" style="margin-top:2px">בלי תמונה יוצג ריבוע עם סמל 📄 במקום הכריכה.</p>
+    </div>
     <div class="field"><label for="f_guideLink">קישור לקובץ</label><input id="f_guideLink" value="${g?escapeHtml(g.link):''}" placeholder="https://..."></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
@@ -3309,15 +3432,63 @@ function openHalachicGuideForm(guideId){
     </div>`;
   document.getElementById('overlay').classList.add('show');
 }
+// זהה בעיקרון ל-handlePhotoUpload של בית כנסת (כיווץ בצד הלקוח ל-JPEG, בלי תלות בשירות אחסון חיצוני) -
+// מזהי שדות נפרדים כדי לא להתנגש איתו אם אי-פעם ייפתחו שני הטפסים בהמשך זה לזה.
+function handleGuideCoverUpload(input){
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')){ alert('יש לבחור קובץ תמונה'); input.value=''; return; }
+  const statusEl = document.getElementById('guideCoverUploadStatus');
+  statusEl.textContent = 'מעבד תמונה...';
+  const reader = new FileReader();
+  reader.onload = e=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const maxDim = 900;
+      let w = img.width, h = img.height;
+      if (w > maxDim || h > maxDim){
+        if (w >= h){ h = Math.round(h*maxDim/w); w = maxDim; }
+        else { w = Math.round(w*maxDim/h); h = maxDim; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      let quality = 0.85;
+      let dataUrl = canvas.toDataURL('image/jpeg', quality);
+      while (dataUrl.length > 260000 && quality > 0.3){
+        quality -= 0.12;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      if (dataUrl.length > 320000){
+        statusEl.textContent = 'התמונה עדיין גדולה מדי גם אחרי דחיסה, נסו תמונה אחרת';
+        input.value = '';
+        return;
+      }
+      document.getElementById('f_guideCover').value = dataUrl;
+      document.getElementById('guideCoverPreview').innerHTML = `<img src="${dataUrl}" alt="תצוגה מקדימה של כריכת החוברת" style="max-width:140px;max-height:180px;border-radius:8px;display:block;margin-bottom:6px;box-shadow:0 1px 4px rgba(0,0,0,.15)">`;
+      statusEl.textContent = '✓ מוכן לשמירה (כ-' + Math.round(dataUrl.length*0.75/1024) + ' KB)';
+      input.value = '';
+    };
+    img.onerror = ()=>{ statusEl.textContent = 'שגיאה בטעינת התמונה, נסו קובץ אחר'; };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function removeGuideCoverField(){
+  document.getElementById('f_guideCover').value = '';
+  document.getElementById('guideCoverPreview').innerHTML = '';
+  document.getElementById('guideCoverUploadStatus').textContent = '';
+}
 function saveHalachicGuide(guideId){
   if (!isManager()) return;
   const title = document.getElementById('f_guideTitle').value.trim();
   const link = document.getElementById('f_guideLink').value.trim();
+  const coverImage = document.getElementById('f_guideCover').value;
   if (!title){ alert('יש להזין כותרת'); return; }
   if (!link){ alert('יש להזין קישור'); return; }
   if (!/^https?:\/\//i.test(link)){ alert('הקישור צריך להתחיל ב-http:// או https://'); return; }
   const id = guideId || uid();
-  const obj = stamp({ title, link });
+  const obj = stamp({ title, link, coverImage });
   db.collection('halachicGuides').doc(id).set(obj, { merge: true }).catch(e=>alert('שגיאה בשמירה: '+e.message));
   closeModal();
 }
@@ -8030,13 +8201,30 @@ function infoAccordionHtml(icon, title, body){
       <div class="info-accordion-body">${body}</div>
     </details>`;
 }
-// רשימת קישורים לקבצי הנחיות הלכתיות (מנוהלת בפאנל הניהול) - כותרת + קישור לכל פריט
+// רשימת קישורים לקבצי הנחיות הלכתיות (מנוהלת בפאנל הניהול) - מוצגת כגריד כריכות, שתיים בשורה
+// (הפריט האחרון ממורכז אם המספר אי-זוגי, ר' קלאס hg-item:last-child:nth-child(odd) ב-CSS).
+// ממוין לפי שדה order שנקבע בפאנל הניהול (חצי למעלה/למטה) - פריטים בלי order עדיין (לפני שהוזז
+// משהו ברשימה) נופלים בסוף וממוינים לפי כותרת, כדי שהתצוגה תישאר יציבה גם בלי סידור ידני.
 function halachicGuidesListHtml(){
   if (!data.halachicGuides.length) return '<p class="muted" style="margin:0">טרם נוספו קבצים.</p>';
-  const sorted = [...data.halachicGuides].sort((a,b)=>(a.title||'').localeCompare(b.title||'', 'he'));
-  return `<ul style="margin:0;padding-inline-start:20px;line-height:2">
-    ${sorted.map(g=>`<li><a href="${escapeHtml(g.link)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500">${escapeHtml(g.title)}</a></li>`).join('')}
-  </ul>`;
+  const sorted = sortHalachicGuides(data.halachicGuides);
+  return `<div class="hg-grid">
+    ${sorted.map(g=>`
+      <a class="hg-item" href="${escapeHtml(g.link)}" target="_blank" rel="noopener">
+        ${g.coverImage
+          ? `<img class="hg-cover" src="${escapeHtml(g.coverImage)}" alt="כריכת ${escapeHtml(g.title)}">`
+          : `<div class="hg-cover-placeholder">📄</div>`}
+        <div class="hg-title">${escapeHtml(g.title)}</div>
+      </a>`).join('')}
+  </div>`;
+}
+function sortHalachicGuides(list){
+  return [...list].sort((a,b)=>{
+    const ao = typeof a.order === 'number' ? a.order : Infinity;
+    const bo = typeof b.order === 'number' ? b.order : Infinity;
+    if (ao !== bo) return ao - bo;
+    return (a.title||'').localeCompare(b.title||'', 'he');
+  });
 }
 // רשימת עדכונים למשתמשים - כל עדכון חדש נוסף בראש המערך (מהחדש לישן).
 // כלל חשוב: כמה שינויים שנעשים באותו יום מתווספים כ"items" נוספים לאותה גרסה (לא כל שינוי מקבל
