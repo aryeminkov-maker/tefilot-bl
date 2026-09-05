@@ -1180,6 +1180,11 @@ function holidayTimeItemHtml(label, time, extra){
 function holidayOccasionHtml(title){
   return `<div class="tline-divider" style="--dot-color:var(--dusk)">${escapeHtml(title)}</div>`;
 }
+// הודעת "ריק" לבית כנסת שעדיין לא הוזנו לו זמני ימים נוראים - עם קישור ישיר לשליחת הודעה
+// (אותו מנגנון של אייקון ה-✉️), כדי לעודד מי שיש לו את המידע לפנות ולעדכן.
+function noHolidayTimesMessageHtml(shul){
+  return `<div class="empty">עדיין לא התקבלו זמני התפילות.<br>יש לכם את זמני התפילות? <a href="#" onclick="event.preventDefault();openSendAdminMessageForm('${escapeHtml(shul.name+' - זמני ימים נוראים')}','holidayTimes','${shul.id}','${shul.id}')" style="color:var(--dusk);font-weight:500">פנו אלינו</a></div>`;
+}
 function renderHolidayTimesTab(){
   const el = document.getElementById('holidayTimesTabContent');
   if (!el) return;
@@ -1192,7 +1197,10 @@ function renderHolidayTimesTab(){
     const doc = byShulId[shul.id];
     const occasions = doc ? parseHolidayTimesText(doc.rawText) : [];
     return { shul, occasions, canEdit: canManageShul(shul.id) };
-  }).filter(x => x.occasions.length || x.canEdit); // מסתירים לגמרי בתי כנסת בלי תוכן ובלי הרשאת עריכה - לא מציגים כרטיס ריק לכולם
+  }).filter(x => x.occasions.length || x.canEdit || !x.shul.hiddenFromListing);
+  // מציגים: כל בית כנסת "רגיל" (לא hiddenFromListing) - גם בלי תוכן, עם הודעת "עדיין לא התקבלו
+  // זמנים" ובקשה לפנות. "מיקומים מיוחדים" (hiddenFromListing) מוצגים רק אם יש להם תוכן בפועל, או
+  // למי שיש הרשאת עריכה עליהם - כדי לא לבלבל תושבים עם מקומות שהם לא מכירים כבית כנסת רגיל.
 
   const bookletHtml = HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletUrl ? `
     <a href="${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletUrl)}" target="_blank" rel="noopener" class="btn primary" style="display:block;text-align:center;margin-bottom:14px;text-decoration:none">
@@ -1213,12 +1221,10 @@ function renderHolidayTimesTab(){
           <h3>${escapeHtml(single.shul.name)}</h3>
           <div style="display:flex;gap:6px">
             ${single.canEdit?`<button class="btn" onclick="openHolidayTimesEditForm('${single.shul.id}')">✏️ עריכה</button>`:''}
-            <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(single.shul.name+' - זמני ימים נוראים')}','holidayTimes','${single.shul.id}','${single.shul.id}')" aria-label="דיווח למנהל על תיקון או הוספה" title="דיווח למנהל על תיקון או הוספה">✉️</button>
+            <button class="icon-btn" onclick="openSendAdminMessageForm('${escapeHtml(single.shul.name+' - זמני ימים נוראים')}','holidayTimes','${single.shul.id}','${single.shul.id}')" aria-label="להערות ותיקונים לזמני התפילות" title="להערות ותיקונים לזמני התפילות">✉️</button>
           </div>
         </div>
-        <div class="timeline">
-          ${single.occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}
-        </div>
+        ${single.occasions.length ? `<div class="timeline">${single.occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : noHolidayTimesMessageHtml(single.shul)}
       </div>`;
     }
     el.innerHTML = html;
@@ -1238,14 +1244,14 @@ function renderHolidayTimesTab(){
   html += parsedByShul.map(({shul, occasions, canEdit})=>`
     <details class="info-accordion" style="margin-bottom:14px">
       <summary>
-        <span>${escapeHtml(shul.name)}</span>
+        <span style="flex:1">${escapeHtml(shul.name)}</span>
         <div style="display:flex;gap:6px">
           ${canEdit?`<button class="btn" style="font-size:12px;padding:5px 10px" onclick="event.preventDefault();event.stopPropagation();openHolidayTimesEditForm('${shul.id}')">✏️ עריכה</button>`:''}
-          <button class="icon-btn" onclick="event.preventDefault();event.stopPropagation();openSendAdminMessageForm('${escapeHtml(shul.name+' - זמני ימים נוראים')}','holidayTimes','${shul.id}','${shul.id}')" aria-label="דיווח למנהל על תיקון או הוספה" title="דיווח למנהל על תיקון או הוספה">✉️</button>
+          <button class="icon-btn" onclick="event.preventDefault();event.stopPropagation();openSendAdminMessageForm('${escapeHtml(shul.name+' - זמני ימים נוראים')}','holidayTimes','${shul.id}','${shul.id}')" aria-label="להערות ותיקונים לזמני התפילות" title="להערות ותיקונים לזמני התפילות">✉️</button>
         </div>
       </summary>
       <div class="info-accordion-body">
-        ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : '<div class="empty">עדיין לא הוזנו זמנים לבית הכנסת הזה</div>'}
+        ${occasions.length ? `<div class="timeline">${occasions.map(occ => holidayOccasionHtml(occ.title) + occ.items.map(it=>holidayTimeItemHtml(it.label, it.time)).join('')).join('')}</div>` : noHolidayTimesMessageHtml(shul)}
       </div>
     </details>`).join('');
   el.innerHTML = html;
@@ -8257,8 +8263,7 @@ function renderInfoTab(){
     <h2 style="margin-bottom:12px">📚 רבנים בישוב</h2>
     ${rabbanimHtml}
     <div style="margin:26px 0;border-top:1px solid var(--border)"></div>
-    <h2 style="margin-bottom:6px">ℹ️ מידע שימושי</h2>
-    <p class="muted" style="margin-bottom:14px">מידע נבחר מאתר המועצה, לנוחיותכם. לחצו על כל כותרת לפרטים המלאים. לעדכונים ותשלומים - תמיד עדיף להיכנס לקישור המקורי.</p>
+    <h2 style="margin-bottom:12px">ℹ️ מידע שימושי</h2>
     ${infoAccordionHtml('🚿', 'מקוואות נשים', `
       ביישוב שלושה מקוואות נשים:<br><br>
       <b>מקווה שכונה א'</b> - שביל שבות סיני 1 (ליד גן הפיל) · טלפון: <a href="tel:029975234" style="color:var(--dusk)">02-9975234</a><br>
