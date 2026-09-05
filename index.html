@@ -1231,9 +1231,7 @@ function renderHolidayTimesTab(){
     return;
   }
 
-  let html = `
-    <p class="muted" style="margin-bottom:12px">זמני תפילות לימים הנוראים - תצוגה עונתית, נעלמת אוטומטית אחרי סוכות.</p>
-    ${bookletHtml}`;
+  let html = `${bookletHtml}`;
 
   if (!parsedByShul.length){
     html += '<div class="empty">טרם הוזנו זמני ימים נוראים</div>';
@@ -6713,9 +6711,36 @@ function populateHolidayTimesAdmin(){
   const preview = document.getElementById('bookletPreview');
   const url = HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletUrl;
   preview.innerHTML = url
-    ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletTitle||'החוברת הנוכחית')}</a>
-       <button type="button" class="btn ghost" style="color:var(--danger);margin-right:8px" onclick="removeBookletFile()">✕ הסרה</button>`
+    ? `<div id="bookletTitleDisplay">
+         <a href="${escapeHtml(url)}" target="_blank" rel="noopener" style="color:var(--dusk);font-weight:500;text-decoration:underline">📄 ${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletTitle||'החוברת הנוכחית')}</a>
+         <button type="button" class="btn ghost" style="margin-right:8px" onclick="openBookletTitleEdit()">✏️ שינוי הטקסט</button>
+         <button type="button" class="btn ghost" style="color:var(--danger);margin-right:4px" onclick="removeBookletFile()">✕ הסרה</button>
+       </div>
+       <div id="bookletTitleEditArea" style="display:none;margin-top:8px">
+         <input id="f_bookletTitleEdit" value="${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletTitle||'')}" placeholder="לדוגמה: חוברת זמני תפילות לימים הנוראים" style="margin-bottom:8px">
+         <div style="display:flex;gap:8px">
+           <button type="button" class="btn primary" onclick="saveBookletTitle()">שמירה</button>
+           <button type="button" class="btn" onclick="cancelBookletTitleEdit()">ביטול</button>
+         </div>
+       </div>`
     : '<span class="muted">לא הועלתה חוברת עדיין</span>';
+}
+// שינוי הטקסט המוצג על כפתור הקישור לחוברת, בלי לגעת בקובץ/בקישור עצמו - נפרד לגמרי מתהליך
+// העלאת קובץ חדש (f_bookletTitle שם משמש רק בזמן העלאה, כברירת מחדל שאפשר לשנות לפני האישור).
+function openBookletTitleEdit(){
+  document.getElementById('bookletTitleDisplay').style.display = 'none';
+  document.getElementById('bookletTitleEditArea').style.display = '';
+}
+function cancelBookletTitleEdit(){
+  document.getElementById('bookletTitleEditArea').style.display = 'none';
+  document.getElementById('bookletTitleDisplay').style.display = '';
+}
+function saveBookletTitle(){
+  if (!isManager()) return;
+  const title = document.getElementById('f_bookletTitleEdit').value.trim();
+  if (!title){ alert('הטקסט לא יכול להישאר ריק'); return; }
+  db.collection('config').doc('holidayTimes').set({ bookletTitle: title }, { merge: true })
+    .catch(e=>alert('שגיאה בשמירה: '+e.message));
 }
 function saveHolidayTimesVisibility(){
   if (!isManager()) return;
