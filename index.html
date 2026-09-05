@@ -2241,7 +2241,7 @@ function attachUsersListenerIfManager(){
   if (unsubUsers) return; // כבר יש מאזין פעיל - אין צורך לבנות מחדש בכל עדכון קטן
   unsubUsers = db.collection('users').onSnapshot(snap=>{
     data.users = snap.docs.map(d=>({id:d.id, ...d.data()}));
-    if (currentTab === 'admin') renderUsers();
+    if (currentTab === 'admin'){ renderUsers(); renderDashboard(); }
   }, e=>console.error(e));
 }
 // יומן מחיקות של מניינים/שיעורים (בוצעו על ידי גבאים או מנהלים) - כדי שיומן העדכונים בדשבורד יראה
