@@ -607,6 +607,15 @@
       </button>
       <div class="admin-section-body" id="adminSection_announcement" style="display:none">
         <p class="muted" style="margin-bottom:12px">הודעה שתוצג לכל מי שנכנס לאפליקציה - טקסט, תמונה ו/או קישור. אפשר לבחור אם היא תוצג פעם אחת בלבד לכל משתמש, או בכל כניסה.</p>
+        <div style="margin-bottom:16px;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2)">
+          <label style="display:block;margin-bottom:8px;font-weight:600">💾 הודעות שמורות</label>
+          <p class="muted" style="margin-bottom:10px">אפשר לשמור את הטקסט/הקישור הנוכחיים בטופס כטיוטה בשם משלכם, כדי לחזור אליה בקלות בעתיד - למשל הודעה קבועה שחוזרת כל חודש. שמירת טיוטה לא מפרסמת אותה - עדיין צריך ללחוץ "שמירה" בסוף כדי שהיא תופיע בפועל למשתמשים.</p>
+          <div id="announcementDraftsList" style="margin-bottom:10px"></div>
+          <div style="display:flex;gap:8px">
+            <input id="annDraftName" placeholder="שם לטיוטה, למשל: הודעה על שינוי שעון" style="flex:1">
+            <button type="button" class="btn" onclick="saveAnnouncementDraft()">💾 שמירת הטופס הנוכחי כטיוטה</button>
+          </div>
+        </div>
         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:12px">
           <input type="checkbox" id="annEnabled">
           החלונית פעילה
@@ -626,9 +635,23 @@
           <div id="annImagePreview" style="margin-bottom:6px"></div>
           <button type="button" class="btn ghost" id="annRemoveImageBtn" style="display:none;color:var(--danger)" onclick="removeAnnouncementImage()">✕ הסרת תמונה</button>
         </div>
-        <div class="inline2">
-          <div class="field optional"><label for="annLinkLabel">טקסט הקישור</label><input id="annLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
-          <div class="field optional"><label for="annLink">כתובת הקישור (URL)</label><input id="annLink" placeholder="https://..."></div>
+        <div class="field optional"><label for="annLinkLabel">טקסט הקישור (כותרת הכפתור)</label><input id="annLinkLabel" placeholder="לדוגמה: לפרטים נוספים"></div>
+        <div class="field"><label for="annLinkType">סוג הקישור</label>
+          <select id="annLinkType" onchange="onAnnLinkTypeChange()">
+            <option value="none">ללא קישור</option>
+            <option value="external">קישור חיצוני (כתובת אינטרנט)</option>
+            <option value="internal">מעבר למסך בתוך האפליקציה</option>
+          </select>
+        </div>
+        <div class="field" id="annLinkExternalField" style="display:none"><label for="annLink">כתובת הקישור (URL)</label><input id="annLink" placeholder="https://..."></div>
+        <div class="field" id="annLinkInternalField" style="display:none"><label for="annInternalTarget">מסך יעד</label>
+          <select id="annInternalTarget">
+            <option value="tefilot">תפילות</option>
+            <option value="shiurim">שיעורי תורה</option>
+            <option value="holidayTimes">ימים נוראים</option>
+            <option value="info">מידע שימושי</option>
+          </select>
+          <p class="muted" style="margin-top:6px">שימו לב: אם הלשונית "ימים נוראים" מוגדרת כרגע כ"תמיד מוסתרת" (בהגדרה שבסעיף "🕎 ימים נוראים"), קישור לשם עדיין יעבוד טכנית אבל יוביל למסך שלא מופיע כרגיל בתפריט התחתון.</p>
         </div>
         <div class="field"><label for="annFrequency">תדירות הצגה</label>
           <select id="annFrequency">
@@ -933,7 +956,7 @@
 <script src="https://cdn.jsdelivr.net/npm/kosher-zmanim@0.9.0/dist/kosher-zmanim.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@hebcal/core@6/dist/bundle.min.js"></script>
 <script>
-let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [], deletionLog: [], holidayTimes: [], dailyZmanim: {} };
+let data = { shuls: [], minyanim: [], shiurim: [], users: [], supportMessages: [], rabbanim: [], halachicGuides: [], divreiTorah: [], deletionLog: [], holidayTimes: [], dailyZmanim: {}, announcementDrafts: [] };
 let currentView = 'chrono';
 let selectedDayKey = '';
 let selectedSpecificDate = ''; // תאריך מדויק שנבחר (YYYY-MM-DD), או ריק אם מציגים לפי יום בשבוע כללי
@@ -3711,6 +3734,10 @@ function populateAnnouncementAdmin(){
   document.getElementById('annText').value = c.text || '';
   document.getElementById('annLinkLabel').value = c.linkLabel || '';
   document.getElementById('annLink').value = c.link || '';
+  // תאימות לאחור: תצורות ישנות לא כוללות linkType בכלל - משוחזר לפי מה שהיה קיים בפועל (קישור=חיצוני, אחרת=ללא)
+  document.getElementById('annLinkType').value = c.linkType || (c.link ? 'external' : 'none');
+  document.getElementById('annInternalTarget').value = c.internalTarget || 'tefilot';
+  onAnnLinkTypeChange();
   document.getElementById('annFrequency').value = c.frequency || 'once';
   document.getElementById('annTriggerMode').value = c.triggerMode || 'immediate';
   document.getElementById('annTriggerMinutes').value = c.triggerMinutes || 3;
@@ -3728,6 +3755,12 @@ function populateAnnouncementAdmin(){
     preview.innerHTML = '';
     removeBtn.style.display = 'none';
   }
+  ensureAnnouncementDraftsLoaded();
+}
+function onAnnLinkTypeChange(){
+  const type = document.getElementById('annLinkType').value;
+  document.getElementById('annLinkExternalField').style.display = type === 'external' ? '' : 'none';
+  document.getElementById('annLinkInternalField').style.display = type === 'internal' ? '' : 'none';
 }
 function onAnnTriggerModeChange(){
   const mode = document.getElementById('annTriggerMode').value;
@@ -3786,7 +3819,9 @@ function saveAnnouncementConfig(){
   const enabled = document.getElementById('annEnabled').checked;
   const text = document.getElementById('annText').value.trim();
   const linkLabel = document.getElementById('annLinkLabel').value.trim();
-  const link = document.getElementById('annLink').value.trim();
+  const linkType = document.getElementById('annLinkType').value;
+  const link = linkType === 'external' ? document.getElementById('annLink').value.trim() : '';
+  const internalTarget = linkType === 'internal' ? document.getElementById('annInternalTarget').value : '';
   const frequency = document.getElementById('annFrequency').value;
   const triggerMode = document.getElementById('annTriggerMode').value;
   const triggerMinutes = Number(document.getElementById('annTriggerMinutes').value) || 3;
@@ -3797,13 +3832,89 @@ function saveAnnouncementConfig(){
     alert('יש להזין לפחות טקסט או תמונה כדי להפעיל את החלונית');
     return;
   }
-  if (link && !/^https?:\/\//i.test(link)){ alert('קישור צריך להתחיל ב-http:// או https://'); return; }
+  if (linkType === 'external' && link && !/^https?:\/\//i.test(link)){ alert('קישור צריך להתחיל ב-http:// או https://'); return; }
+  if (linkType === 'external' && !link){ alert('בחרתם "קישור חיצוני" - יש להזין כתובת'); return; }
   db.collection('config').doc('announcement').set({
-    enabled, text, linkLabel, link, frequency, triggerMode, triggerMinutes, triggerPages, showInstallBtn, showInfoBtn,
+    enabled, text, linkLabel, link, linkType, internalTarget, frequency, triggerMode, triggerMinutes, triggerPages, showInstallBtn, showInfoBtn,
     image: ANNOUNCEMENT_IMAGE_DATA,
     id: uid(), // מזהה גרסה חדש - מאפס את "פעם אחת" למי שכבר ראה גרסה קודמת
     updatedAt: new Date().toISOString()
   }).then(()=>alert('נשמר')).catch(e=>alert('שגיאה בשמירה: '+e.message));
+}
+let announcementDraftsLoaded = false;
+function ensureAnnouncementDraftsLoaded(){
+  if (announcementDraftsLoaded) return;
+  announcementDraftsLoaded = true;
+  db.collection('announcementDrafts').onSnapshot(snap=>{
+    data.announcementDrafts = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    if (currentTab === 'admin') renderAnnouncementDraftsList();
+  }, e=>console.error(e));
+}
+function renderAnnouncementDraftsList(){
+  const el = document.getElementById('announcementDraftsList');
+  if (!el) return;
+  if (!data.announcementDrafts.length){ el.innerHTML = '<p class="muted" style="margin:0">אין עדיין טיוטות שמורות.</p>'; return; }
+  const sorted = [...data.announcementDrafts].sort((a,b)=>(a.name||'').localeCompare(b.name||'', 'he'));
+  el.innerHTML = sorted.map(d=>`
+    <div class="card row" style="padding:8px 10px;margin-bottom:6px">
+      <span style="font-weight:500">${escapeHtml(d.name)}</span>
+      <div style="display:flex;gap:6px">
+        <button class="btn" style="font-size:12px;padding:5px 10px" onclick="loadAnnouncementDraft('${d.id}')">↩️ טעינה לטופס</button>
+        <button class="btn danger" style="font-size:12px;padding:5px 10px" onclick="deleteAnnouncementDraft('${d.id}')">🗑️</button>
+      </div>
+    </div>`).join('');
+}
+// שומרת את מצב הטופס הנוכחי (כולל תמונה, אם יש) כטיוטה חדשה, בלי לפרסם אותה בפועל למשתמשים -
+// הפרסום עצמו קורה רק כשלוחצים אחר כך על כפתור "שמירה" הרגיל של החלונית.
+function saveAnnouncementDraft(){
+  if (!isManager()) return;
+  const name = document.getElementById('annDraftName').value.trim();
+  if (!name){ alert('יש לתת שם לטיוטה'); return; }
+  const draft = {
+    name,
+    text: document.getElementById('annText').value.trim(),
+    image: ANNOUNCEMENT_IMAGE_DATA || '',
+    linkLabel: document.getElementById('annLinkLabel').value.trim(),
+    linkType: document.getElementById('annLinkType').value,
+    link: document.getElementById('annLink').value.trim(),
+    internalTarget: document.getElementById('annInternalTarget').value,
+    showInstallBtn: document.getElementById('annShowInstallBtn').checked,
+    showInfoBtn: document.getElementById('annShowInfoBtn').checked
+  };
+  db.collection('announcementDrafts').add(stamp(draft)).then(()=>{
+    document.getElementById('annDraftName').value = '';
+    alert('הטיוטה נשמרה');
+  }).catch(e=>alert('שגיאה בשמירת הטיוטה: '+e.message));
+}
+// טוענת טיוטה שמורה חזרה לתוך הטופס (בלי לפרסם) - שדות תדירות/עיתוי הצגה לא נשמרים בטיוטה
+// בכוונה (הם קשורים להתנהגות ההצגה, לא לתוכן ההודעה עצמה) ונשארים כפי שהם כרגע בטופס.
+function loadAnnouncementDraft(draftId){
+  const d = data.announcementDrafts.find(x=>x.id===draftId);
+  if (!d) return;
+  document.getElementById('annText').value = d.text || '';
+  document.getElementById('annLinkLabel').value = d.linkLabel || '';
+  document.getElementById('annLinkType').value = d.linkType || 'none';
+  document.getElementById('annLink').value = d.link || '';
+  document.getElementById('annInternalTarget').value = d.internalTarget || 'tefilot';
+  onAnnLinkTypeChange();
+  document.getElementById('annShowInstallBtn').checked = !!d.showInstallBtn;
+  document.getElementById('annShowInfoBtn').checked = !!d.showInfoBtn;
+  ANNOUNCEMENT_IMAGE_DATA = d.image || '';
+  const preview = document.getElementById('annImagePreview');
+  const removeBtn = document.getElementById('annRemoveImageBtn');
+  if (ANNOUNCEMENT_IMAGE_DATA){
+    preview.innerHTML = `<img src="${ANNOUNCEMENT_IMAGE_DATA}" alt="תצוגה מקדימה של תמונת ההודעה" style="max-width:160px;max-height:160px;border-radius:8px;display:block">`;
+    removeBtn.style.display = '';
+  } else {
+    preview.innerHTML = '';
+    removeBtn.style.display = 'none';
+  }
+  alert(`הטיוטה "${d.name}" נטענה לטופס - היא עוד לא פורסמה, לוחצים "שמירה" בסוף כדי לפרסם אותה בפועל.`);
+}
+function deleteAnnouncementDraft(draftId){
+  if (!isManager()) return;
+  if (!confirm('למחוק את הטיוטה השמורה הזו?')) return;
+  db.collection('announcementDrafts').doc(draftId).delete().catch(e=>alert('שגיאה: '+e.message));
 }
 let announcementTimeTriggerScheduled = false;
 let internalPageViewCount = 0;
@@ -3850,13 +3961,20 @@ function maybeShowAnnouncement(){
     document.getElementById('modalBody').innerHTML = `
       ${ANNOUNCEMENT_CONFIG.image?`<img src="${ANNOUNCEMENT_CONFIG.image}" alt="" style="width:100%;border-radius:10px;margin-bottom:14px" onerror="this.style.display='none'">`:''}
       ${ANNOUNCEMENT_CONFIG.text?`<p style="line-height:1.7;margin-bottom:16px;white-space:pre-wrap">${escapeHtml(ANNOUNCEMENT_CONFIG.text)}</p>`:''}
-      ${ANNOUNCEMENT_CONFIG.link?`<a href="${escapeHtml(ANNOUNCEMENT_CONFIG.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-bottom:10px">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'לפרטים נוספים')}</a>`:''}
+      ${ANNOUNCEMENT_CONFIG.linkType==='external' && ANNOUNCEMENT_CONFIG.link?`<a href="${escapeHtml(ANNOUNCEMENT_CONFIG.link)}" target="_blank" rel="noopener" class="btn primary" style="display:inline-block;text-decoration:none;margin-bottom:10px">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'לפרטים נוספים')}</a>`:''}
+      ${ANNOUNCEMENT_CONFIG.linkType==='internal' && ANNOUNCEMENT_CONFIG.internalTarget?`<button type="button" class="btn primary" style="display:inline-block;margin-bottom:10px" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}');navigateToAppTab('${escapeHtml(ANNOUNCEMENT_CONFIG.internalTarget)}')">${escapeHtml(ANNOUNCEMENT_CONFIG.linkLabel||'למעבר')}</button>`:''}
       ${extraBtns.length?`<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${extraBtns.join('')}</div>`:''}
       <div class="modal-actions">
         <button class="btn primary" onclick="closeAnnouncementPopup('${escapeHtml(id)}','${ANNOUNCEMENT_CONFIG.frequency}')">סגירה</button>
       </div>`;
     document.getElementById('overlay').classList.add('show');
   });
+}
+// מעבר תכנותי ללשונית קיימת בתחתית האפליקציה - משתמש בכפתור עצמו (ולא בלוגיקה כפולה) כדי
+// שההתנהגות תישאר זהה לחלוטין ללחיצה ידנית על התפריט התחתון (טעינת נתונים, מעקב עמודים וכו')
+function navigateToAppTab(tabKey){
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabKey}"]`);
+  if (btn) btn.click();
 }
 function closeAnnouncementPopup(id, frequency){
   closeModal();
@@ -8230,6 +8348,14 @@ function sortHalachicGuides(list){
 // כלל חשוב: כמה שינויים שנעשים באותו יום מתווספים כ"items" נוספים לאותה גרסה (לא כל שינוי מקבל
 // מספר גרסה משלו) - מספר גרסה חדש נפתח רק ביום עבודה חדש.
 const WHATS_NEW = [
+  {
+    version: '2.4',
+    date: '4.9.2026',
+    items: [
+      '🕎 לשונית "ימים נוראים" חדשה - מופיעה אוטומטית בתפריט התחתון בסביבות ראש חודש אלול ועד סוף חג הסוכות, ומרכזת לפי בית כנסת את זמני התפילות המיוחדים לתקופה (סליחות, ראש השנה, יום הכיפורים, סוכות ועוד). אפשר גם להגיע אליה ישירות מדף בית כנסת ספציפי דרך קישור "🕎 זמני ימים נוראים".',
+      '📄 הנחיות הלכתיות למועדים (בלשונית "מידע שימושי") נגישות יותר - מוצגות עכשיו ככריכות חוברת לחיצות, שתיים בשורה, במקום רשימת קישורי טקסט בלבד.'
+    ]
+  },
   {
     version: '2.3',
     date: '19.8.2026',
