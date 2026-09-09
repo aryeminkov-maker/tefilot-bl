@@ -5301,7 +5301,7 @@ function activeTempNote(item){
 function minyanTefilaLabelHtml(m){
   const notesHtml = m.notes ? ` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>` : '';
   if (m.needsVerification){
-    return `<span style="font-weight:500;color:var(--ink-soft)">${m.tefila}</span>${notesHtml} <button class="row-icon-btn" onclick="event.stopPropagation();openMinyanNeedsVerificationModal('${m.id}')" title="יש צורך באימות הפרטים" aria-label="יש צורך באימות הפרטים" style="color:var(--danger);vertical-align:middle">❓</button>`;
+    return `<span style="font-weight:500;color:var(--ink-soft)">${m.tefila}</span>${notesHtml} <button class="row-icon-btn" onclick="event.stopPropagation();openMinyanNeedsVerificationModal('${m.id}')" title="יש צורך באימות הפרטים" aria-label="יש צורך באימות הפרטים" style="color:#7A5A17;vertical-align:middle">${INFO_ICON_SVG}</button>`;
   }
   return `<span style="font-weight:700">${m.tefila}</span>${notesHtml}`;
 }
