@@ -1197,10 +1197,12 @@ function renderHolidayTimesTab(){
     const doc = byShulId[shul.id];
     const occasions = doc ? parseHolidayTimesText(doc.rawText) : [];
     return { shul, occasions, canEdit: canManageShul(shul.id) };
-  }).filter(x => x.occasions.length || x.canEdit || !x.shul.hiddenFromListing);
+  }).filter(x => !x.shul.hideFromYamimNoraim && (x.occasions.length || x.canEdit || !x.shul.hiddenFromListing));
   // מציגים: כל בית כנסת "רגיל" (לא hiddenFromListing) - גם בלי תוכן, עם הודעת "עדיין לא התקבלו
   // זמנים" ובקשה לפנות. "מיקומים מיוחדים" (hiddenFromListing) מוצגים רק אם יש להם תוכן בפועל, או
   // למי שיש הרשאת עריכה עליהם - כדי לא לבלבל תושבים עם מקומות שהם לא מכירים כבית כנסת רגיל.
+  // בית כנסת עם hideFromYamimNoraim מוסתר מכאן תמיד, בכל מקרה - זו החרגה מכוונת של מנהל/גבאי,
+  // בלי קשר לתוכן או להרשאות עריכה (הוא ממשיך להופיע כרגיל בכל שאר האפליקציה).
 
   const bookletHtml = HOLIDAY_TIMES_CONFIG && HOLIDAY_TIMES_CONFIG.bookletUrl ? `
     <a href="${escapeHtml(HOLIDAY_TIMES_CONFIG.bookletUrl)}" target="_blank" rel="noopener" class="btn primary" style="display:block;text-align:center;margin-bottom:14px;text-decoration:none">
@@ -1293,16 +1295,16 @@ function renderHolidayTimesEditForm(){
 }
 function renderHolidayOccasionCard(occ, oi){
   return `
-    <div class="card" style="padding:12px">
+    <div class="card" style="padding:12px;overflow:hidden">
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-        <input placeholder="כותרת המועד, למשל: ערב ראש השנה" value="${escapeHtml(occ.title)}" style="flex:1;font-weight:600" oninput="_holidayEditState.occasions[${oi}].title=this.value">
-        <button type="button" class="btn danger" title="הסרת המועד כולו" onclick="removeHolidayOccasion(${oi})">🗑️</button>
+        <input placeholder="כותרת המועד, למשל: ערב ראש השנה" value="${escapeHtml(occ.title)}" style="flex:1;min-width:0;font-weight:600;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px;background:var(--surface)" oninput="_holidayEditState.occasions[${oi}].title=this.value">
+        <button type="button" class="btn danger" style="flex-shrink:0" title="הסרת המועד כולו" onclick="removeHolidayOccasion(${oi})">🗑️</button>
       </div>
       ${occ.items.map((it,ii)=>`
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
-          <input placeholder="תפילה, למשל: שחרית" value="${escapeHtml(it.label)}" style="flex:2" oninput="_holidayEditState.occasions[${oi}].items[${ii}].label=this.value">
-          <input placeholder="שעה, למשל: 6:30 (או כמה שעות: 6:30, 7:30)" value="${escapeHtml(it.time)}" style="flex:1" oninput="_holidayEditState.occasions[${oi}].items[${ii}].time=this.value">
-          <button type="button" class="btn ghost" style="color:var(--danger);padding:6px 10px" title="הסרת השורה" onclick="removeHolidayItem(${oi},${ii})">✕</button>
+          <input placeholder="תפילה, למשל: שחרית" value="${escapeHtml(it.label)}" style="flex:2;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px;background:var(--surface)" oninput="_holidayEditState.occasions[${oi}].items[${ii}].label=this.value">
+          <input placeholder="שעה, למשל: 6:30" value="${escapeHtml(it.time)}" style="flex:1;min-width:0;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px;background:var(--surface)" oninput="_holidayEditState.occasions[${oi}].items[${ii}].time=this.value">
+          <button type="button" class="btn ghost" style="color:var(--danger);padding:6px 10px;flex-shrink:0" title="הסרת השורה" onclick="removeHolidayItem(${oi},${ii})">✕</button>
         </div>`).join('')}
       <button type="button" class="btn" style="font-size:12.5px;padding:5px 10px;margin-top:2px" onclick="addHolidayItem(${oi})">➕ הוספת שורה</button>
     </div>`;
@@ -1440,6 +1442,11 @@ async function handleDailyZmanimCsvUpload(input){
 }
 
 const YAMIM_NORAIM_SEED_DATA = [
+  {
+    "name": "מניין צעירים",
+    "hidden": false,
+    "text": "## סליחות ראשונות (מוצ\"ש ניצבים-וילך)\nבלילה - 00:30\n\n## סליחות - ערב ראש השנה\nבלילה - 00:30\n\n## א' דראש השנה\nמנחה וערבית (ערב החג) - 18:40\nשחרית - 8:00\nמוסף\nמנחה, שיחה וערבית (מוצאי יום א') - 18:40\n\n## ב' דראש השנה\nשחרית וקידוש - 8:00\nתקיעות ומוסף (בערך) - 10:00\nמנחה ותשליך - 18:00\n\n## שבת שובה (האזינו)\nמנחה וקבלת שבת - 18:30\nערבית\nשחרית - 8:00\nמוסף\n\n## ערב יום הכיפורים\nמנחה וכפרות - 13:30\nכל נדרי וערבית - 18:20\n\n## יום הכיפורים\nשחרית ומוסף - 8:00\nמנחה ונעילה - 16:15\nערבית\n\n## ערב סוכות\nמנחה, קבלת שבת וערבית - 18:20\nשחרית ומוסף - 8:00\n\n## חול המועד\nשחרית בכל בוקר של חוה\"מ - 7:00\n\n## הושענא רבה\nשחרית - 7:30\n\n## שמחת תורה\nמנחה, ערבית והקפות (ליל) - 18:15\nשחרית והקפות - 8:00\nיזכור (בערך) - 12:00\nמוסף"
+  },
   {
     "name": "אברהם אוהבי",
     "hidden": false,
@@ -6626,6 +6633,10 @@ function openShulForm(shulId){
       <input type="checkbox" id="f_hiddenFromListing" ${s&&s.hiddenFromListing?'checked':''}>
       מיקום מיוחד בלבד (לדוגמה: לצורך זמני ימים נוראים) - לא להציג ברשימת בתי הכנסת הרגילה, בסינון או בחיפוש
     </label>
+    <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:10px 0">
+      <input type="checkbox" id="f_hideFromYamimNoraim" ${s&&s.hideFromYamimNoraim?'checked':''}>
+      הסתרה מלשונית "ימים נוראים" בלבד (בית הכנסת ימשיך להופיע כרגיל בכל מקום אחר באפליקציה)
+    </label>
     <div class="field optional">
       <label for="f_slug">קישור ידידותי (עובד בנוסף לקישור הרגיל, לא מחליף אותו)</label>
       <input id="f_slug" value="${s?escapeHtml(s.slug||''):''}" placeholder="ריק = מספר אוטומטי. אפשר גם טקסט משלכם, למשל gavriel" oninput="this.value=this.value.replace(/[^a-zA-Z0-9-]/g,'').toLowerCase()">
@@ -6910,6 +6921,7 @@ function saveShul(shulId){
     whatsappGroupLink,
     whatsappGroupPhone,
     hiddenFromListing: document.getElementById('f_hiddenFromListing').checked,
+    hideFromYamimNoraim: document.getElementById('f_hideFromYamimNoraim').checked,
     slug,
     rabbiNames: parseNames(document.getElementById('f_rabbiNames').value),
     gabaiNames: parseNames(document.getElementById('f_gabaiNames').value),
