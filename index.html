@@ -5298,10 +5298,16 @@ function activeTempNote(item){
 // בלוק אזהרה בולט להצגת הערה זמנית פעילה (מניין/שיעור) - כתום, עם אייקון, כולל תאריך התוקף אם קיים
 // תווית שם התפילה בשורת המניין - כרגיל מוצג בהדגשה; אם סומן "יש צורך באימות הפרטים" מוצג פחות
 // בולט (פחות משקל, צבע מוחלש) בתוספת אייקון ❓ שפותח את חלונית הטיפול (openMinyanNeedsVerificationModal)
+// אייקון "יש צורך באימות" - פונקציה נפרדת (לא רק בתוך minyanTefilaLabelHtml) כי הוא נדרש גם
+// בתצוגת "לפי שעות" (timeline) שיש לה תבנית HTML שונה משורת המניין הרגילה בדף בית כנסת.
+function minyanVerificationIconHtml(m){
+  if (!m.needsVerification) return '';
+  return ` <button class="row-icon-btn" onclick="event.stopPropagation();openMinyanNeedsVerificationModal('${m.id}')" title="יש צורך באימות הפרטים" aria-label="יש צורך באימות הפרטים" style="color:#7A5A17;vertical-align:middle">${INFO_ICON_SVG}</button>`;
+}
 function minyanTefilaLabelHtml(m){
   const notesHtml = m.notes ? ` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>` : '';
   if (m.needsVerification){
-    return `<span style="font-weight:500;color:var(--ink-soft)">${m.tefila}</span>${notesHtml} <button class="row-icon-btn" onclick="event.stopPropagation();openMinyanNeedsVerificationModal('${m.id}')" title="יש צורך באימות הפרטים" aria-label="יש צורך באימות הפרטים" style="color:#7A5A17;vertical-align:middle">${INFO_ICON_SVG}</button>`;
+    return `<span style="font-weight:500;color:var(--ink-soft)">${m.tefila}</span>${notesHtml}${minyanVerificationIconHtml(m)}`;
   }
   return `<span style="font-weight:700">${m.tefila}</span>${notesHtml}`;
 }
@@ -5649,7 +5655,7 @@ function renderTefilot(){
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
-        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openMinyanMenuPopover(event, '${it.m.shulId}', '${it.m.id}')">${it.m.tefila}</span> · ${it.shul && it.shul.id ? `<span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul.id}')">${escapeHtml(it.shul.name)}</span>` : `<span style="font-weight:500">${it.shul&&it.shul.custom?'📍 ':''}${escapeHtml(it.shul?it.shul.name:'')}</span>`}
+        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openMinyanMenuPopover(event, '${it.m.shulId}', '${it.m.id}')">${it.m.tefila}</span>${minyanVerificationIconHtml(it.m)} · ${it.shul && it.shul.id ? `<span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul.id}')">${escapeHtml(it.shul.name)}</span>` : `<span style="font-weight:500">${it.shul&&it.shul.custom?'📍 ':''}${escapeHtml(it.shul?it.shul.name:'')}</span>`}
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
         ${tempNoteBannerHtml(it.m)}
       </div>`;
