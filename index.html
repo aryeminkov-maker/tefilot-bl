@@ -2499,13 +2499,13 @@ function sendQuickFollowupAndClose(messageId){
 }
 
 // פותח את טופס שליחת הודעה למנהל. contextLabel הוא תיאור חופשי של מה שהתושב מדווח עליו (למשל "מנחה - בית הכנסת המרכזי")
-function openSendAdminMessageForm(contextLabel, contextType, contextId, contextShulId){
+function openSendAdminMessageForm(contextLabel, contextType, contextId, contextShulId, prefillText){
   if (!requireEditPermission()) return;
   document.getElementById('modalBody').innerHTML = `
     <h3>שליחת הודעה למנהל</h3>
     ${contextLabel?`<p class="muted" style="margin-bottom:10px">לגבי: ${escapeHtml(contextLabel)}</p>`:''}
     <p class="muted" style="margin-bottom:10px">לדוגמה: מניין שהתבטל, טעות בפרטים, או כל דבר אחר שכדאי שנדע עליו.</p>
-    <textarea id="f_adminMessageText" rows="4" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px"></textarea>
+    <textarea id="f_adminMessageText" rows="4" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid var(--border);font-family:'Rubik';font-size:14px">${escapeHtml(prefillText||'')}</textarea>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="submitAdminMessage('${escapeHtml(contextLabel||'')}','${contextType||''}','${contextId||''}','${contextShulId||''}')">שליחה</button>
@@ -5296,6 +5296,15 @@ function activeTempNote(item){
   return item.tempNote;
 }
 // בלוק אזהרה בולט להצגת הערה זמנית פעילה (מניין/שיעור) - כתום, עם אייקון, כולל תאריך התוקף אם קיים
+// תווית שם התפילה בשורת המניין - כרגיל מוצג בהדגשה; אם סומן "יש צורך באימות הפרטים" מוצג פחות
+// בולט (פחות משקל, צבע מוחלש) בתוספת אייקון ❓ שפותח את חלונית הטיפול (openMinyanNeedsVerificationModal)
+function minyanTefilaLabelHtml(m){
+  const notesHtml = m.notes ? ` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>` : '';
+  if (m.needsVerification){
+    return `<span style="font-weight:500;color:var(--ink-soft)">${m.tefila}</span>${notesHtml} <button class="row-icon-btn" onclick="event.stopPropagation();openMinyanNeedsVerificationModal('${m.id}')" title="יש צורך באימות הפרטים" aria-label="יש צורך באימות הפרטים" style="color:var(--danger);vertical-align:middle">❓</button>`;
+  }
+  return `<span style="font-weight:700">${m.tefila}</span>${notesHtml}`;
+}
 function tempNoteBannerHtml(item){
   const note = activeTempNote(item);
   if (!note) return '';
@@ -5562,7 +5571,7 @@ function renderTefilot(){
         const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
         return `<div class="minyan-line">
           <div class="ml-top">
-            <span style="font-weight:700">${m.tefila}${m.notes?` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>`:''}</span>
+            ${minyanTefilaLabelHtml(m)}
             <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
           </div>
           <div class="ml-bottom">
@@ -6488,6 +6497,9 @@ function openMinyanMenuPopover(e, shulId, minyanId){
   }
   html += `<a href="#" onclick="closeNavPopover();openMinyanForm('${shulId}','${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">✏️ עריכה</a>`;
   html += `<a href="#" onclick="closeNavPopover();openVerifyMinyanConfirm('${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">✅ אמת פרטי המניין</a>`;
+  if (!m.needsVerification){
+    html += `<a href="#" onclick="closeNavPopover();flagMinyanNeedsVerification('${minyanId}');return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">❓ יש צורך באימות הפרטים</a>`;
+  }
   if (links){
     html += `<a href="#" data-waze="${links.waze}" data-gmaps="${links.gmaps}" onclick="openNavPopover(event);return false" style="display:block;padding:9px 6px;color:var(--ink);text-decoration:none;border-bottom:1px solid var(--border)">🧭 ניווט למניין</a>`;
   }
@@ -6524,8 +6536,36 @@ function verifyMinyan(minyanId){
   db.collection('minyanim').doc(minyanId).update({
     verifiedAt: new Date().toISOString(),
     verifiedBy: by,
-    verifiedByUid: currentUser ? currentUser.uid : null
+    verifiedByUid: currentUser ? currentUser.uid : null,
+    needsVerification: false // גם מנקה דגל "יש צורך באימות" אם היה קיים - אימות מבטל את הצורך בו מיסודו
   }).then(()=>closeModal()).catch(e=>alert('שגיאה: '+e.message));
+}
+// סימון "יש צורך באימות הפרטים" - דגל נפרד מאימות עצמו: מציין שמישהו חושד שהפרטים לא מדויקים/לא
+// רלוונטיים יותר, בלי לקבוע בעצמו מה נכון. מוצג בשורת המניין כטקסט פחות בולט + אייקון ❓ שמוביל
+// לחלונית עם שלוש אפשרויות טיפול (ר' openMinyanNeedsVerificationModal).
+function flagMinyanNeedsVerification(minyanId){
+  if (!requireEditPermission()) return;
+  db.collection('minyanim').doc(minyanId).update({
+    needsVerification: true,
+    needsVerificationBy: publicDisplayName(),
+    needsVerificationAt: new Date().toISOString()
+  }).catch(e=>alert('שגיאה: '+e.message));
+}
+function openMinyanNeedsVerificationModal(minyanId){
+  const m = data.minyanim.find(x=>x.id===minyanId);
+  if (!m) return;
+  const shul = getMinyanLocation(m);
+  const label = m.tefila + (shul ? ' - ' + shul.name : '');
+  document.getElementById('modalBody').innerHTML = `
+    <h3>❓ יש צורך באימות פרטי המניין</h3>
+    <p style="line-height:1.7;margin-bottom:18px">מישהו סימן שיש לבדוק שוב את הפרטים של "${escapeHtml(label)}" - אולי הזמן השתנה, או שהמניין הזה כבר לא מתקיים.</p>
+    <div class="modal-actions" style="flex-direction:column;align-items:stretch;gap:8px">
+      <button class="btn primary" onclick="closeModal();openMinyanForm('${m.shulId}','${minyanId}')">🕐 עדכון הזמן</button>
+      <button class="btn" onclick="verifyMinyan('${minyanId}')">✅ אימות הפרטים - הכל נכון כמו שרשום</button>
+      <button class="btn ghost" style="color:var(--danger)" onclick="closeModal();openSendAdminMessageForm('${escapeHtml(label)}','minyan','${minyanId}','${m.shulId}','נראה שהמניין הזה כבר לא מתקיים - אפשר למחוק אותו?')">🗑️ דיווח למנהל שהמניין צריך להימחק</button>
+      <button class="btn" onclick="closeModal()">ביטול</button>
+    </div>`;
+  document.getElementById('overlay').classList.add('show');
 }
 function openShiurMenuPopover(e, shiurId){
   e.stopPropagation();
@@ -7176,7 +7216,7 @@ function renderShulPage(){
     const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
     return `<div class="minyan-line">
       <div class="ml-top">
-        <span style="font-weight:700">${m.tefila}${m.notes?` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>`:''}</span>
+        ${minyanTefilaLabelHtml(m)}
         <span class="time" style="${timeStyle}">${fmtTime(t)}</span>
       </div>
       <div class="ml-bottom">
