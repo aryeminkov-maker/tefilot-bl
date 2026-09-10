@@ -1906,6 +1906,50 @@ function fixedTimeAsDate(date, hhmm){
   const diff = asIsrael - asUTC;
   return new Date(probe.getTime() - diff);
 }
+// ---------- בדיקה שבועית אוטומטית: זמני תפילה קבועים שנראים חורגים ----------
+// רק למניינים עם timeType==='fixed' (שעה קבועה, לא יחסית לזריחה/שקיעה/צאת הכוכבים - אלה כבר
+// "עוקבים" אחרי הזמן ההלכתי מעצם הגדרתם, אין טעם לבדוק אותם). חורג = מנחה שמתחילה ב-10 הדקות
+// הקרובות לשקיעה או אחריה, או ערבית שמתחילה לפני צאת הכוכבים. משתמשים בזמני "היום" כדוגמית
+// מייצגת - הבדיקה חוזרת כל שבוע כך שהיא עוקבת בהדרגה אחרי השינוי העונתי בזמני השקיעה.
+let _fixedTimeAuditChecked = false; // מונע ניסיון כפול באותה טעינת עמוד (המאזין עשוי להיקרא כמה פעמים)
+async function maybeRunFixedTimeAudit(){
+  if (_fixedTimeAuditChecked) return;
+  if (!isManager() || !minyanimLoaded) return;
+  _fixedTimeAuditChecked = true;
+  try{
+    const doc = await db.collection('config').doc('fixedTimeAudit').get();
+    const last = doc.exists ? doc.data().lastRunAt : null;
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    if (last && (Date.now() - new Date(last).getTime()) < weekMs) return;
+    await runFixedTimeAudit();
+    await db.collection('config').doc('fixedTimeAudit').set({ lastRunAt: new Date().toISOString() }, { merge: true });
+  }catch(e){
+    console.error('שגיאה בהרצת הבדיקה השבועית לזמני תפילה קבועים:', e);
+  }
+}
+async function runFixedTimeAudit(){
+  const today = new Date();
+  const zmanim = getZmanim(today);
+  if (!zmanim || !zmanim.sunset || !zmanim.tzeit) return;
+  const minchaThreshold = new Date(zmanim.sunset.getTime() - 10 * 60000); // 10 דקות לפני השקיעה
+  const toFlag = data.minyanim.filter(m=>{
+    if (m.timeType !== 'fixed' || !m.fixedTime || m.specialDate || m.needsVerification) return false;
+    const t = fixedTimeAsDate(today, m.fixedTime);
+    if (m.tefila === 'מנחה') return t.getTime() >= minchaThreshold.getTime();
+    if (m.tefila === 'ערבית') return t.getTime() < zmanim.tzeit.getTime();
+    return false;
+  });
+  if (!toFlag.length) return;
+  const batch = db.batch();
+  toFlag.forEach(m=>{
+    batch.update(db.collection('minyanim').doc(m.id), {
+      needsVerification: true,
+      needsVerificationBy: 'בדיקה אוטומטית שבועית',
+      needsVerificationAt: new Date().toISOString()
+    });
+  });
+  await batch.commit();
+}
 function computeMinyanTime(m, date, zmanim){
   if (m.timeType === 'fixed') return fixedTimeAsDate(date, m.fixedTime);
   const anchor = zmanim[m.anchor];
@@ -4630,6 +4674,7 @@ function attachListeners(){
     data.minyanim = list;
     minyanimLoaded = true;
     renderDebounced();
+    maybeRunFixedTimeAudit();
   }, e=>console.error(e));
   db.collection('config').doc('tefilaTypes').onSnapshot(doc=>{
     const d = doc.exists ? doc.data() : null;
@@ -5298,16 +5343,17 @@ function activeTempNote(item){
 // בלוק אזהרה בולט להצגת הערה זמנית פעילה (מניין/שיעור) - כתום, עם אייקון, כולל תאריך התוקף אם קיים
 // תווית שם התפילה בשורת המניין - כרגיל מוצג בהדגשה; אם סומן "יש צורך באימות הפרטים" מוצג פחות
 // בולט (פחות משקל, צבע מוחלש) בתוספת אייקון ❓ שפותח את חלונית הטיפול (openMinyanNeedsVerificationModal)
-// אייקון "יש צורך באימות" - פונקציה נפרדת (לא רק בתוך minyanTefilaLabelHtml) כי הוא נדרש גם
-// בתצוגת "לפי שעות" (timeline) שיש לה תבנית HTML שונה משורת המניין הרגילה בדף בית כנסת.
+// תג צף (position:absolute) שמוצג מעל הטקסט, לא כחלק מזרימת השורה - כדי שלא ידחוף/ירחיב את
+// המרווח בין השורות. חייב להיות בתוך אלמנט הורה עם position:relative;display:inline-block
+// (ר' העטיפה סביב שם התפילה בשני המקומות שמשתמשים בזה) כדי שהמיקום יתייחס למילה עצמה ולא לכל השורה.
 function minyanVerificationIconHtml(m){
   if (!m.needsVerification) return '';
-  return ` <button class="row-icon-btn" onclick="event.stopPropagation();openMinyanNeedsVerificationModal('${m.id}')" title="יש צורך באימות הפרטים" aria-label="יש צורך באימות הפרטים" style="color:#7A5A17;vertical-align:middle">${INFO_ICON_SVG}</button>`;
+  return `<button onclick="event.stopPropagation();openMinyanNeedsVerificationModal('${m.id}')" title="יש צורך באימות הפרטים" aria-label="יש צורך באימות הפרטים" style="position:absolute;top:-13px;right:-6px;color:#7A5A17;background:var(--surface);border:none;border-radius:50%;box-shadow:0 1px 3px rgba(0,0,0,.2);line-height:0;padding:1px;margin:0;cursor:pointer">${INFO_ICON_SVG}</button>`;
 }
 function minyanTefilaLabelHtml(m){
   const notesHtml = m.notes ? ` <span class="muted" style="font-weight:400">· ${escapeHtml(m.notes)}</span>` : '';
   if (m.needsVerification){
-    return `<span style="font-weight:500;color:var(--ink-soft)">${m.tefila}</span>${notesHtml}${minyanVerificationIconHtml(m)}`;
+    return `<span style="position:relative;display:inline-block;font-weight:500;color:var(--ink-soft)">${m.tefila}${minyanVerificationIconHtml(m)}</span>${notesHtml}`;
   }
   return `<span style="font-weight:700">${m.tefila}</span>${notesHtml}`;
 }
@@ -5655,7 +5701,7 @@ function renderTefilot(){
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         <span class="time">${fmtTime(it.t)}</span> —
-        <span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openMinyanMenuPopover(event, '${it.m.shulId}', '${it.m.id}')">${it.m.tefila}</span>${minyanVerificationIconHtml(it.m)} · ${it.shul && it.shul.id ? `<span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul.id}')">${escapeHtml(it.shul.name)}</span>` : `<span style="font-weight:500">${it.shul&&it.shul.custom?'📍 ':''}${escapeHtml(it.shul?it.shul.name:'')}</span>`}
+        <span style="position:relative;display:inline-block;cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openMinyanMenuPopover(event, '${it.m.shulId}', '${it.m.id}')">${it.m.tefila}${minyanVerificationIconHtml(it.m)}</span> · ${it.shul && it.shul.id ? `<span style="cursor:pointer;color:var(--dusk);font-weight:500" tabindex="0" role="button" onclick="openShulPage('${it.shul.id}')">${escapeHtml(it.shul.name)}</span>` : `<span style="font-weight:500">${it.shul&&it.shul.custom?'📍 ':''}${escapeHtml(it.shul?it.shul.name:'')}</span>`}
         ${it.m.notes?`<span class="muted">(${escapeHtml(it.m.notes)})</span>`:''}
         ${tempNoteBannerHtml(it.m)}
       </div>`;
