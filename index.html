@@ -1959,14 +1959,16 @@ function computeMinyanTime(m, date, zmanim){
 }
 // סדר תצוגה קבוע לפי סוג תפילה (לא רק לפי השעה בפועל) - כך שכל מנייני "מנחה" למשל מוצגים יחד ברצף,
 // ואחריהם כל מנייני "ערבית", גם אם בבית כנסת אחד המנחה מאוחרת משעת הערבית בבית כנסת אחר. הסדר (יום שלם):
-// סליחות < ותיקין/שחרית < מנחה < ערבית. ערבית שחלה אחרי חצות ולפני 3 לפנות בוקר (מייצגת בפועל את סוף
+// סליחות < ותיקין < שחרית < מנחה < ערבית. ותיקין ושחרית הם קבוצות נפרדות (לא "שכבה" משותפת) - גם אם
+// מניין ותיקין ומניין שחרית מתחילים באותה שעה בדיוק, כל הוותיקין מוצגים ברצף אחד ואחריהם כל השחרית,
+// ולא מתערבבים זה בזה לפי השעה המדויקת. ערבית שחלה אחרי חצות ולפני 3 לפנות בוקר (מייצגת בפועל את סוף
 // הערב הקודם, לא תחילת מחר) עדיין שייכת לקבוצת ה"ערבית" - ומוצגת בסוף אותה קבוצה (אחרי הערביות ה"רגילות"
 // של אותו ערב), לא בתחילת הרשימה.
-const TEFILA_ORDER_RANK = { 'סליחות': 1, 'ותיקין': 2, 'שחרית': 2, 'מנחה': 3, 'ערבית': 4 };
+const TEFILA_ORDER_RANK = { 'סליחות': 1, 'ותיקין': 2, 'שחרית': 3, 'מנחה': 4, 'ערבית': 5 };
 function chronoSortValue(m, t){
   if (!t) return Infinity;
   let rank = TEFILA_ORDER_RANK[m.tefila];
-  if (rank === undefined) rank = 2.5; // סוג תפילה מותאם אישית שהוסיף מנהל - ממקמים בערך באמצע (בין שחרית למנחה)
+  if (rank === undefined) rank = 3.5; // סוג תפילה מותאם אישית שהוסיף מנהל - ממקמים בערך באמצע (בין שחרית למנחה)
   let minutes = timeMinutesIsrael(t);
   if (m.tefila === 'ערבית'){
     const israelHour = Number(t.toLocaleTimeString('en-GB', {hour:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'}));
@@ -5439,6 +5441,22 @@ function updateFooterVisibility(){
   if (!footer) return;
   footer.style.display = (viewingShulId || currentTab === 'tefilot') ? '' : 'none';
 }
+// גלילה אוטומטית חד-פעמית (לכל טעינת אפליקציה) לסימון "עכשיו" בתצוגת "לפי שעות" של היום.
+// לא מופעלת אם המשתמש כבר גלל, אם נבחר יום/תאריך אחר, או כשמוצג "הבא בלבד".
+let _nowAutoScrollDone = false;
+let _userScrolledBeforeNow = false;
+window.addEventListener('scroll', ()=>{ if (!_nowAutoScrollDone && window.scrollY > 150) _userScrolledBeforeNow = true; }, {passive:true});
+function maybeAutoScrollToNow(){
+  if (_nowAutoScrollDone) return;
+  if (_userScrolledBeforeNow || currentTab !== 'tefilot' || viewingShulId) return;
+  if (!shulsLoaded || !minyanimLoaded) return;
+  const marker = document.getElementById('nowMarkerEl');
+  if (!marker) return;
+  _nowAutoScrollDone = true;
+  requestAnimationFrame(()=>{
+    try { marker.scrollIntoView({behavior:'auto', block:'center'}); } catch(e){}
+  });
+}
 function timeMinutesIsrael(t){
   const s = t.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit', hour12:false, timeZone:'Asia/Jerusalem'});
   const [h,m] = s.split(':').map(Number);
@@ -5707,7 +5725,7 @@ function renderTefilot(){
       let nowMarker = '';
       if (!nowMarkerInserted && timeMinutesIsrael(it.t) >= nowMins){
         nowMarkerInserted = true;
-        nowMarker = `<div class="tline-now"><span class="tline-now-label">⏱ עכשיו</span><span class="tline-now-line"></span></div>`;
+        nowMarker = `<div class="tline-now" id="nowMarkerEl"><span class="tline-now-label">⏱ עכשיו</span><span class="tline-now-line"></span></div>`;
       }
       return nowMarker + divider + `<div class="tline-item" style="--dot-color:${tefilaColor(it.m.tefila)}">
         ${minyanTimeHtml(it.m, fmtTime(it.t), '', false)} —
@@ -5717,9 +5735,10 @@ function renderTefilot(){
       </div>`;
     }).join('');
     if (!nowMarkerInserted){
-      itemsHtml += `<div class="tline-now"><span class="tline-now-label">⏱ עכשיו</span><span class="tline-now-line"></span></div>`;
+      itemsHtml += `<div class="tline-now" id="nowMarkerEl"><span class="tline-now-label">⏱ עכשיו</span><span class="tline-now-line"></span></div>`;
     }
     el.innerHTML = '<div class="card">' + dayHeadingHtml + legendHtml + '<div class="timeline">' + itemsHtml + '</div></div>';
+    maybeAutoScrollToNow();
   }
 }
 
@@ -8492,6 +8511,14 @@ function sortHalachicGuides(list){
 // כלל חשוב: כמה שינויים שנעשים באותו יום מתווספים כ"items" נוספים לאותה גרסה (לא כל שינוי מקבל
 // מספר גרסה משלו) - מספר גרסה חדש נפתח רק ביום עבודה חדש.
 const WHATS_NEW = [
+  {
+    version: '2.5',
+    date: '7.10.2026',
+    items: [
+      '⏱ בכניסה לאפליקציה, תצוגת "לפי שעות" נפתחת אוטומטית על הנקודה של "עכשיו" - בלי לגלול ידנית אל התפילה הקרובה.',
+      '🌅 סדר התפילות הוקפד בכל התצוגות: קודם ותיקין, אחר כך שחרית, מנחה וערבית.'
+    ]
+  },
   {
     version: '2.4',
     date: '4.9.2026',
