@@ -7848,6 +7848,17 @@ function openMinyanForm(shulId, minyanId){
     </div>
     <div class="field optional"><label for="f_notes">הערות</label><input id="f_notes" value="${m?escapeHtml(m.notes||''):''}" placeholder="למשל: ותיקין, מניין מהיר"></div>
     <div class="field optional">
+      <label for="f_tempMenu">⏳ שינוי זמני</label>
+      <select id="f_tempMenu" onchange="showTempSection(this.value)" onfocus="refreshTempMenu()" onmousedown="refreshTempMenu()">
+        <option value="">ללא</option>
+        <option value="note">הערה זמנית</option>
+        <option value="time">שעה זמנית</option>
+        <option value="cancel">ביטול זמני</option>
+        <option value="valid">מניין זמני</option>
+      </select>
+    </div>
+    <div id="tmpSec_note" style="display:none">
+    <div class="field optional">
       <label for="f_tempNote">הערה זמנית (למשל: "לא מתקיים בבין הזמנים")</label>
       <input id="f_tempNote" value="${m?escapeHtml(m.tempNote||''):''}" placeholder="תוצג בבליטות עד התאריך שתקבעו">
       <div id="f_tempNoteUntilField" style="margin-top:6px;${m&&m.tempNote?'':'display:none'}">
@@ -7856,6 +7867,8 @@ function openMinyanForm(shulId, minyanId){
         <input type="hidden" id="f_tempNoteUntil" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
       </div>
     </div>
+    </div>
+    <div id="tmpSec_time" style="display:none">
     <div class="field optional" style="border:1px dashed #F0D9AE;border-radius:10px;padding:10px;background:#FFFCF6">
       <label style="font-weight:700">🕐 שינוי שעה זמני (למשל ראש חודש)</label>
       <p class="muted" style="margin:2px 0 8px">המניין יתקיים בשעה אחרת רק בתקופה שתבחרו, ואחריה יחזור אוטומטית לשעה הרגילה.</p>
@@ -7873,6 +7886,8 @@ function openMinyanForm(shulId, minyanId){
         <button type="button" class="btn" style="margin-top:8px" onclick="clearTempTimeFields()">ביטול השינוי הזמני</button>
       </div>
     </div>
+    </div>
+    <div id="tmpSec_cancel" style="display:none">
     <div class="field optional" style="border:1px dashed #F0D9AE;border-radius:10px;padding:10px;background:#FFFCF6">
       <label style="font-weight:700">🚫 ביטול זמני (מניין שלא מתקיים בתקופה מסוימת)</label>
       <p class="muted" style="margin:2px 0 8px">למשל: לא מתקיים בראש חודש. המניין יחזור אוטומטית אחרי תאריך הסיום.</p>
@@ -7886,6 +7901,8 @@ function openMinyanForm(shulId, minyanId){
       <input id="f_cancelReason" value="${m?escapeHtml(m.cancelReason||''):''}" placeholder="למשל: ראש חודש - מתפללים בבית הכנסת המרכזי">
       <button type="button" class="btn" style="margin-top:8px" onclick="clearRangeFields('cancel')">ביטול ה"ביטול הזמני"</button>
     </div>
+    </div>
+    <div id="tmpSec_valid" style="display:none">
     <div class="field optional" style="border:1px dashed #F0D9AE;border-radius:10px;padding:10px;background:#FFFCF6">
       <label style="font-weight:700">🆕 מניין זמני (קיים רק בתקופה מסוימת)</label>
       <p class="muted" style="margin:2px 0 8px">המניין יוצג רק בטווח התאריכים. אפשר למלא תאריך סיום בלבד, תאריך התחלה בלבד, או שניהם.</p>
@@ -7898,6 +7915,7 @@ function openMinyanForm(shulId, minyanId){
       <label for="f_validReason" style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">סיבה/הערה (תוצג למתפללים)</label>
       <input id="f_validReason" value="${m?escapeHtml(m.validReason||''):''}" placeholder="למשל: מניין נוסף בתקופת האלול">
       <button type="button" class="btn" style="margin-top:8px" onclick="clearRangeFields('valid')">הפיכה למניין קבוע</button>
+    </div>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
@@ -7921,6 +7939,32 @@ function openMinyanForm(shulId, minyanId){
   if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
     document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
   });
+  initTempMenu();
+}
+const TEMP_MENU_LABELS = {note:'הערה זמנית', time:'שעה זמנית', cancel:'ביטול זמני', valid:'מניין זמני'};
+function tempSectionHasValue(k){
+  const v = id => { const el = document.getElementById(id); return el ? el.value : ''; };
+  if (k === 'note') return !!v('f_tempNote').trim();
+  if (k === 'time') return !!v('f_tempTime');
+  if (k === 'cancel') return !!v('f_cancelUntil');
+  if (k === 'valid') return !!(v('f_validFrom') || v('f_validUntil'));
+  return false;
+}
+// מסמן ב-✓ בתפריט את האפשרויות שכבר מוגדרות (גם אם לא מוצגות כרגע)
+function refreshTempMenu(){
+  const sel = document.getElementById('f_tempMenu');
+  if (!sel) return;
+  [...sel.options].forEach(o=>{ if (o.value) o.textContent = TEMP_MENU_LABELS[o.value] + (tempSectionHasValue(o.value) ? ' ✓' : ''); });
+}
+function showTempSection(k){
+  Object.keys(TEMP_MENU_LABELS).forEach(x=>{ const el = document.getElementById('tmpSec_'+x); if (el) el.style.display = (x === k) ? '' : 'none'; });
+  refreshTempMenu();
+}
+function initTempMenu(){
+  const first = Object.keys(TEMP_MENU_LABELS).find(tempSectionHasValue) || '';
+  const sel = document.getElementById('f_tempMenu');
+  if (sel) sel.value = first;
+  showTempSection(first);
 }
 function clearRangeFields(pref){
   ['From','Until','Reason'].forEach(x=>{ const el = document.getElementById('f_'+pref+x); if (el) el.value = ''; });
