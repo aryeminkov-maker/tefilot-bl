@@ -1950,7 +1950,24 @@ async function runFixedTimeAudit(){
   });
   await batch.commit();
 }
+// שינוי שעה זמני (tempTime) - שעה קבועה שמחליפה את שעת המניין הרגילה בטווח תאריכים (מ-tempTimeFrom, אם הוגדר,
+// ועד tempTimeUntil כולל). מחוץ לטווח חוזרים אוטומטית לשעה הרגילה - אין צורך למחוק ידנית.
+function localDateStr(date){
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+function israelTodayStr(){
+  return new Date().toLocaleDateString('en-CA', {timeZone:'Asia/Jerusalem'});
+}
+function activeTempTimeFor(m, date){
+  if (!m || !m.tempTime || !m.tempTimeUntil) return null;
+  const ds = localDateStr(date);
+  if (ds > m.tempTimeUntil) return null;
+  if (m.tempTimeFrom && ds < m.tempTimeFrom) return null;
+  return m.tempTime;
+}
 function computeMinyanTime(m, date, zmanim){
+  const tempT = activeTempTimeFor(m, date);
+  if (tempT) return fixedTimeAsDate(date, tempT);
   if (m.timeType === 'fixed') return fixedTimeAsDate(date, m.fixedTime);
   const anchor = zmanim[m.anchor];
   if (!anchor) return null;
@@ -5369,10 +5386,23 @@ function minyanTefilaLabelHtml(m){
   }
   return `<span style="font-weight:700">${m.tefila}</span>${notesHtml}`;
 }
+// באנר שינוי שעה זמני - מוצג כל עוד לא חלף תאריך הסיום (גם לפני תחילת התקופה, כהודעה מראש)
+function tempTimeBannerHtml(item){
+  if (!item || !item.tempTime || !item.tempTimeUntil) return '';
+  if (item.tempTimeUntil < israelTodayStr()) return '';
+  const fmtD = ds => formatHebrewDate(new Date(ds + 'T00:00:00'));
+  let when;
+  if (item.tempTimeFrom && item.tempTimeFrom !== item.tempTimeUntil) when = `${fmtD(item.tempTimeFrom)} – ${fmtD(item.tempTimeUntil)}`;
+  else when = fmtD(item.tempTimeUntil);
+  const normal = (item.timeType === 'fixed' && item.fixedTime) ? ` (במקום ${item.fixedTime})` : '';
+  const reason = item.tempTimeReason ? `<br>סיבה: ${escapeHtml(item.tempTimeReason)}` : '';
+  return `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">🕐 שינוי זמני בשעה: ${escapeHtml(item.tempTime)}${normal} · ${when}${reason}</div>`;
+}
 function tempNoteBannerHtml(item){
+  const timeBanner = tempTimeBannerHtml(item);
   const note = activeTempNote(item);
-  if (!note) return '';
-  return `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">⚠️ ${escapeHtml(note)}</div>`;
+  if (!note) return timeBanner;
+  return timeBanner + `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">⚠️ ${escapeHtml(note)}</div>`;
 }
 let selectedTopics = new Set(); // בחירה מרובה של נושאי שיעורים (במקום בחירה יחידה) - "הכל" = הסט ריק
 function renderTopicChips(){
@@ -7779,6 +7809,23 @@ function openMinyanForm(shulId, minyanId){
         <input type="hidden" id="f_tempNoteUntil" value="${m&&m.tempNoteUntil?m.tempNoteUntil:''}">
       </div>
     </div>
+    <div class="field optional" style="border:1px dashed #F0D9AE;border-radius:10px;padding:10px;background:#FFFCF6">
+      <label style="font-weight:700">🕐 שינוי שעה זמני (למשל ראש חודש)</label>
+      <p class="muted" style="margin:2px 0 8px">המניין יתקיים בשעה אחרת רק בתקופה שתבחרו, ואחריה יחזור אוטומטית לשעה הרגילה.</p>
+      <label for="f_tempTime" style="font-weight:400;font-size:12.5px">השעה הזמנית</label>
+      <input id="f_tempTime" type="time" value="${m&&m.tempTime?m.tempTime:''}">
+      <div id="f_tempTimeExtra" style="margin-top:6px;${m&&m.tempTime?'':'display:none'}">
+        <label style="font-weight:400;font-size:12.5px">מתאריך (לא חובה - ריק = מיד)</label>
+        <button type="button" class="cal-trigger-btn" id="f_tempTimeFrom_trigger" onclick="openHebrewCal('f_tempTimeFrom')" style="width:100%">📅 בחרו תאריך</button>
+        <input type="hidden" id="f_tempTimeFrom" value="${m&&m.tempTimeFrom?m.tempTimeFrom:''}">
+        <label style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">עד תאריך (כולל)</label>
+        <button type="button" class="cal-trigger-btn" id="f_tempTimeUntil_trigger" onclick="openHebrewCal('f_tempTimeUntil')" style="width:100%">📅 בחרו תאריך</button>
+        <input type="hidden" id="f_tempTimeUntil" value="${m&&m.tempTimeUntil?m.tempTimeUntil:''}">
+        <label for="f_tempTimeReason" style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">סיבת השינוי (תוצג למתפללים)</label>
+        <input id="f_tempTimeReason" value="${m?escapeHtml(m.tempTimeReason||''):''}" placeholder="למשל: ראש חודש - הקדמה לפני הלל">
+        <button type="button" class="btn" style="margin-top:8px" onclick="clearTempTimeFields()">ביטול השינוי הזמני</button>
+      </div>
+    </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
       <button class="btn primary" onclick="saveMinyan('${shulId||''}','${minyanId||''}')">שמירה</button>
@@ -7790,10 +7837,21 @@ function openMinyanForm(shulId, minyanId){
   onCustomLocationToggle();
   attachHebrewDateLabel('f_specialDate', 'f_specialDate_he');
   attachHebrewDateLabel('f_tempNoteUntil', 'f_tempNoteUntil_he');
+  attachHebrewDateLabel('f_tempTimeFrom', 'f_tempTimeFrom_he');
+  attachHebrewDateLabel('f_tempTimeUntil', 'f_tempTimeUntil_he');
+  const tempTimeInput = document.getElementById('f_tempTime');
+  if (tempTimeInput) tempTimeInput.addEventListener('input', ()=>{
+    document.getElementById('f_tempTimeExtra').style.display = tempTimeInput.value ? '' : 'none';
+  });
   const tempNoteInput = document.getElementById('f_tempNote');
   if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
     document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
   });
+}
+function clearTempTimeFields(){
+  ['f_tempTime','f_tempTimeFrom','f_tempTimeUntil','f_tempTimeReason'].forEach(id=>{ const el = document.getElementById(id); if (el) el.value = ''; });
+  ['f_tempTimeFrom','f_tempTimeUntil'].forEach(id=>{ const b = document.getElementById(id+'_trigger'); if (b) b.textContent = '📅 בחרו תאריך'; const h = document.getElementById(id+'_he'); if (h) h.textContent = ''; });
+  document.getElementById('f_tempTimeExtra').style.display = 'none';
 }
 // מציג/מסתיר את בורר בית הכנסת מול שדות המיקום החד-פעמי, לפי מצב תיבת הסימון (רלוונטי רק בהוספה חדשה - במנהל)
 function onCustomLocationToggle(){
@@ -7900,6 +7958,12 @@ function saveMinyan(shulId, minyanId){
   const tempNote = document.getElementById('f_tempNote').value.trim();
   const tempNoteUntil = document.getElementById('f_tempNoteUntil').value;
   if (tempNote && !tempNoteUntil){ alert('יש לקבוע עד מתי ההערה הזמנית תוצג'); return; }
+  const tempTime = document.getElementById('f_tempTime').value;
+  const tempTimeFrom = document.getElementById('f_tempTimeFrom').value;
+  const tempTimeUntil = document.getElementById('f_tempTimeUntil').value;
+  const tempTimeReason = document.getElementById('f_tempTimeReason').value.trim();
+  if (tempTime && !tempTimeUntil){ alert('יש לקבוע עד איזה תאריך השעה הזמנית בתוקף'); return; }
+  if (tempTime && tempTimeFrom && tempTimeFrom > tempTimeUntil){ alert('תאריך ההתחלה של השעה הזמנית חייב להיות לפני תאריך הסיום'); return; }
   const id = minyanId || uid();
   const offsetSignVal = document.getElementById('f_offsetSign').value;
   const candidate = {
@@ -7917,7 +7981,11 @@ function saveMinyan(shulId, minyanId){
     offsetMinutes: offsetSignVal === 'exact' ? 0 : (Number(document.getElementById('f_offsetMinutes').value)||0),
     notes: document.getElementById('f_notes').value.trim(),
     tempNote: tempNote,
-    tempNoteUntil: tempNote ? tempNoteUntil : null
+    tempNoteUntil: tempNote ? tempNoteUntil : null,
+    tempTime: tempTime || null,
+    tempTimeFrom: tempTime && tempTimeFrom ? tempTimeFrom : null,
+    tempTimeUntil: tempTime ? tempTimeUntil : null,
+    tempTimeReason: tempTime && tempTimeReason ? tempTimeReason : null
   };
   const timeWarning = unusualTimeWarning(candidate);
   if (timeWarning){
@@ -8515,7 +8583,8 @@ const WHATS_NEW = [
     version: '2.6',
     date: '11.10.2026',
     items: [
-      '🎬 סרטון הדרכה קצר (פחות מדקה) בראש "מדריך למשתמש" - מציג בקצרה איך משתמשים באפליקציה.'
+      '🎬 סרטון הדרכה קצר (פחות מדקה) בראש "מדריך למשתמש" - מציג בקצרה איך משתמשים באפליקציה.',
+      '🕐 שינוי שעה זמני למניין - למשל מניין שמוקדם בראש חודש. בעריכת מניין אפשר לקבוע שעה אחרת לטווח תאריכים עם סיבה, והמניין חוזר לשעה הרגילה לבד בסיום. הסיבה מוצגת למתפללים בכרטיס המניין.'
     ]
   },
   {
