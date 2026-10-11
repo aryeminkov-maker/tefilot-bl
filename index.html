@@ -1855,6 +1855,7 @@ function getSpecialDayInfo(date){
 // ערב חג: רק שחרית + כל מניין ייעודי שהוגדר לערב החג הזה.
 // חג: רק מניינים ייעודיים שהוגדרו לחג הזה - שום דבר אחר כברירת מחדל.
 function getVisibleMinyanimForDate(allMinyanim, dateObj, info){
+  allMinyanim = allMinyanim.filter(m => minyanValidOn(m, dateObj)); // מניין זמני מחוץ לטווח התאריכים שלו - לא מוצג
   info = info || getSpecialDayInfo(dateObj);
   if (!info) return allMinyanim;
   const dateStr = dateObj.getFullYear() + '-' + String(dateObj.getMonth()+1).padStart(2,'0') + '-' + String(dateObj.getDate()).padStart(2,'0');
@@ -1933,7 +1934,7 @@ async function runFixedTimeAudit(){
   if (!zmanim || !zmanim.sunset || !zmanim.tzeit) return;
   const minchaThreshold = new Date(zmanim.sunset.getTime() - 10 * 60000); // 10 דקות לפני השקיעה
   const toFlag = data.minyanim.filter(m=>{
-    if (m.timeType !== 'fixed' || !m.fixedTime || m.specialDate || m.needsVerification) return false;
+    if (m.timeType !== 'fixed' || !m.fixedTime || m.specialDate || m.needsVerification || !minyanValidOn(m, today) || minyanCancelledOn(m, today)) return false;
     const t = fixedTimeAsDate(today, m.fixedTime);
     if (m.tefila === 'מנחה') return t.getTime() >= minchaThreshold.getTime();
     if (m.tefila === 'ערבית') return t.getTime() < zmanim.tzeit.getTime();
@@ -1964,6 +1965,22 @@ function activeTempTimeFor(m, date){
   if (ds > m.tempTimeUntil) return null;
   if (m.tempTimeFrom && ds < m.tempTimeFrom) return null;
   return m.tempTime;
+}
+// ביטול זמני (cancelFrom/cancelUntil/cancelReason): המניין לא מתקיים בתאריכים האלה (למשל ראש חודש).
+// מניין זמני (validFrom/validUntil/validReason): המניין קיים רק בטווח התאריכים (אחד משני הקצוות מספיק).
+function minyanCancelledOn(m, date){
+  if (!m || !m.cancelUntil) return false;
+  const ds = localDateStr(date);
+  if (ds > m.cancelUntil) return false;
+  if (m.cancelFrom && ds < m.cancelFrom) return false;
+  return true;
+}
+function minyanValidOn(m, date){
+  if (!m || (!m.validFrom && !m.validUntil)) return true;
+  const ds = localDateStr(date);
+  if (m.validFrom && ds < m.validFrom) return false;
+  if (m.validUntil && ds > m.validUntil) return false;
+  return true;
 }
 function computeMinyanTime(m, date, zmanim){
   const tempT = activeTempTimeFor(m, date);
@@ -5398,8 +5415,31 @@ function tempTimeBannerHtml(item){
   const reason = item.tempTimeReason ? `<br>סיבה: ${escapeHtml(item.tempTimeReason)}` : '';
   return `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">🕐 שינוי זמני בשעה: ${escapeHtml(item.tempTime)}${normal} · ${when}${reason}</div>`;
 }
+function tempRangeText(from, until){
+  const fmtD = ds => formatHebrewDate(new Date(ds + 'T00:00:00'));
+  if (from && until) return from === until ? fmtD(until) : `${fmtD(from)} – ${fmtD(until)}`;
+  if (until) return `עד ${fmtD(until)}`;
+  return `החל מ-${fmtD(from)}`;
+}
+const TEMP_BANNER_STYLE = 'margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5';
+function tempCancelBannerHtml(item){
+  if (!item || !item.cancelUntil || item.cancelUntil < israelTodayStr()) return '';
+  const reason = item.cancelReason ? `<br>סיבה: ${escapeHtml(item.cancelReason)}` : '';
+  return `<div style="${TEMP_BANNER_STYLE}">🚫 לא מתקיים · ${tempRangeText(item.cancelFrom, item.cancelUntil)}${reason}</div>`;
+}
+function tempMinyanBannerHtml(item){
+  if (!item || (!item.validFrom && !item.validUntil)) return '';
+  const today = israelTodayStr();
+  const reason = item.validReason ? `<br>${escapeHtml(item.validReason)}` : '';
+  if (item.validUntil && item.validUntil < today)
+    return `<div style="${TEMP_BANNER_STYLE}">⏹ מניין זמני שפג תוקפו (${tempRangeText(item.validFrom, item.validUntil)}) - מוצג לעורכים בלבד${reason}</div>`;
+  if (item.validFrom && item.validFrom > today)
+    return `<div style="${TEMP_BANNER_STYLE}">🆕 מניין חדש שמתחיל: ${tempRangeText(item.validFrom, item.validUntil).replace(/^החל מ-/,'')} (מוצג לעורכים בלבד עד אז)${reason}</div>`;
+  if (!item.validUntil) return '';
+  return `<div style="${TEMP_BANNER_STYLE}">🆕 מניין זמני · ${tempRangeText(item.validFrom, item.validUntil)}${reason}</div>`;
+}
 function tempNoteBannerHtml(item){
-  const timeBanner = tempTimeBannerHtml(item);
+  const timeBanner = tempCancelBannerHtml(item) + tempMinyanBannerHtml(item) + tempTimeBannerHtml(item);
   const note = activeTempNote(item);
   if (!note) return timeBanner;
   return timeBanner + `<div style="margin-top:4px;padding:6px 9px;border-radius:8px;background:#FDF3E3;border:1px solid #F0D9AE;color:#7A5A17;font-size:12.5px;line-height:1.5">⚠️ ${escapeHtml(note)}</div>`;
@@ -5659,9 +5699,10 @@ function renderTefilot(){
       let mins = minyanimForDisplay.filter(m=>m.shulId===shul.id);
       if (tefilaF) mins = mins.filter(m=>m.tefila===tefilaF);
       let minsWithTime = mins.map(m=>{
-        const isToday = (m.days||[]).includes(dk);
+        const cancelled = minyanCancelledOn(m, today);
+        const isToday = (m.days||[]).includes(dk) && !cancelled;
         const t = computeMinyanTime(m, today, zmanim);
-        return { m, t, isToday };
+        return { m, t, isToday, cancelled };
       });
       minsWithTime.sort((a,b)=>{
         if (!a.t && !b.t) return 0;
@@ -5677,8 +5718,8 @@ function renderTefilot(){
       }
       if ((tefilaF || nextOnly) && !minsWithTime.length) return ''; // אין תוצאות תואמות לבית כנסת זה
       const isExpanded = expandedShulIds.has(shul.id) || !!(tefilaF || nextOnly || timeFrom || shulF);
-      const lines = minsWithTime.map(({m,t,isToday})=>{
-        const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
+      const lines = minsWithTime.map(({m,t,isToday,cancelled})=>{
+        const timeStyle = cancelled ? 'color:var(--ink-soft);font-weight:500;text-decoration:line-through' : (isToday ? '' : 'color:var(--ink-soft);font-weight:500');
         return `<div class="minyan-line">
           <div class="ml-top">
             ${minyanTefilaLabelHtml(m)}
@@ -5727,6 +5768,7 @@ function renderTefilot(){
     minyanimForDisplay.forEach(m=>{
       const dayMatches = m.specialDate ? (m.specialDate === (today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0')+'-'+String(today.getDate()).padStart(2,'0'))) : (m.days||[]).includes(dk);
       if (!dayMatches) return;
+      if (minyanCancelledOn(m, today)) return; // ביטול זמני לתאריך הזה - לא מופיע בציר הזמן
       if (tefilaF && m.tefila !== tefilaF) return;
       if (shulF && m.shulId !== shulF) return;
       const t = computeMinyanTime(m, today, zmanim);
@@ -7313,18 +7355,19 @@ function renderShulPage(){
   const today = new Date();
   const zmanim = getZmanim(today);
   const dk = dayKeyOf(today);
-  const mins = data.minyanim.filter(m=>m.shulId===shul.id).map(m=>{
-    const isToday = (m.days||[]).includes(dk);
+  const mins = data.minyanim.filter(m=>m.shulId===shul.id && (editable || minyanValidOn(m, today))).map(m=>{
+    const cancelled = minyanCancelledOn(m, today);
+    const isToday = (m.days||[]).includes(dk) && !cancelled;
     const t = computeMinyanTime(m, today, zmanim);
-    return { m, t, isToday };
+    return { m, t, isToday, cancelled };
   }).sort((a,b)=>{
     if (!a.t && !b.t) return 0;
     if (!a.t) return 1;
     if (!b.t) return -1;
     return chronoSortValue(a.m, a.t) - chronoSortValue(b.m, b.t);
   });
-  const minyanLines = mins.map(({m,t,isToday})=>{
-    const timeStyle = isToday ? '' : 'color:var(--ink-soft);font-weight:500';
+  const minyanLines = mins.map(({m,t,isToday,cancelled})=>{
+    const timeStyle = cancelled ? 'color:var(--ink-soft);font-weight:500;text-decoration:line-through' : (isToday ? '' : 'color:var(--ink-soft);font-weight:500');
     return `<div class="minyan-line">
       <div class="ml-top">
         ${minyanTefilaLabelHtml(m)}
@@ -7475,7 +7518,11 @@ function renderShulPage(){
 }
 // טקסט קצר להצגת הערה זמנית פעילה במסמכי הדפסה/ייצוא (טקסט רגיל, לא HTML מעוצב)
 function tempNotePrintText(item){
+  const extra = [];
+  if (item.cancelUntil && item.cancelUntil >= israelTodayStr()) extra.push(`🚫 לא מתקיים ${tempRangeText(item.cancelFrom, item.cancelUntil)}${item.cancelReason?' ('+item.cancelReason+')':''}`);
+  if (item.tempTime && item.tempTimeUntil && item.tempTimeUntil >= israelTodayStr()) extra.push(`🕐 ${item.tempTime} ${tempRangeText(item.tempTimeFrom, item.tempTimeUntil)}${item.tempTimeReason?' ('+item.tempTimeReason+')':''}`);
   const note = activeTempNote(item);
+  if (extra.length) return extra.join(' · ') + (note ? ' · ' : '') + (note ? `⚠ ${note}` : '');
   if (!note) return '';
   const untilStr = item.tempNoteUntil ? ` (עד ${formatHebrewDate(new Date(item.tempNoteUntil+'T00:00:00'))})` : '';
   return `⚠ ${note}${untilStr}`;
@@ -7486,7 +7533,7 @@ function printShulSchedule(shulId){
   trackEvent('print_schedule', { shul_id: shulId, shul_name: shul.name });
   const today = new Date();
   const zmanim = getZmanim(today);
-  const mins = data.minyanim.filter(m=>m.shulId===shulId).map(m=>({
+  const mins = data.minyanim.filter(m=>m.shulId===shulId && minyanValidOn(m, today)).map(m=>({
     m, t: computeMinyanTime(m, today, zmanim)
   })).sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
   const minyanRows = mins.map(({m,t})=>`
@@ -7570,7 +7617,7 @@ function doPrintGeneral(){
   // בונה בלוק כרונולוגי (תפילות ואופציונלית שיעורים) ליום שבוע נתון
   function buildDayBlock(dayKey, refDate, showDayHeading){
     const zmanim = getZmanim(refDate);
-    const minsWithTime = data.minyanim.filter(m=>(m.days||[]).includes(dayKey)).map(m=>{
+    const minsWithTime = data.minyanim.filter(m=>(m.days||[]).includes(dayKey) && minyanValidOn(m, refDate)).map(m=>{
       const shul = data.shuls.find(s=>s.id===m.shulId);
       return { m, shul, t: computeMinyanTime(m, refDate, zmanim) };
     }).sort((a,b)=>chronoSortValue(a.m,a.t)-chronoSortValue(b.m,b.t));
@@ -7822,9 +7869,35 @@ function openMinyanForm(shulId, minyanId){
         <button type="button" class="cal-trigger-btn" id="f_tempTimeUntil_trigger" onclick="openHebrewCal('f_tempTimeUntil')" style="width:100%">📅 בחרו תאריך</button>
         <input type="hidden" id="f_tempTimeUntil" value="${m&&m.tempTimeUntil?m.tempTimeUntil:''}">
         <label for="f_tempTimeReason" style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">סיבת השינוי (תוצג למתפללים)</label>
-        <input id="f_tempTimeReason" value="${m?escapeHtml(m.tempTimeReason||''):''}" placeholder="למשל: ראש חודש - הקדמה לפני הלל">
+        <input id="f_tempTimeReason" value="${m?escapeHtml(m.tempTimeReason||''):''}" placeholder="למשל: ראש חודש">
         <button type="button" class="btn" style="margin-top:8px" onclick="clearTempTimeFields()">ביטול השינוי הזמני</button>
       </div>
+    </div>
+    <div class="field optional" style="border:1px dashed #F0D9AE;border-radius:10px;padding:10px;background:#FFFCF6">
+      <label style="font-weight:700">🚫 ביטול זמני (מניין שלא מתקיים בתקופה מסוימת)</label>
+      <p class="muted" style="margin:2px 0 8px">למשל: לא מתקיים בראש חודש. המניין יחזור אוטומטית אחרי תאריך הסיום.</p>
+      <label style="font-weight:400;font-size:12.5px">מתאריך (לא חובה - ריק = מיד)</label>
+      <button type="button" class="cal-trigger-btn" id="f_cancelFrom_trigger" onclick="openHebrewCal('f_cancelFrom')" style="width:100%">📅 בחרו תאריך</button>
+      <input type="hidden" id="f_cancelFrom" value="${m&&m.cancelFrom?m.cancelFrom:''}">
+      <label style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">עד תאריך (כולל)</label>
+      <button type="button" class="cal-trigger-btn" id="f_cancelUntil_trigger" onclick="openHebrewCal('f_cancelUntil')" style="width:100%">📅 בחרו תאריך</button>
+      <input type="hidden" id="f_cancelUntil" value="${m&&m.cancelUntil?m.cancelUntil:''}">
+      <label for="f_cancelReason" style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">סיבת הביטול (תוצג למתפללים)</label>
+      <input id="f_cancelReason" value="${m?escapeHtml(m.cancelReason||''):''}" placeholder="למשל: ראש חודש - מתפללים בבית הכנסת המרכזי">
+      <button type="button" class="btn" style="margin-top:8px" onclick="clearRangeFields('cancel')">ביטול ה"ביטול הזמני"</button>
+    </div>
+    <div class="field optional" style="border:1px dashed #F0D9AE;border-radius:10px;padding:10px;background:#FFFCF6">
+      <label style="font-weight:700">🆕 מניין זמני (קיים רק בתקופה מסוימת)</label>
+      <p class="muted" style="margin:2px 0 8px">המניין יוצג רק בטווח התאריכים. אפשר למלא תאריך סיום בלבד, תאריך התחלה בלבד, או שניהם.</p>
+      <label style="font-weight:400;font-size:12.5px">מתאריך</label>
+      <button type="button" class="cal-trigger-btn" id="f_validFrom_trigger" onclick="openHebrewCal('f_validFrom')" style="width:100%">📅 בחרו תאריך</button>
+      <input type="hidden" id="f_validFrom" value="${m&&m.validFrom?m.validFrom:''}">
+      <label style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">עד תאריך (כולל)</label>
+      <button type="button" class="cal-trigger-btn" id="f_validUntil_trigger" onclick="openHebrewCal('f_validUntil')" style="width:100%">📅 בחרו תאריך</button>
+      <input type="hidden" id="f_validUntil" value="${m&&m.validUntil?m.validUntil:''}">
+      <label for="f_validReason" style="font-weight:400;font-size:12.5px;margin-top:6px;display:block">סיבה/הערה (תוצג למתפללים)</label>
+      <input id="f_validReason" value="${m?escapeHtml(m.validReason||''):''}" placeholder="למשל: מניין נוסף בתקופת האלול">
+      <button type="button" class="btn" style="margin-top:8px" onclick="clearRangeFields('valid')">הפיכה למניין קבוע</button>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">ביטול</button>
@@ -7837,6 +7910,7 @@ function openMinyanForm(shulId, minyanId){
   onCustomLocationToggle();
   attachHebrewDateLabel('f_specialDate', 'f_specialDate_he');
   attachHebrewDateLabel('f_tempNoteUntil', 'f_tempNoteUntil_he');
+  ['cancel','valid'].forEach(p=>{ attachHebrewDateLabel('f_'+p+'From', 'f_'+p+'From_he'); attachHebrewDateLabel('f_'+p+'Until', 'f_'+p+'Until_he'); });
   attachHebrewDateLabel('f_tempTimeFrom', 'f_tempTimeFrom_he');
   attachHebrewDateLabel('f_tempTimeUntil', 'f_tempTimeUntil_he');
   const tempTimeInput = document.getElementById('f_tempTime');
@@ -7847,6 +7921,10 @@ function openMinyanForm(shulId, minyanId){
   if (tempNoteInput) tempNoteInput.addEventListener('input', ()=>{
     document.getElementById('f_tempNoteUntilField').style.display = tempNoteInput.value.trim() ? '' : 'none';
   });
+}
+function clearRangeFields(pref){
+  ['From','Until','Reason'].forEach(x=>{ const el = document.getElementById('f_'+pref+x); if (el) el.value = ''; });
+  ['From','Until'].forEach(x=>{ const b = document.getElementById('f_'+pref+x+'_trigger'); if (b) b.textContent = '📅 בחרו תאריך'; });
 }
 function clearTempTimeFields(){
   ['f_tempTime','f_tempTimeFrom','f_tempTimeUntil','f_tempTimeReason'].forEach(id=>{ const el = document.getElementById(id); if (el) el.value = ''; });
@@ -7964,6 +8042,15 @@ function saveMinyan(shulId, minyanId){
   const tempTimeReason = document.getElementById('f_tempTimeReason').value.trim();
   if (tempTime && !tempTimeUntil){ alert('יש לקבוע עד איזה תאריך השעה הזמנית בתוקף'); return; }
   if (tempTime && tempTimeFrom && tempTimeFrom > tempTimeUntil){ alert('תאריך ההתחלה של השעה הזמנית חייב להיות לפני תאריך הסיום'); return; }
+  const cancelFrom = document.getElementById('f_cancelFrom').value;
+  const cancelUntil = document.getElementById('f_cancelUntil').value;
+  const cancelReason = document.getElementById('f_cancelReason').value.trim();
+  const validFrom = document.getElementById('f_validFrom').value;
+  const validUntil = document.getElementById('f_validUntil').value;
+  const validReason = document.getElementById('f_validReason').value.trim();
+  if ((cancelFrom || cancelReason) && !cancelUntil){ alert('בביטול זמני יש לקבוע עד איזה תאריך המניין לא מתקיים'); return; }
+  if (cancelFrom && cancelFrom > cancelUntil){ alert('תאריך ההתחלה של הביטול הזמני חייב להיות לפני תאריך הסיום'); return; }
+  if (validFrom && validUntil && validFrom > validUntil){ alert('במניין זמני, תאריך ההתחלה חייב להיות לפני תאריך הסיום'); return; }
   const id = minyanId || uid();
   const offsetSignVal = document.getElementById('f_offsetSign').value;
   const candidate = {
@@ -7985,7 +8072,13 @@ function saveMinyan(shulId, minyanId){
     tempTime: tempTime || null,
     tempTimeFrom: tempTime && tempTimeFrom ? tempTimeFrom : null,
     tempTimeUntil: tempTime ? tempTimeUntil : null,
-    tempTimeReason: tempTime && tempTimeReason ? tempTimeReason : null
+    tempTimeReason: tempTime && tempTimeReason ? tempTimeReason : null,
+    cancelFrom: cancelUntil && cancelFrom ? cancelFrom : null,
+    cancelUntil: cancelUntil || null,
+    cancelReason: cancelUntil && cancelReason ? cancelReason : null,
+    validFrom: validFrom || null,
+    validUntil: validUntil || null,
+    validReason: (validFrom || validUntil) && validReason ? validReason : null
   };
   const timeWarning = unusualTimeWarning(candidate);
   if (timeWarning){
@@ -8584,7 +8677,8 @@ const WHATS_NEW = [
     date: '11.10.2026',
     items: [
       '🎬 סרטון הדרכה קצר (פחות מדקה) בראש "מדריך למשתמש" - מציג בקצרה איך משתמשים באפליקציה.',
-      '🕐 שינוי שעה זמני למניין - למשל מניין שמוקדם בראש חודש. בעריכת מניין אפשר לקבוע שעה אחרת לטווח תאריכים עם סיבה, והמניין חוזר לשעה הרגילה לבד בסיום. הסיבה מוצגת למתפללים בכרטיס המניין.'
+      '🕐 שינוי שעה זמני למניין - למשל מניין שמוקדם בראש חודש. בעריכת מניין אפשר לקבוע שעה אחרת לטווח תאריכים עם סיבה, והמניין חוזר לשעה הרגילה לבד בסיום. הסיבה מוצגת למתפללים בכרטיס המניין.',
+      '🚫 ביטול זמני של מניין (למשל מניין שלא מתקיים בראש חודש) ו-🆕 מניין זמני שקיים רק בטווח תאריכים - עם סיבה שמוצגת למתפללים. בסיום התקופה הכל חוזר לשגרה אוטומטית.'
     ]
   },
   {
